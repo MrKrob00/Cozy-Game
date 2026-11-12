@@ -13,6 +13,7 @@ config_version=5
 config/name="Cozy Game"
 run/main_scene="res://scenes/village.tscn"
 config/features=PackedStringArray("4.8", "Mobile")
+run/max_fps=90
 
 [autoload]
 
