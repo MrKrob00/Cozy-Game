@@ -1,0 +1,18 @@
+# Godot 4
+.godot/
+/android/
+*.translation
+
+# Сборки
+/build/
+/export/
+*.apk
+*.aab
+*.ipa
+*.exe
+*.pck
+*.x86_64
+
+# Система
+.DS_Store
+Thumbs.db

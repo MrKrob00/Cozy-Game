@@ -1,0 +1,100 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/mow_field.gd" id="1_field"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
+[ext_resource type="Script" path="res://scripts/follow_camera.gd" id="3_camera"]
+[ext_resource type="Script" path="res://scripts/hud.gd" id="4_hud"]
+[ext_resource type="Script" path="res://scripts/pinch_zoom.gd" id="5_pinch"]
+[ext_resource type="Script" path="res://scripts/meadow_decor.gd" id="6_decor"]
+
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 1
+background_color = Color(0.68, 0.87, 0.96, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.78, 0.84, 0.95, 1)
+ambient_light_energy = 0.7
+
+[sub_resource type="LabelSettings" id="LabelSettings_hud"]
+font_size = 44
+outline_size = 12
+outline_color = Color(0.16, 0.3, 0.2, 1)
+
+[node name="Main" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_main")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.819152, 0.451984, -0.353129, 0, 0.615661, 0.788011, 0.573576, -0.645501, 0.50432, 0, 10, 0)
+light_color = Color(1, 0.96, 0.86, 1)
+light_energy = 0.7
+shadow_enabled = true
+directional_shadow_mode = 0
+directional_shadow_max_distance = 60.0
+
+[node name="MowField" type="Node3D" parent="."]
+script = ExtResource("1_field")
+
+[node name="Decor" type="Node3D" parent="."]
+script = ExtResource("6_decor")
+
+[node name="Player" parent="." instance=ExtResource("2_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 12.5)
+
+[node name="Camera" type="Camera3D" parent="."]
+fov = 32.0
+script = ExtResource("3_camera")
+target_path = NodePath("../Player")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("4_hud")
+
+[node name="VirtualJoystick" type="VirtualJoystick" parent="HUD"]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+joystick_mode = 2
+joystick_size = 240.0
+tip_size = 100.0
+deadzone_ratio = 0.12
+action_left = &"move_left"
+action_right = &"move_right"
+action_up = &"move_up"
+action_down = &"move_down"
+visibility_mode = 1
+
+[node name="PinchZoom" type="Node" parent="HUD"]
+unique_name_in_owner = true
+script = ExtResource("5_pinch")
+
+[node name="Margin" type="MarginContainer" parent="HUD"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 48
+theme_override_constants/margin_top = 36
+theme_override_constants/margin_right = 48
+theme_override_constants/margin_bottom = 36
+
+[node name="ProgressLabel" type="Label" parent="HUD/Margin"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+text = "Скошено: 0 %"
+label_settings = SubResource("LabelSettings_hud")
+
+[node name="HintLabel" type="Label" parent="HUD/Margin"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 8
+text = "WASD или зажмите левую кнопку мыши, чтобы косить"
+label_settings = SubResource("LabelSettings_hud")
+horizontal_alignment = 1
