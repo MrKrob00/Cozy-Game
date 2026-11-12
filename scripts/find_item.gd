@@ -53,6 +53,8 @@ func _reveal() -> void:
 	_model.visible = true
 	_model.scale = Vector3.ONE * 0.2
 	_sparkles.emitting = true
+	Sfx.play("find")
+	Sfx.buzz(30)
 
 	# Выпрыгивает из травы, крутится, затем летит к игроку.
 	var tween := create_tween()
@@ -77,10 +79,14 @@ func _fly_to_player(progress: float, from: Vector3) -> void:
 
 func _collect() -> void:
 	_model.visible = false
+	Sfx.play("pop")
 	var text := "Найдено: %s" % display_name
 	if coins_reward > 0:
 		GameState.add_coins(coins_reward)
 		text += " (+%d монет)" % coins_reward
+		Sfx.play("coin")
+		Juice.floating_text(self, _model.global_position + Vector3.UP * 0.6, "+%d" % coins_reward,
+				Color(1.0, 0.86, 0.35))
 	GameState.toast(text)
 	GameState.save_game()
 

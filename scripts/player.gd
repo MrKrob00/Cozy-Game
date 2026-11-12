@@ -41,14 +41,30 @@ var _current_speed := 0.0
 var _mouse_held := false
 var _clippings: CPUParticles3D
 var _bag: MeshInstance3D
+var _character: Node3D
+var _mower: Node3D
+var _engine_cap: MeshInstance3D
+var _engine_sound: AudioStreamPlayer
+var _cut_sound: AudioStreamPlayer
+# Состояние для анимации и звука.
+var _walk_phase := 0.0
+var _turn_speed := 0.0
+var _cut_amount := 0.0
+var _cutting := false
+var _bag_ratio := 0.0
+var _bag_shown := 0.0
+var _time := 0.0
 
 
 func _ready() -> void:
 	_field = get_tree().get_first_node_in_group("mow_field") as MowField
 	_pinch_zoom = get_tree().get_first_node_in_group("pinch_zoom") as PinchZoom
 	_build_visuals()
+	_engine_sound = Sfx.create_loop("mower_loop", self)
+	_cut_sound = Sfx.create_loop("cut_loop", self)
 	GameState.bag_changed.connect(_on_bag_changed)
 	_on_bag_changed(GameState.bag_fill, GameState.bag_capacity)
+	_bag_shown = _bag_ratio
 
 
 func _input(event: InputEvent) -> void:
@@ -77,12 +93,16 @@ func _physics_process(delta: float) -> void:
 
 	if strength > 0.05:
 		var angle := forward.signed_angle_to(desired.normalized(), Vector3.UP)
-		rotate_y(clampf(angle, -turn_rate * delta, turn_rate * delta))
+		var turn := clampf(angle, -turn_rate * delta, turn_rate * delta)
+		rotate_y(turn)
+		_turn_speed = lerpf(_turn_speed, turn / delta, 0.2)
 		# Чем сильнее надо повернуть, тем медленнее едем — получается дуга, а не занос.
 		var alignment := clampf(cos(angle), 0.0, 1.0)
 		target_speed = speed * strength * lerpf(0.35, 1.0, alignment)
 		if _field and _field.get_height_at(blade_position + forward * 0.25) > 0.8:
 			target_speed *= tall_grass_speed
+	else:
+		_turn_speed = lerpf(_turn_speed, 0.0, 0.2)
 
 	_current_speed = move_toward(_current_speed, target_speed, acceleration * delta)
 	forward = -global_basis.z
@@ -100,8 +120,41 @@ func _physics_process(delta: float) -> void:
 			if units > 0.0:
 				GameState.add_grass(units)
 
-	_clippings.emitting = units > 0.0
+	_cutting = units > 0.0
+	_clippings.emitting = _cutting
 	_update_interaction()
+
+
+func _process(delta: float) -> void:
+	_time += delta
+	var pace := clampf(_current_speed / speed, 0.0, 1.0)
+	var blend := 1.0 - exp(-10.0 * delta)
+
+	# Персонаж шагает вперевалку и наклоняется в повороты.
+	_walk_phase += _current_speed * delta * 7.0
+	_character.position.y = absf(sin(_walk_phase)) * 0.06 * pace
+	_character.rotation.z = sin(_walk_phase) * 0.07 * pace - _turn_speed * 0.035
+	_character.rotation.x = -0.1 * pace
+
+	# Косилка мелко дрожит от мотора, сильнее на ходу и в густой траве.
+	_cut_amount = lerpf(_cut_amount, 1.0 if _cutting else 0.0, blend)
+	var shake := 0.004 + 0.006 * pace + 0.008 * _cut_amount
+	_mower.position.y = sin(_time * 47.0) * shake
+	_mower.rotation.z = sin(_time * 39.0) * shake * 1.5 - _turn_speed * 0.02
+	_engine_cap.position.y = 0.7 + absf(sin(_time * 23.0)) * (0.01 + 0.02 * pace)
+
+	# Мешок плавно раздувается; при опустошении сдувается, полный — подрагивает.
+	_bag_shown = lerpf(_bag_shown, _bag_ratio, blend)
+	var height := lerpf(0.55, 1.25, _bag_shown)
+	var depth := lerpf(0.7, 1.3, _bag_shown)
+	var wobble := sin(_time * 14.0) * 0.04 if _bag_ratio >= 0.999 else 0.0
+	_bag.scale = Vector3(1.0 + wobble, height - wobble, depth)
+	_bag.position = Vector3(0.0, 0.2 + 0.2 * height, 0.31 + 0.16 * depth)
+
+	# Мотор урчит тише на месте и бодрее на ходу; шелест слышен, пока трава режется.
+	_engine_sound.volume_db = linear_to_db(lerpf(0.07, 0.22, pace))
+	_engine_sound.pitch_scale = lerpf(0.82, 1.12, pace) - 0.08 * _cut_amount
+	_cut_sound.volume_db = linear_to_db(maxf(_cut_amount * 0.3, 0.0001))
 
 
 ## Взаимодействует с ближайшим доступным объектом, если он есть.
@@ -161,12 +214,7 @@ func _desired_direction() -> Vector3:
 
 
 func _on_bag_changed(fill: float, capacity: float) -> void:
-	# Мешок на косилке раздувается по мере наполнения.
-	var ratio := clampf(fill / maxf(capacity, 1.0), 0.0, 1.0)
-	var height := lerpf(0.55, 1.25, ratio)
-	var depth := lerpf(0.7, 1.3, ratio)
-	_bag.scale = Vector3(1.0, height, depth)
-	_bag.position = Vector3(0.0, 0.2 + 0.2 * height, 0.31 + 0.16 * depth)
+	_bag_ratio = clampf(fill / maxf(capacity, 1.0), 0.0, 1.0)
 
 
 # Временный вид персонажа и косилки из примитивов (см. Placeholder).
@@ -181,6 +229,7 @@ func _build_visuals() -> void:
 	const CANVAS := Color(0.55, 0.68, 0.42)
 
 	var character := Node3D.new()
+	_character = character
 	character.name = "Character"
 	character.scale = Vector3.ONE * CHARACTER_SCALE
 	add_child(character)
@@ -194,15 +243,19 @@ func _build_visuals() -> void:
 		Placeholder.part(character, Placeholder.sphere(0.11), DARK, Vector3(0.13 * side, 0.09, -0.03))
 
 	# Косилка нарочно крупная и яркая, чтобы её было видно в высокой траве.
+	var mower_root := Node3D.new()
+	mower_root.name = "Mower"
+	mower_root.position = Vector3(0.0, 0.0, -BLADE_OFFSET)
+	add_child(mower_root)
+	# Отдельный узел, чтобы тряска мотора не сдвигала саму косилку.
 	var mower := Node3D.new()
-	mower.name = "Mower"
-	mower.position = Vector3(0.0, 0.0, -BLADE_OFFSET)
-	add_child(mower)
+	_mower = mower
+	mower_root.add_child(mower)
 	var deck_width := blade_width + 0.1
 	Placeholder.part(mower, Placeholder.box(Vector3(deck_width, 0.26, 0.7)), RED, Vector3(0.0, 0.27, 0.0))
 	Placeholder.part(mower, Placeholder.box(Vector3(deck_width + 0.06, 0.08, 0.08)), SHIRT, Vector3(0.0, 0.2, -0.37))
 	Placeholder.part(mower, Placeholder.box(Vector3(0.4, 0.26, 0.36)), DARK, Vector3(0.0, 0.53, -0.06))
-	Placeholder.part(mower, Placeholder.cylinder(0.09, 0.08), STRAW, Vector3(0.0, 0.7, -0.06))
+	_engine_cap = Placeholder.part(mower, Placeholder.cylinder(0.09, 0.08), STRAW, Vector3(0.0, 0.7, -0.06))
 	_bag = Placeholder.part(mower, Placeholder.box(Vector3(deck_width * 0.85, 0.4, 0.32)), CANVAS)
 	for side: float in [-1.0, 1.0]:
 		for z: float in [-0.24, 0.26]:

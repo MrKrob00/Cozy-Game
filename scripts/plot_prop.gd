@@ -18,8 +18,23 @@ const LEAVES := Color(0.34, 0.66, 0.34)
 const LEAVES_LIGHT := Color(0.44, 0.74, 0.36)
 
 
+var _windows: Array[MeshInstance3D] = []
+
+
 func _enter_tree() -> void:
 	add_to_group("grass_shaper")
+	add_to_group("plot_light")
+
+
+## Зажигает окна (вызывается, когда участок выкошен).
+func light_up() -> void:
+	if _windows.is_empty():
+		return
+	var glow := StandardMaterial3D.new()
+	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	glow.albedo_color = Color(1.0, 0.9, 0.55)
+	for window in _windows:
+		window.material_override = glow
 
 
 func _ready() -> void:
@@ -56,10 +71,12 @@ func _build_house() -> void:
 	Placeholder.part(self, Placeholder.sphere(0.07), GOLD, Vector3(0.32, 1.1, 2.36))
 	Placeholder.part(self, Placeholder.box(Vector3(1.6, 0.2, 0.8)), STONE, Vector3(0.0, 0.1, 2.6))
 	for side: float in [-1.0, 1.0]:
-		Placeholder.part(self, Placeholder.box(Vector3(1.1, 1.0, 0.1)), GLASS, Vector3(1.9 * side, 1.7, 2.26))
+		_windows.append(Placeholder.part(self, Placeholder.box(Vector3(1.1, 1.0, 0.1)), GLASS,
+				Vector3(1.9 * side, 1.7, 2.26)))
 		Placeholder.part(self, Placeholder.box(Vector3(1.3, 0.12, 0.2)), WOOD, Vector3(1.9 * side, 1.12, 2.3))
 	# Окно на боковой стене, обращённой к камере.
-	Placeholder.part(self, Placeholder.box(Vector3(0.1, 1.0, 1.2)), GLASS, Vector3(3.01, 1.7, 0.0))
+	_windows.append(Placeholder.part(self, Placeholder.box(Vector3(0.1, 1.0, 1.2)), GLASS,
+			Vector3(3.01, 1.7, 0.0)))
 	_add_box_collision(Vector3(6.2, 3.0, 4.7), Vector3(0.0, 1.5, 0.0))
 
 

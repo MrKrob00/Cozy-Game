@@ -16,6 +16,7 @@ var _busy := false
 var _body: StaticBody3D
 var _model: Node3D
 var _time := 0.0
+var _last_hop := -1
 
 
 func _enter_tree() -> void:
@@ -40,6 +41,8 @@ func _process(delta: float) -> void:
 	var player := get_tree().get_first_node_in_group("player") as Node3D
 	if player and player.global_position.distance_to(global_position) < notice_distance:
 		_noticed = true
+		Sfx.play("squeak")
+		Juice.floating_text(self, global_position + Vector3.UP * 0.9, "!", Color(1.0, 0.9, 0.4))
 		GameState.toast("Тут кто-то есть! Косилка его не заденет — подойдите и перенесите")
 		_hop_in_place()
 
@@ -61,6 +64,8 @@ func interact(_player: Player) -> void:
 	_busy = true
 	GameState.set_flag(_flag())
 	_body.process_mode = Node.PROCESS_MODE_DISABLED
+	Sfx.play("squeak", 0.0, 1.15)
+	Sfx.buzz(20)
 
 	var home := get_node_or_null(home_path) as Node3D
 	var from := global_position
@@ -73,17 +78,26 @@ func interact(_player: Player) -> void:
 	tween.tween_method(_travel.bind(from, to, hops), 0.0, 1.0, 0.32 * hops)
 	tween.tween_callback(func() -> void:
 		_busy = false
+		Juice.sparkle(self, global_position + Vector3.UP * 0.4, Color(1.0, 0.75, 0.8))
 		GameState.save_game())
 
 
 func _travel(progress: float, from: Vector3, to: Vector3, hops: int) -> void:
 	global_position = from.lerp(to, progress)
-	_model.position.y = absf(sin(progress * PI * hops)) * 0.55
+	var bounce := absf(sin(progress * PI * hops))
+	_model.position.y = bounce * 0.55
+	# Приземляясь, зверёк сплющивается, в прыжке вытягивается.
+	_model.scale = Vector3(1.0, 1.0, 1.0).lerp(Vector3(1.25, 0.7, 1.25), 1.0 - minf(bounce * 4.0, 1.0))
+	var hop := int(progress * hops)
+	if hop != _last_hop:
+		_last_hop = hop
+		Sfx.play("hop", -6.0, 1.0, 0.12)
 
 
 func _hop_in_place() -> void:
 	_busy = true
 	var tween := create_tween()
+	Sfx.play("hop", -6.0)
 	tween.tween_property(_model, "position:y", 0.45, 0.14).set_ease(Tween.EASE_OUT)
 	tween.tween_property(_model, "position:y", 0.0, 0.16).set_ease(Tween.EASE_IN)
 	tween.tween_callback(func() -> void: _busy = false)

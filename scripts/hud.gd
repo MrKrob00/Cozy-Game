@@ -23,14 +23,17 @@ const COMPLETION_DELAY := 5.0
 @onready var _action_button: Button = %ActionButton
 @onready var _hint_label: Label = %HintLabel
 @onready var _completion: Control = %Completion
+@onready var _completion_panel: PanelContainer = %CompletionPanel
 @onready var _completion_title: Label = %CompletionTitle
 @onready var _completion_stamps: VBoxContainer = %CompletionStamps
 @onready var _completion_reward: Label = %CompletionReward
 @onready var _continue_button: Button = %ContinueButton
 @onready var _pause_panel: Control = %PausePanel
+@onready var _pause_window: PanelContainer = %PauseWindow
 @onready var _pause_title: Label = %PauseTitle
 @onready var _pause_stamps: VBoxContainer = %PauseStamps
 @onready var _resume_button: Button = %ResumeButton
+@onready var _sound_button: Button = %SoundButton
 @onready var _reset_button: Button = %ResetButton
 @onready var _quit_button: Button = %QuitButton
 @onready var _pinch_zoom: PinchZoom = %PinchZoom
@@ -43,6 +46,10 @@ var _toast_busy := false
 var _hint_hidden := false
 var _bag_pulse: Tween
 var _reset_armed := false
+var _shown_percent := -1
+var _shown_coins := 0
+var _shown_compost := 0
+var _action_pulse: Tween
 
 
 func _ready() -> void:
@@ -56,14 +63,20 @@ func _ready() -> void:
 	if camera:
 		_pinch_zoom.pinch_step.connect(camera.zoom_step)
 
+	_toast.visible = false
+	_completion.visible = false
+	_pause_panel.visible = false
+	_action_button.visible = false
+
 	if _plot:
 		_plot.field.progress_changed.connect(_on_progress_changed)
 		_plot.completed.connect(_on_plot_completed)
 		_on_progress_changed(_plot.field.get_progress())
 	if _player:
 		_player.interaction_target_changed.connect(_on_target_changed)
-	_on_target_changed(null)
 
+	_shown_coins = GameState.coins
+	_shown_compost = GameState.compost
 	GameState.coins_changed.connect(_on_coins_changed)
 	GameState.compost_changed.connect(_on_compost_changed)
 	GameState.bag_changed.connect(_on_bag_changed)
@@ -75,6 +88,9 @@ func _ready() -> void:
 	_action_button.pressed.connect(func() -> void: _player.try_interact())
 	_pause_button.pressed.connect(_set_paused.bind(true))
 	_resume_button.pressed.connect(_set_paused.bind(false))
+	_sound_button.pressed.connect(func() -> void:
+		GameState.set_sound_enabled(not GameState.sound_enabled)
+		_update_sound_button())
 	_reset_button.pressed.connect(_on_reset_pressed)
 	_quit_button.pressed.connect(func() -> void:
 		GameState.save_game()
@@ -82,15 +98,16 @@ func _ready() -> void:
 	_continue_button.pressed.connect(func() -> void: _completion.visible = false)
 	# На телефоне и в браузере приложение закрывает система.
 	_quit_button.visible = not (OS.has_feature("mobile") or OS.has_feature("web"))
+	_update_sound_button()
+	for button: Button in [_action_button, _pause_button, _resume_button, _sound_button,
+			_reset_button, _quit_button, _continue_button]:
+		button.pressed.connect(_on_any_button_pressed.bind(button))
 
-	_toast.visible = false
-	_completion.visible = false
-	_pause_panel.visible = false
 	if _touch:
 		_hint_label.text = "Коснитесь экрана и тяните, чтобы косить"
 	else:
 		_hint_label.text = "WASD или зажмите левую кнопку мыши, чтобы косить"
-	_hint_hidden = GameState.bag_fill > 0.0 or GameState.compost > 0
+	_hint_hidden = GameState.bag_fill > 0.0 or GameState.grass_banked > 0.0
 	_hint_label.visible = not _hint_hidden
 
 
@@ -113,10 +130,8 @@ func _next_toast() -> void:
 		return
 	_toast_busy = true
 	_toast_label.text = _toasts.pop_front()
-	_toast.visible = true
-	_toast.modulate.a = 0.0
+	Juice.pop_in(_toast)
 	var tween := create_tween()
-	tween.tween_property(_toast, "modulate:a", 1.0, 0.2)
 	tween.tween_interval(TOAST_TIME)
 	tween.tween_property(_toast, "modulate:a", 0.0, 0.35)
 	tween.tween_callback(func() -> void:
@@ -125,15 +140,28 @@ func _next_toast() -> void:
 
 
 func _on_progress_changed(ratio: float) -> void:
-	_progress_label.text = "Скошено: %d %%" % floori(ratio * 100.0 + 0.0001)
+	var percent := floori(ratio * 100.0 + 0.0001)
+	if percent == _shown_percent:
+		return
+	_progress_label.text = "Скошено: %d %%" % percent
+	# Каждый новый процент слегка «подпрыгивает», круглые — сильнее.
+	if _shown_percent >= 0:
+		Juice.punch(_progress_label, 0.22 if percent % 10 == 0 else 0.08)
+	_shown_percent = percent
 
 
 func _on_coins_changed(value: int) -> void:
 	_coins_label.text = "Монеты: %d" % value
+	if value != _shown_coins:
+		Juice.punch(_coins_label, 0.3)
+	_shown_coins = value
 
 
 func _on_compost_changed(value: int) -> void:
 	_compost_label.text = "Компост: %d" % value
+	if value != _shown_compost:
+		Juice.punch(_compost_label, 0.3)
+	_shown_compost = value
 
 
 func _on_bag_changed(fill: float, capacity: float) -> void:
@@ -144,6 +172,7 @@ func _on_bag_changed(fill: float, capacity: float) -> void:
 		var tween := create_tween()
 		tween.tween_interval(1.5)
 		tween.tween_property(_hint_label, "modulate:a", 0.0, 0.8)
+		tween.tween_callback(_hint_label.hide)
 
 	# Полный мешок: полоска становится оранжевой и пульсирует.
 	var full := GameState.is_bag_full()
@@ -154,6 +183,9 @@ func _on_bag_changed(fill: float, capacity: float) -> void:
 		_bag_pulse = create_tween().set_loops()
 		_bag_pulse.tween_property(_bag_bar, "modulate:a", 0.55, 0.45)
 		_bag_pulse.tween_property(_bag_bar, "modulate:a", 1.0, 0.45)
+		Juice.punch(_bag_bar, 0.25)
+		Sfx.play("bag_full")
+		Sfx.buzz(40)
 	else:
 		_bag_bar.remove_theme_stylebox_override("fill")
 		_bag_pulse.kill()
@@ -162,9 +194,22 @@ func _on_bag_changed(fill: float, capacity: float) -> void:
 
 
 func _on_target_changed(target: Interactable) -> void:
-	_action_button.visible = target != null
-	if target:
-		_action_button.text = target.get_prompt() if _touch else "E — " + target.get_prompt()
+	if _action_pulse:
+		_action_pulse.kill()
+		_action_pulse = null
+	if target == null:
+		_action_button.visible = false
+		return
+	_action_button.text = target.get_prompt() if _touch else "E — " + target.get_prompt()
+	Juice.pop_in(_action_button)
+	Sfx.play("pop", -8.0)
+	# Кнопка мягко «дышит», чтобы её заметили.
+	_action_pulse = create_tween().set_loops()
+	_action_pulse.tween_interval(0.35)
+	_action_pulse.tween_property(_action_button, "scale", Vector2.ONE * 1.05, 0.5) \
+			.set_trans(Tween.TRANS_SINE)
+	_action_pulse.tween_property(_action_button, "scale", Vector2.ONE, 0.5) \
+			.set_trans(Tween.TRANS_SINE)
 
 
 func _on_plot_completed() -> void:
@@ -173,8 +218,22 @@ func _on_plot_completed() -> void:
 	await get_tree().create_timer(COMPLETION_DELAY).timeout
 	_completion_title.text = _plot.completed_title
 	_completion_reward.text = "Награда: +%d монет" % _plot.reward_coins
-	_fill_stamps(_completion_stamps)
+	var stamps := _fill_stamps(_completion_stamps)
 	_completion.visible = true
+	Juice.pop_in(_completion_panel, 0.4)
+	Sfx.play("pop")
+	# Штампы появляются по одному.
+	for i in stamps.size():
+		var stamp := stamps[i]
+		var shown_alpha := stamp.modulate.a
+		stamp.modulate.a = 0.0
+		var tween := create_tween()
+		tween.tween_interval(0.45 + 0.28 * i)
+		tween.tween_callback(func() -> void:
+			stamp.modulate.a = shown_alpha
+			Juice.punch(stamp, 0.25)
+			if shown_alpha > 0.9:
+				Sfx.play("coin", -8.0, 0.9 + 0.08 * i, 0.0))
 
 
 func _set_paused(paused: bool) -> void:
@@ -185,6 +244,7 @@ func _set_paused(paused: bool) -> void:
 	if paused and _plot:
 		_pause_title.text = _plot.plot_name
 		_fill_stamps(_pause_stamps)
+		Juice.pop_in(_pause_window, 0.22)
 
 
 func _on_reset_pressed() -> void:
@@ -196,15 +256,27 @@ func _on_reset_pressed() -> void:
 	GameState.reset_game()
 
 
-func _fill_stamps(container: VBoxContainer) -> void:
+func _on_any_button_pressed(button: Button) -> void:
+	Sfx.play("click")
+	Juice.punch(button, 0.08, 0.2)
+
+
+func _update_sound_button() -> void:
+	_sound_button.text = "Звук: включён" if GameState.sound_enabled else "Звук: выключен"
+
+
+func _fill_stamps(container: VBoxContainer) -> Array[Label]:
 	for child in container.get_children():
 		child.queue_free()
+	var labels: Array[Label] = []
 	for stamp in _plot.get_stamps():
 		var label := Label.new()
 		label.text = ("+  " if stamp["earned"] else "·  ") + stamp["title"]
 		label.add_theme_color_override("font_color", GREEN_DARK if stamp["earned"] else INK)
 		label.modulate.a = 1.0 if stamp["earned"] else 0.5
 		container.add_child(label)
+		labels.append(label)
+	return labels
 
 
 # На телефонах отодвигает интерфейс от вырезов и скруглений экрана.
@@ -231,6 +303,9 @@ func _build_theme() -> Theme:
 	panel.set_content_margin_all(22)
 	panel.border_color = Color(0.86, 0.78, 0.62)
 	panel.set_border_width_all(3)
+	panel.shadow_color = Color(0.2, 0.15, 0.1, 0.18)
+	panel.shadow_size = 8
+	panel.shadow_offset = Vector2(0.0, 4.0)
 	ui.set_stylebox("panel", "PanelContainer", panel)
 	ui.set_color("font_color", "Label", INK)
 
@@ -239,6 +314,9 @@ func _build_theme() -> Theme:
 		button.set_content_margin_all(22)
 		button.content_margin_left = 36
 		button.content_margin_right = 36
+		# «Толстая» нижняя кромка; при нажатии кнопка проседает.
+		button.border_color = GREEN_DARK.darkened(0.15)
+		button.border_width_bottom = 2 if state == "pressed" else 8
 		if state == "hover":
 			button.bg_color = GREEN.lightened(0.12)
 		ui.set_stylebox(state, "Button", button)

@@ -206,6 +206,12 @@ func pave_circle(world_center: Vector3, radius: float) -> void:
 		_data[cell * CHANNELS + 2] = 255
 
 
+## То же для прямоугольника: клумба, площадка.
+func pave_rect(world_center: Vector3, rect_size: Vector2, yaw := 0.0) -> void:
+	for cell in _cells_in_rect(world_center, rect_size, yaw):
+		_data[cell * CHANNELS + 2] = 255
+
+
 ## В круге растёт высокая трава (чтобы спрятать находку).
 func grow_tall_circle(world_center: Vector3, radius: float) -> void:
 	for cell in _cells_in_circle(world_center, radius):

@@ -11,6 +11,7 @@ signal bag_changed(fill: float, capacity: float)
 signal toast_requested(text: String)
 ## Перед записью файла: участки складывают своё состояние в plots.
 signal saving
+signal settings_changed
 
 const SAVE_PATH := "user://save.dat"
 const SAVE_VERSION := 1
@@ -20,6 +21,8 @@ const GRASS_PER_COMPOST := 10.0
 var coins := 0
 ## Вся трава, отвезённая в компост, в единицах мешка.
 var grass_banked := 0.0
+## Сколько компоста уже потрачено (на клумбы и т. п.).
+var compost_spent := 0
 var bag_fill := 0.0
 var bag_capacity := 60.0
 ## Произвольные отметки: «find_key», «animal_hedgehog» и т. п.
@@ -29,7 +32,10 @@ var plots: Dictionary = {}
 
 var compost: int:
 	get:
-		return int(grass_banked / GRASS_PER_COMPOST)
+		return int(grass_banked / GRASS_PER_COMPOST) - compost_spent
+
+## Настройка, а не прогресс: переживает «Начать заново».
+var sound_enabled := true
 
 
 func _ready() -> void:
@@ -67,6 +73,21 @@ func empty_bag() -> int:
 	return compost - before
 
 
+## Тратит компост. Возвращает false и ничего не меняет, если его не хватает.
+func spend_compost(amount: int) -> bool:
+	if compost < amount:
+		return false
+	compost_spent += amount
+	compost_changed.emit(compost)
+	return true
+
+
+func set_sound_enabled(enabled: bool) -> void:
+	sound_enabled = enabled
+	settings_changed.emit()
+	save_game()
+
+
 func add_coins(amount: int) -> void:
 	coins += amount
 	coins_changed.emit(coins)
@@ -101,6 +122,8 @@ func save_game() -> void:
 		"version": SAVE_VERSION,
 		"coins": coins,
 		"grass_banked": grass_banked,
+		"compost_spent": compost_spent,
+		"sound_enabled": sound_enabled,
 		"bag_fill": bag_fill,
 		"flags": flags,
 		"plots": plots,
@@ -119,6 +142,8 @@ func load_game() -> void:
 		return
 	coins = data.get("coins", 0)
 	grass_banked = data.get("grass_banked", 0.0)
+	compost_spent = data.get("compost_spent", 0)
+	sound_enabled = data.get("sound_enabled", true)
 	bag_fill = data.get("bag_fill", 0.0)
 	flags = data.get("flags", {})
 	plots = data.get("plots", {})
@@ -128,6 +153,7 @@ func load_game() -> void:
 func clear() -> void:
 	coins = 0
 	grass_banked = 0.0
+	compost_spent = 0
 	bag_fill = 0.0
 	flags = {}
 	plots = {}
@@ -136,7 +162,7 @@ func clear() -> void:
 ## Стирает сохранение и запускает игру с начала.
 func reset_game() -> void:
 	clear()
-	if FileAccess.file_exists(SAVE_PATH):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
+	# Файл перезаписываем, а не удаляем: в нём остаются настройки.
+	save_game()
 	get_tree().paused = false
 	get_tree().reload_current_scene()

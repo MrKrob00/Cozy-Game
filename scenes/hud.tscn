@@ -170,33 +170,34 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="Panel" type="PanelContainer" parent="Root/Completion"]
+[node name="CompletionPanel" type="PanelContainer" parent="Root/Completion"]
+unique_name_in_owner = true
 layout_mode = 2
 
-[node name="Rows" type="VBoxContainer" parent="Root/Completion/Panel"]
+[node name="Rows" type="VBoxContainer" parent="Root/Completion/CompletionPanel"]
 custom_minimum_size = Vector2(600, 0)
 layout_mode = 2
 theme_override_constants/separation = 18
 
-[node name="CompletionTitle" type="Label" parent="Root/Completion/Panel/Rows"]
+[node name="CompletionTitle" type="Label" parent="Root/Completion/CompletionPanel/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 54
 text = "Участок выкошен!"
 horizontal_alignment = 1
 
-[node name="CompletionStamps" type="VBoxContainer" parent="Root/Completion/Panel/Rows"]
+[node name="CompletionStamps" type="VBoxContainer" parent="Root/Completion/CompletionPanel/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="CompletionReward" type="Label" parent="Root/Completion/Panel/Rows"]
+[node name="CompletionReward" type="Label" parent="Root/Completion/CompletionPanel/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Награда: +0 монет"
 horizontal_alignment = 1
 
-[node name="ContinueButton" type="Button" parent="Root/Completion/Panel/Rows"]
+[node name="ContinueButton" type="Button" parent="Root/Completion/CompletionPanel/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
@@ -220,39 +221,46 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Panel" type="PanelContainer" parent="Root/PausePanel/Center"]
+[node name="PauseWindow" type="PanelContainer" parent="Root/PausePanel/Center"]
+unique_name_in_owner = true
 layout_mode = 2
 
-[node name="Rows" type="VBoxContainer" parent="Root/PausePanel/Center/Panel"]
+[node name="Rows" type="VBoxContainer" parent="Root/PausePanel/Center/PauseWindow"]
 custom_minimum_size = Vector2(600, 0)
 layout_mode = 2
 theme_override_constants/separation = 18
 
-[node name="PauseTitle" type="Label" parent="Root/PausePanel/Center/Panel/Rows"]
+[node name="PauseTitle" type="Label" parent="Root/PausePanel/Center/PauseWindow/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 54
 text = "Пауза"
 horizontal_alignment = 1
 
-[node name="PauseStamps" type="VBoxContainer" parent="Root/PausePanel/Center/Panel/Rows"]
+[node name="PauseStamps" type="VBoxContainer" parent="Root/PausePanel/Center/PauseWindow/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="ResumeButton" type="Button" parent="Root/PausePanel/Center/Panel/Rows"]
+[node name="ResumeButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 text = "Продолжить"
 
-[node name="ResetButton" type="Button" parent="Root/PausePanel/Center/Panel/Rows"]
+[node name="SoundButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Звук: включён"
+
+[node name="ResetButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 text = "Начать заново"
 
-[node name="QuitButton" type="Button" parent="Root/PausePanel/Center/Panel/Rows"]
+[node name="QuitButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0

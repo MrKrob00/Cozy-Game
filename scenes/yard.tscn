@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://scripts/plot.gd" id="1_plot"]
 [ext_resource type="Script" path="res://scripts/mow_field.gd" id="2_field"]
@@ -11,6 +11,7 @@
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="9_player"]
 [ext_resource type="Script" path="res://scripts/follow_camera.gd" id="10_camera"]
 [ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="11_hud"]
+[ext_resource type="Script" path="res://scripts/flower_bed.gd" id="12_bed"]
 
 [sub_resource type="Environment" id="Environment_yard"]
 background_mode = 1
@@ -70,6 +71,18 @@ script = ExtResource("5_stones")
 from = Vector3(0, 0, 5.7)
 to = Vector3(-3.2, 0, -5.7)
 count = 10
+
+[node name="BedByHouse" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 0, -5.2)
+script = ExtResource("12_bed")
+bed_id = "yard_house"
+bed_size = Vector2(2.2, 0.9)
+
+[node name="BedByBench" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.7, 0, -1.3)
+script = ExtResource("12_bed")
+bed_id = "yard_bench"
+bed_size = Vector2(1.5, 1.1)
 
 [node name="CompostBin" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.3, 0, 7.4)

@@ -11,6 +11,7 @@ const SIZE := Vector3(1.3, 0.9, 1.1)
 const ARROW_HEIGHT := 2.3
 
 var _arrow: Node3D
+var _model: Node3D
 var _pile: MeshInstance3D
 var _burst: CPUParticles3D
 var _time := 0.0
@@ -43,8 +44,12 @@ func interact(_player: Player) -> void:
 	var gained := GameState.empty_bag()
 	_burst.restart()
 	_burst.emitting = true
+	Juice.squash(_model, 0.22)
+	Sfx.play("dump")
+	Sfx.buzz(20)
 	if gained > 0:
-		GameState.toast("+%d компоста" % gained)
+		Juice.floating_text(self, global_position + Vector3.UP * 1.6, "+%d компоста" % gained,
+				Color(0.8, 1.0, 0.55))
 	GameState.save_game()
 
 
@@ -60,18 +65,20 @@ func _update_pile(compost: int) -> void:
 
 func _build_visuals() -> void:
 	var half := SIZE * 0.5
+	_model = Node3D.new()
+	add_child(_model)
 	# Стенки из досок с щелями, верх открыт.
 	for side: float in [-1.0, 1.0]:
 		for row in 3:
 			var y := 0.17 + row * 0.29
-			Placeholder.part(self, Placeholder.box(Vector3(SIZE.x, 0.22, 0.06)), WOOD,
+			Placeholder.part(_model, Placeholder.box(Vector3(SIZE.x, 0.22, 0.06)), WOOD,
 					Vector3(0.0, y, half.z * side))
-			Placeholder.part(self, Placeholder.box(Vector3(0.06, 0.22, SIZE.z)), WOOD,
+			Placeholder.part(_model, Placeholder.box(Vector3(0.06, 0.22, SIZE.z)), WOOD,
 					Vector3(half.x * side, y, 0.0))
 		for z_side: float in [-1.0, 1.0]:
-			Placeholder.part(self, Placeholder.box(Vector3(0.12, SIZE.y + 0.1, 0.12)), WOOD_DARK,
+			Placeholder.part(_model, Placeholder.box(Vector3(0.12, SIZE.y + 0.1, 0.12)), WOOD_DARK,
 					Vector3(half.x * side, (SIZE.y + 0.1) * 0.5, half.z * z_side))
-	_pile = Placeholder.part(self, Placeholder.sphere(0.52), PILE, Vector3(0.0, 0.25, 0.0))
+	_pile = Placeholder.part(_model, Placeholder.sphere(0.52), PILE, Vector3(0.0, 0.25, 0.0))
 
 	_arrow = Node3D.new()
 	_arrow.position = Vector3(0.0, ARROW_HEIGHT, 0.0)

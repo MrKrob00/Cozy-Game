@@ -33,6 +33,8 @@ func _ready() -> void:
 		_fence_run(Vector3(half.x * side, 0.0, -half.y), Vector3(half.x * side, 0.0, half.y))
 	if fence_back:
 		_fence_run(Vector3(-half.x, 0.0, -half.y), Vector3(half.x, 0.0, -half.y))
+	else:
+		_build_hedge(half)
 	# Ближняя сторона с проёмом калитки.
 	var gate_left := gate_x - gate_width * 0.5
 	var gate_right := gate_x + gate_width * 0.5
@@ -58,6 +60,29 @@ func _fence_run(from: Vector3, to: Vector3) -> void:
 		var rail := Placeholder.part(self, Placeholder.box(Vector3(0.06, 0.08, length)), WOOD,
 				(from + to) * 0.5 + Vector3(0.0, height, 0.0))
 		rail.rotation.y = yaw
+
+
+# Кусты вдоль дальней стороны, в промежутках между постройками.
+func _build_hedge(half: Vector2) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = random_seed + 1
+	var z := -half.y - 0.5
+	var x := -half.x
+	while x <= half.x:
+		var blocked := false
+		for prop in get_tree().get_nodes_in_group("plot_light"):
+			var building := prop as PlotProp
+			if building and building.kind in [PlotProp.Kind.HOUSE, PlotProp.Kind.SHED]:
+				var width := 3.6 if building.kind == PlotProp.Kind.HOUSE else 1.9
+				if absf(building.global_position.x - x) < width:
+					blocked = true
+		if not blocked:
+			var size := rng.randf_range(0.6, 0.85)
+			var color: Color = LEAVES[rng.randi() % LEAVES.size()]
+			var bush := Placeholder.part(self, Placeholder.sphere(size), color,
+					Vector3(x, size * 0.6, z + rng.randf_range(-0.2, 0.2)))
+			bush.scale = Vector3(1.0, 0.8, 1.0)
+		x += 1.0
 
 
 func _build_trees(half: Vector2) -> void:

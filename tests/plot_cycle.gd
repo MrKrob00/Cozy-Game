@@ -1,6 +1,6 @@
 extends SceneTree
 # Проверка полного цикла участка «Двор»: мешок, компост, находка, ёжик,
-# завершение, пауза, сохранение и загрузка.
+# клумбы, завершение, пауза, сохранение и загрузка.
 #
 # Запуск из папки проекта:
 #   godot --headless --path . --fixed-fps 60 --script tests/plot_cycle.gd
@@ -57,7 +57,7 @@ func _run() -> void:
 	print("mowable cells=%d (%.1f m2)" % [mowable, mowable * 0.125 * 0.125])
 	check(mowable > 10000 and mowable < 10752, "field has blocked cells under bench and tree")
 	check(get_nodes_in_group("find").size() == 3 and get_nodes_in_group("animal").size() == 1, "3 finds and 1 animal")
-	check(plot.get_stamps().size() == 4, "4 stamps listed")
+	check(plot.get_stamps().size() == 5, "5 stamps listed")
 	check(not hud.get_node("%ActionButton").visible, "action button hidden at start")
 
 	# 1. Покос наполняет мешок.
@@ -123,6 +123,29 @@ func _run() -> void:
 	await hold("move_up", 120)
 	check(field.get_height_at(start_h) == 0.0, "can mow where the hedgehog was")
 
+	# 5a. Клумбы: открываются покосом, цветы сажаются за компост.
+	var bed = current_scene.get_node("BedByHouse")
+	var bed2 = current_scene.get_node("BedByBench")
+	check(not bed.can_interact(player), "overgrown flower bed is not interactable")
+	field.mow(bed.global_position, Vector3.FORWARD, 3.0, 1.6)
+	field.mow(bed2.global_position, Vector3.FORWARD, 2.2, 1.8)
+	for i in 10:
+		await process_frame
+	check(bed.can_interact(player) and bed2.can_interact(player), "mowing uncovers the flower beds")
+	check(toasts.any(func(t): return t.begins_with("Клумба!")), "flower bed hint toast (once)")
+	check(toasts.filter(func(t): return t.begins_with("Клумба!")).size() == 1, "flower bed hint shown only once")
+	check(gs.compost == 6, "6 compost available")
+	bed.interact(player)
+	check(bed.is_planted() and gs.compost == 1, "planting costs 5 compost")
+	check(not bed.can_interact(player), "planted bed is no longer interactable")
+	bed2.interact(player)
+	check(not bed2.is_planted() and gs.compost == 1, "cannot plant without enough compost")
+	check(toasts.any(func(t): return t.begins_with("Не хватает компоста")), "not-enough-compost toast")
+	gs.add_grass(1000.0)
+	gs.empty_bag()
+	bed2.interact(player)
+	check(bed2.is_planted() and gs.compost == 2, "second bed planted after more compost")
+
 	# 6. Завершение участка.
 	var done := [0]
 	plot.completed.connect(func(): done[0] += 1)
@@ -164,7 +187,7 @@ func _run() -> void:
 	check(hud.get_node("%Completion").visible, "completion window shown after the fly-over")
 	var stamps: Array = plot.get_stamps()
 	print("stamps: ", stamps)
-	check(stamps.all(func(st): return st.earned), "all four stamps earned")
+	check(stamps.size() == 5 and stamps.all(func(st): return st.earned), "all five stamps earned")
 
 	# 7. Пауза.
 	await press("pause")
@@ -189,6 +212,8 @@ func _run() -> void:
 	check(hedgehog.is_moved() and hedgehog.global_position.distance_to(current_scene.get_node("AnimalCorner").global_position) < 0.1, "hedgehog stays in its corner after reload")
 	check(current_scene.get_node("FindCoins").is_collected(), "find stays collected after reload")
 	check(not current_scene.get_node("HUD").get_node("%Completion").visible, "no completion window on reload")
+	check(current_scene.get_node("BedByHouse").is_planted() and current_scene.get_node("BedByBench").is_planted(), "flower beds stay planted after reload")
+	check(gs.compost == saved_compost, "spent compost stays spent after reload")
 
 	gs.clear()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://save.dat"))
