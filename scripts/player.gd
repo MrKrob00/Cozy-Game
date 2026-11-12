@@ -2,11 +2,13 @@ class_name Player
 extends CharacterBody3D
 ## Персонаж с газонокосилкой.
 ##
-## Косилка режет сама, пока движется. Назад не едет: разворот дугой.
+## Косилка режет сама, пока движется и пока в мешке есть место.
+## Назад не едет: разворот дугой.
 ## Источники ввода: клавиатура, геймпад и сенсорный джойстик (все через
 ## действия InputMap), а также удержание левой кнопки мыши (идти к курсору).
 
-signal grass_collected(units: float)
+## Меняется объект, с которым сейчас можно взаимодействовать (или null).
+signal interaction_target_changed(target: Interactable)
 
 ## Скорость на обычной траве, м/с.
 @export var speed := 2.5
@@ -21,28 +23,38 @@ signal grass_collected(units: float)
 ## Расстояние от персонажа до центра ножа.
 const BLADE_OFFSET := 0.95
 const BLADE_LENGTH := 0.4
-## Насколько игрок может выйти за край поляны (чтобы докосить края и развернуться).
+## Насколько игрок может выйти за край поля (чтобы докосить края и развернуться).
 const FIELD_MARGIN := 1.4
 ## Курсор ближе этого расстояния не двигает персонажа.
 const MOUSE_DEADZONE := 1.3
+## Точка впереди персонажа, от которой меряется расстояние до объектов.
+const REACH_OFFSET := 0.9
 const CHARACTER_SCALE := 1.15
 ## Положение правой ладони в координатах персонажа.
 const HAND := Vector3(0.26, 0.82, -0.36)
+
+var interaction_target: Interactable
 
 var _field: MowField
 var _pinch_zoom: PinchZoom
 var _current_speed := 0.0
 var _mouse_held := false
 var _clippings: CPUParticles3D
+var _bag: MeshInstance3D
 
 
 func _ready() -> void:
 	_field = get_tree().get_first_node_in_group("mow_field") as MowField
 	_pinch_zoom = get_tree().get_first_node_in_group("pinch_zoom") as PinchZoom
 	_build_visuals()
+	GameState.bag_changed.connect(_on_bag_changed)
+	_on_bag_changed(GameState.bag_fill, GameState.bag_capacity)
 
 
 func _input(event: InputEvent) -> void:
+	if event.is_action_pressed("interact"):
+		try_interact()
+		return
 	# Мышь, сэмулированную из касаний, пропускаем: на телефоне работает джойстик.
 	if not event is InputEventMouseButton or event.device == InputEvent.DEVICE_ID_EMULATION:
 		return
@@ -82,12 +94,39 @@ func _physics_process(delta: float) -> void:
 		global_position = _field.clamp_to_bounds(global_position, FIELD_MARGIN)
 		blade_position = global_position + forward * BLADE_OFFSET
 		_field.set_pusher_position(global_position + forward * BLADE_OFFSET * 0.6)
-		if _current_speed > 0.1:
+		# Полный мешок останавливает нож: ехать можно, косить — нет.
+		if _current_speed > 0.1 and not GameState.is_bag_full():
 			units = _field.mow(blade_position, forward, blade_width, BLADE_LENGTH)
 			if units > 0.0:
-				grass_collected.emit(units)
+				GameState.add_grass(units)
 
 	_clippings.emitting = units > 0.0
+	_update_interaction()
+
+
+## Взаимодействует с ближайшим доступным объектом, если он есть.
+func try_interact() -> void:
+	if interaction_target and interaction_target.can_interact(self):
+		interaction_target.interact(self)
+
+
+func _update_interaction() -> void:
+	var reach := global_position - global_basis.z * REACH_OFFSET
+	var best: Interactable = null
+	var best_distance := INF
+	for node in get_tree().get_nodes_in_group("interactable"):
+		var item := node as Interactable
+		if item == null or not item.can_interact(self):
+			continue
+		var offset := item.global_position - reach
+		offset.y = 0.0
+		var distance := offset.length()
+		if distance <= item.interact_radius and distance < best_distance:
+			best = item
+			best_distance = distance
+	if best != interaction_target:
+		interaction_target = best
+		interaction_target_changed.emit(best)
 
 
 ## Желаемое направление в мировых координатах, длина 0–1.
@@ -119,6 +158,15 @@ func _desired_direction() -> Vector3:
 				return to_cursor.normalized()
 
 	return Vector3.ZERO
+
+
+func _on_bag_changed(fill: float, capacity: float) -> void:
+	# Мешок на косилке раздувается по мере наполнения.
+	var ratio := clampf(fill / maxf(capacity, 1.0), 0.0, 1.0)
+	var height := lerpf(0.55, 1.25, ratio)
+	var depth := lerpf(0.7, 1.3, ratio)
+	_bag.scale = Vector3(1.0, height, depth)
+	_bag.position = Vector3(0.0, 0.2 + 0.2 * height, 0.31 + 0.16 * depth)
 
 
 # Временный вид персонажа и косилки из примитивов (см. Placeholder).
@@ -155,7 +203,7 @@ func _build_visuals() -> void:
 	Placeholder.part(mower, Placeholder.box(Vector3(deck_width + 0.06, 0.08, 0.08)), SHIRT, Vector3(0.0, 0.2, -0.37))
 	Placeholder.part(mower, Placeholder.box(Vector3(0.4, 0.26, 0.36)), DARK, Vector3(0.0, 0.53, -0.06))
 	Placeholder.part(mower, Placeholder.cylinder(0.09, 0.08), STRAW, Vector3(0.0, 0.7, -0.06))
-	Placeholder.part(mower, Placeholder.box(Vector3(deck_width * 0.85, 0.4, 0.32)), CANVAS, Vector3(0.0, 0.4, 0.47))
+	_bag = Placeholder.part(mower, Placeholder.box(Vector3(deck_width * 0.85, 0.4, 0.32)), CANVAS)
 	for side: float in [-1.0, 1.0]:
 		for z: float in [-0.24, 0.26]:
 			Placeholder.part(mower, Placeholder.cylinder(0.15, 0.1), DARK,

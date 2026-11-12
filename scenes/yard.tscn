@@ -1,0 +1,117 @@
+[gd_scene load_steps=13 format=3]
+
+[ext_resource type="Script" path="res://scripts/plot.gd" id="1_plot"]
+[ext_resource type="Script" path="res://scripts/mow_field.gd" id="2_field"]
+[ext_resource type="Script" path="res://scripts/plot_surroundings.gd" id="3_surroundings"]
+[ext_resource type="Script" path="res://scripts/plot_prop.gd" id="4_prop"]
+[ext_resource type="Script" path="res://scripts/stepping_stones.gd" id="5_stones"]
+[ext_resource type="Script" path="res://scripts/compost_bin.gd" id="6_compost"]
+[ext_resource type="Script" path="res://scripts/animal.gd" id="7_animal"]
+[ext_resource type="Script" path="res://scripts/find_item.gd" id="8_find"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="9_player"]
+[ext_resource type="Script" path="res://scripts/follow_camera.gd" id="10_camera"]
+[ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="11_hud"]
+
+[sub_resource type="Environment" id="Environment_yard"]
+background_mode = 1
+background_color = Color(0.68, 0.87, 0.96, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.78, 0.84, 0.95, 1)
+ambient_light_energy = 0.7
+
+[node name="Yard" type="Node3D"]
+script = ExtResource("1_plot")
+plot_id = "yard"
+plot_name = "Двор"
+completed_title = "Двор выкошен!"
+reward_coins = 50
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_yard")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.819152, 0.451984, -0.353129, 0, 0.615661, 0.788011, 0.573576, -0.645501, 0.50432, 0, 10, 0)
+light_color = Color(1, 0.96, 0.86, 1)
+light_energy = 0.7
+shadow_enabled = true
+directional_shadow_mode = 0
+directional_shadow_max_distance = 60.0
+
+[node name="MowField" type="Node3D" parent="."]
+script = ExtResource("2_field")
+size = Vector2(14, 12)
+tall_grass_amount = 0.3
+
+[node name="Surroundings" type="Node3D" parent="."]
+script = ExtResource("3_surroundings")
+fence_back = false
+
+[node name="House" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.2, 0, -9.9)
+script = ExtResource("4_prop")
+kind = 0
+
+[node name="Shed" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.2, 0, -8.8)
+script = ExtResource("4_prop")
+kind = 1
+
+[node name="Tree" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.6, 0, -4.4)
+script = ExtResource("4_prop")
+
+[node name="Bench" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.3, 0, -3.1)
+script = ExtResource("4_prop")
+kind = 2
+
+[node name="Path" type="Node3D" parent="."]
+script = ExtResource("5_stones")
+from = Vector3(0, 0, 5.7)
+to = Vector3(-3.2, 0, -5.7)
+count = 10
+
+[node name="CompostBin" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.3, 0, 7.4)
+script = ExtResource("6_compost")
+
+[node name="AnimalCorner" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.3, 0, 2.5)
+
+[node name="Hedgehog" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.6, 0, -2.2)
+script = ExtResource("7_animal")
+animal_id = "yard_hedgehog"
+display_name = "ёжика"
+home_path = NodePath("../AnimalCorner")
+
+[node name="FindKey" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.4, 0, -4.6)
+script = ExtResource("8_find")
+find_id = "shed_key"
+display_name = "ключ от сарая"
+
+[node name="FindDuck" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.4, 0, 2.6)
+script = ExtResource("8_find")
+find_id = "yard_duck"
+display_name = "резиновая уточка"
+kind = 1
+
+[node name="FindCoins" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.8, 0, 3.4)
+script = ExtResource("8_find")
+find_id = "yard_coins"
+display_name = "старые монетки"
+kind = 2
+coins_reward = 10
+
+[node name="Player" parent="." instance=ExtResource("9_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 7)
+
+[node name="Camera" type="Camera3D" parent="."]
+fov = 32.0
+script = ExtResource("10_camera")
+target_path = NodePath("../Player")
+
+[node name="HUD" parent="." instance=ExtResource("11_hud")]

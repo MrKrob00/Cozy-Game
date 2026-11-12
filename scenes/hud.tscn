@@ -1,0 +1,259 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/hud.gd" id="1_hud"]
+[ext_resource type="Script" path="res://scripts/pinch_zoom.gd" id="2_pinch"]
+
+[node name="HUD" type="CanvasLayer"]
+process_mode = 3
+script = ExtResource("1_hud")
+
+[node name="VirtualJoystick" type="VirtualJoystick" parent="."]
+process_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+joystick_mode = 2
+joystick_size = 240.0
+tip_size = 100.0
+deadzone_ratio = 0.12
+action_left = &"move_left"
+action_right = &"move_right"
+action_up = &"move_up"
+action_down = &"move_down"
+visibility_mode = 1
+
+[node name="PinchZoom" type="Node" parent="."]
+unique_name_in_owner = true
+process_mode = 1
+script = ExtResource("2_pinch")
+
+[node name="Root" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Margin" type="MarginContainer" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 36
+theme_override_constants/margin_top = 36
+theme_override_constants/margin_right = 36
+theme_override_constants/margin_bottom = 36
+
+[node name="Status" type="PanelContainer" parent="Root/Margin"]
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+mouse_filter = 2
+
+[node name="Rows" type="VBoxContainer" parent="Root/Margin/Status"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 10
+
+[node name="ProgressLabel" type="Label" parent="Root/Margin/Status/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Скошено: 0 %"
+
+[node name="BagRow" type="HBoxContainer" parent="Root/Margin/Status/Rows"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="BagLabel" type="Label" parent="Root/Margin/Status/Rows/BagRow"]
+layout_mode = 2
+text = "Мешок"
+
+[node name="BagBar" type="ProgressBar" parent="Root/Margin/Status/Rows/BagRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(230, 30)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+max_value = 60.0
+show_percentage = false
+
+[node name="Corner" type="HBoxContainer" parent="Root/Margin"]
+layout_mode = 2
+size_flags_horizontal = 8
+size_flags_vertical = 0
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="Resources" type="PanelContainer" parent="Root/Margin/Corner"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Row" type="HBoxContainer" parent="Root/Margin/Corner/Resources"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 32
+
+[node name="CoinsLabel" type="Label" parent="Root/Margin/Corner/Resources/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Монеты: 0"
+
+[node name="CompostLabel" type="Label" parent="Root/Margin/Corner/Resources/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Компост: 0"
+
+[node name="PauseButton" type="Button" parent="Root/Margin/Corner"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 0)
+layout_mode = 2
+focus_mode = 0
+text = "II"
+
+[node name="ToastHolder" type="MarginContainer" parent="Root/Margin"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 0
+mouse_filter = 2
+theme_override_constants/margin_top = 150
+
+[node name="Toast" type="PanelContainer" parent="Root/Margin/ToastHolder"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+
+[node name="ToastLabel" type="Label" parent="Root/Margin/ToastHolder/Toast"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Сообщение"
+horizontal_alignment = 1
+
+[node name="ActionButton" type="Button" parent="Root/Margin"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 120)
+layout_mode = 2
+size_flags_horizontal = 8
+size_flags_vertical = 8
+focus_mode = 0
+theme_override_font_sizes/font_size = 40
+text = "Действие"
+
+[node name="HintLabel" type="Label" parent="Root/Margin"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 8
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0.16, 0.3, 0.2, 1)
+theme_override_constants/outline_size = 12
+theme_override_font_sizes/font_size = 40
+text = "WASD или зажмите левую кнопку мыши, чтобы косить"
+horizontal_alignment = 1
+
+[node name="Completion" type="CenterContainer" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="Root/Completion"]
+layout_mode = 2
+
+[node name="Rows" type="VBoxContainer" parent="Root/Completion/Panel"]
+custom_minimum_size = Vector2(600, 0)
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="CompletionTitle" type="Label" parent="Root/Completion/Panel/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 54
+text = "Участок выкошен!"
+horizontal_alignment = 1
+
+[node name="CompletionStamps" type="VBoxContainer" parent="Root/Completion/Panel/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="CompletionReward" type="Label" parent="Root/Completion/Panel/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Награда: +0 монет"
+horizontal_alignment = 1
+
+[node name="ContinueButton" type="Button" parent="Root/Completion/Panel/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Косить дальше"
+
+[node name="PausePanel" type="ColorRect" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.08, 0.14, 0.09, 0.55)
+
+[node name="Center" type="CenterContainer" parent="Root/PausePanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Root/PausePanel/Center"]
+layout_mode = 2
+
+[node name="Rows" type="VBoxContainer" parent="Root/PausePanel/Center/Panel"]
+custom_minimum_size = Vector2(600, 0)
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="PauseTitle" type="Label" parent="Root/PausePanel/Center/Panel/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 54
+text = "Пауза"
+horizontal_alignment = 1
+
+[node name="PauseStamps" type="VBoxContainer" parent="Root/PausePanel/Center/Panel/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="ResumeButton" type="Button" parent="Root/PausePanel/Center/Panel/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Продолжить"
+
+[node name="ResetButton" type="Button" parent="Root/PausePanel/Center/Panel/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Начать заново"
+
+[node name="QuitButton" type="Button" parent="Root/PausePanel/Center/Panel/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Выйти из игры"

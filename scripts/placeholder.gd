@@ -53,6 +53,12 @@ static func cylinder(radius: float, height: float, top_radius := -1.0) -> Cylind
 	return mesh
 
 
+static func prism(size: Vector3) -> PrismMesh:
+	var mesh := PrismMesh.new()
+	mesh.size = size
+	return mesh
+
+
 static func capsule(radius: float, height: float) -> CapsuleMesh:
 	var mesh := CapsuleMesh.new()
 	mesh.radius = radius

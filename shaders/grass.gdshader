@@ -24,9 +24,10 @@ varying float v_random;
 
 void vertex() {
 	vec3 root = MODEL_MATRIX[3].xyz;
-	vec2 mask = textureLod(mow_mask, mow_uv(root.xz), 0.0).rg;
+	vec3 mask = textureLod(mow_mask, mow_uv(root.xz), 0.0).rgb;
 	float grown = smoothstep(0.0, 0.25, mask.r);
-	float scale = mix(stubble, 1.0, mask.r);
+	// На «голых» ячейках (дорожки) после покоса стерни не остаётся.
+	float scale = mix(stubble * (1.0 - mask.b), 1.0, mask.r);
 	float along = UV.y;
 
 	vec3 v = VERTEX;

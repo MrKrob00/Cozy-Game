@@ -5,6 +5,7 @@ shader_type spatial;
 #include "res://shaders/mow_mask.gdshaderinc"
 
 uniform vec3 overgrown_color : source_color = vec3(0.14, 0.38, 0.19);
+uniform vec3 bare_color : source_color = vec3(0.66, 0.54, 0.38);
 
 varying vec2 v_world_xz;
 
@@ -13,9 +14,10 @@ void vertex() {
 }
 
 void fragment() {
-	vec2 mask = texture(mow_mask, mow_uv(v_world_xz)).rg;
+	vec3 mask = texture(mow_mask, mow_uv(v_world_xz)).rgb;
 	float cut = 1.0 - smoothstep(0.0, 0.25, mask.r);
-	ALBEDO = mix(overgrown_color, cut_color(mask.g), cut);
+	vec3 surface = mix(cut_color(mask.g), bare_color, mask.b);
+	ALBEDO = mix(overgrown_color, surface, cut);
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.0;
 }

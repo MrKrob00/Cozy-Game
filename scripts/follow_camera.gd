@@ -17,17 +17,19 @@ extends Camera3D
 var _target: Node3D
 var _focus := Vector3.ZERO
 var _distance := 17.0
+# Добавки на время облёта (см. play_flyover).
+var _yaw_offset := 0.0
+var _distance_offset := 0.0
+var _flyover: Tween
 
 
 func _ready() -> void:
 	_target = get_node_or_null(target_path) as Node3D
-	rotation_degrees = Vector3(-pitch_degrees, yaw_degrees, 0.0)
 	zoom_index = clampi(zoom_index, 0, zoom_distances.size() - 1)
-	_distance = zoom_distances[zoom_index]
 	# На телефоне экран меньше — по умолчанию ближе.
 	if DisplayServer.is_touchscreen_available() and OS.has_feature("mobile"):
 		zoom_index = 0
-		_distance = zoom_distances[0]
+	_distance = zoom_distances[zoom_index]
 	if _target:
 		_focus = _target.global_position
 	_apply()
@@ -56,5 +58,18 @@ func zoom_step(direction: int) -> void:
 	zoom_index = clampi(zoom_index + direction, 0, zoom_distances.size() - 1)
 
 
+## Короткий облёт: камера отъезжает и поворачивается вокруг цели, затем возвращается.
+func play_flyover(duration := 6.0, swing_degrees := 70.0, pull_back := 7.0) -> void:
+	if _flyover:
+		_flyover.kill()
+	_flyover = create_tween()
+	_flyover.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_flyover.tween_property(self, "_yaw_offset", swing_degrees, duration * 0.5)
+	_flyover.parallel().tween_property(self, "_distance_offset", pull_back, duration * 0.5)
+	_flyover.tween_property(self, "_yaw_offset", 0.0, duration * 0.5)
+	_flyover.parallel().tween_property(self, "_distance_offset", 0.0, duration * 0.5)
+
+
 func _apply() -> void:
-	global_position = _focus + global_basis.z * _distance
+	rotation_degrees = Vector3(-pitch_degrees, yaw_degrees + _yaw_offset, 0.0)
+	global_position = _focus + global_basis.z * (_distance + _distance_offset)
