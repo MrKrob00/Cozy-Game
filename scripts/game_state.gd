@@ -8,6 +8,8 @@ signal coins_changed(value: int)
 signal compost_changed(value: int)
 signal bag_changed(fill: float, capacity: float)
 signal upgrades_changed
+## Игрок проспал ночь: наступил новый день.
+signal day_started(day: int)
 ## Короткое сообщение игроку; показывает интерфейс.
 signal toast_requested(text: String)
 ## Перед записью файла: участки складывают своё состояние в plots.
@@ -45,6 +47,7 @@ const UPGRADES := {
 }
 
 var coins := 0
+var day := 1
 ## Вся трава, отвезённая в компост, в единицах мешка.
 var grass_banked := 0.0
 ## Сколько компоста уже потрачено (на клумбы и т. п.).
@@ -116,6 +119,22 @@ func spend_compost(amount: int) -> bool:
 func add_coins(amount: int) -> void:
 	coins += amount
 	coins_changed.emit(coins)
+
+
+## Тратит монеты. Возвращает false и ничего не меняет, если их не хватает.
+func spend_coins(amount: int) -> bool:
+	if coins < amount:
+		return false
+	coins -= amount
+	coins_changed.emit(coins)
+	return true
+
+
+## Наступает следующий день: на выкошенных участках отрастает трава.
+func next_day() -> void:
+	day += 1
+	day_started.emit(day)
+	save_game()
 
 
 func upgrade_level(id: String) -> int:
@@ -190,6 +209,7 @@ func save_game() -> void:
 	file.store_var({
 		"version": SAVE_VERSION,
 		"coins": coins,
+		"day": day,
 		"grass_banked": grass_banked,
 		"compost_spent": compost_spent,
 		"sound_enabled": sound_enabled,
@@ -211,6 +231,7 @@ func load_game() -> void:
 		push_warning("Сохранение от другой версии игры, начинаем заново")
 		return
 	coins = data.get("coins", 0)
+	day = data.get("day", 1)
 	grass_banked = data.get("grass_banked", 0.0)
 	compost_spent = data.get("compost_spent", 0)
 	sound_enabled = data.get("sound_enabled", true)
@@ -223,6 +244,7 @@ func load_game() -> void:
 ## Сбрасывает прогресс в памяти, не трогая файл и сцену.
 func clear() -> void:
 	coins = 0
+	day = 1
 	grass_banked = 0.0
 	compost_spent = 0
 	bag_fill = 0.0

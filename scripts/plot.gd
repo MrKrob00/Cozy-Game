@@ -70,6 +70,7 @@ func _ready() -> void:
 		push_warning("Сохранённый покос участка «%s» не подошёл и сброшен" % plot_id)
 	field.progress_changed.connect(_on_progress_changed)
 	GameState.saving.connect(_store_state)
+	GameState.day_started.connect(_on_day_started)
 	_build_hints()
 
 	if requires_plot != "":
@@ -107,6 +108,13 @@ func get_progress() -> float:
 	return field.get_progress()
 
 
+## Насколько участок «ожил», 0–1: по нему подстраивается картинка.
+## Выкошенный участок остаётся почти ярким, даже когда трава отросла.
+func get_mood() -> float:
+	var progress := field.get_progress()
+	return lerpf(0.8, 1.0, progress) if is_completed() else progress
+
+
 ## Узлы группы, принадлежащие этому участку.
 func members(group: String) -> Array[Node]:
 	var result: Array[Node] = []
@@ -118,7 +126,13 @@ func members(group: String) -> Array[Node]:
 
 ## Прямоугольник (мировые X, Z), по которому игрок ходит внутри участка.
 func get_inner_rect() -> Rect2:
-	var half := field.size * 0.5 + Vector2.ONE * WALK_MARGIN
+	var local_half := field.size * 0.5 + Vector2.ONE * WALK_MARGIN
+	# Участок может быть повёрнут на 90° или 180°.
+	var axis_x := field.global_basis.x
+	var axis_z := field.global_basis.z
+	var half := Vector2(
+			absf(axis_x.x) * local_half.x + absf(axis_z.x) * local_half.y,
+			absf(axis_x.z) * local_half.x + absf(axis_z.z) * local_half.y)
 	var center := Vector2(field.global_position.x, field.global_position.z)
 	return Rect2(center - half, half * 2.0)
 
@@ -142,7 +156,7 @@ func distance_to(world_position: Vector3) -> float:
 func get_stamps() -> Array[Dictionary]:
 	var stamps: Array[Dictionary] = [
 		{"title": "Выкошен", "earned": is_completed()},
-		{"title": "Идеально — ни травинки", "earned": field.get_progress() >= 1.0},
+		{"title": "Идеально — ни травинки", "earned": _state.get("perfect", false)},
 	]
 	_add_count_stamp(stamps, "find", "Все находки",
 			func(find: FindItem) -> bool: return find.is_collected())
@@ -152,6 +166,10 @@ func get_stamps() -> Array[Dictionary]:
 			func(bed: FlowerBed) -> bool: return bed.is_planted())
 	_add_count_stamp(stamps, "wild_flowers", "Полевые цветы сохранены",
 			func(flowers: WildFlowers) -> bool: return flowers.is_alive())
+	_add_count_stamp(stamps, "stone", "Камни убраны",
+			func(stone: Stone) -> bool: return stone.is_removed())
+	_add_count_stamp(stamps, "repairable", "Всё починено",
+			func(item: Repairable) -> bool: return item.is_repaired())
 	return stamps
 
 
@@ -169,15 +187,30 @@ func _add_count_stamp(stamps: Array[Dictionary], group: String, title: String, d
 func _on_progress_changed(ratio: float) -> void:
 	if ratio >= complete_at and not is_completed():
 		_state["completed"] = true
+		_state["tidy"] = true
 		GameState.add_coins(reward_coins)
 		_celebrate()
 		completed.emit()
+		GameState.save_game()
+	elif ratio >= complete_at and not _state.get("tidy", true):
+		# Трава отросла, и её снова подстригли: небольшая благодарность.
+		_state["tidy"] = true
+		var thanks := maxi(reward_coins / 5, 5)
+		GameState.add_coins(thanks)
+		GameState.toast("%s снова ухожен: +%d монет" % [plot_name, thanks])
+		Sfx.play("coin")
 		GameState.save_game()
 	if ratio >= 1.0 and not _state.get("perfect", false):
 		_state["perfect"] = true
 		GameState.toast("Идеально! Ни травинки не осталось")
 		Sfx.play("find", -4.0, 1.2)
 		GameState.save_game()
+
+
+func _on_day_started(_day: int) -> void:
+	if is_completed():
+		field.regrow()
+		_state["tidy"] = false
 
 
 func _on_required_plot_completed() -> void:

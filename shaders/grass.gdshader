@@ -9,6 +9,9 @@ render_mode cull_disabled, world_vertex_coords;
 uniform vec3 color_root : source_color = vec3(0.16, 0.45, 0.22);
 uniform vec3 color_tip : source_color = vec3(0.55, 0.82, 0.30);
 uniform vec3 color_tall_tip : source_color = vec3(0.80, 0.86, 0.38);
+// Бурьян: тёмная зелень с лиловыми верхушками.
+uniform vec3 color_weed_root : source_color = vec3(0.16, 0.30, 0.24);
+uniform vec3 color_weed_tip : source_color = vec3(0.66, 0.42, 0.70);
 // Высота стерни относительно полной высоты пучка.
 uniform float stubble = 0.1;
 uniform float wind_strength = 0.07;
@@ -20,6 +23,7 @@ varying float v_height;
 varying float v_grown;
 varying float v_tone;
 varying float v_tall;
+varying float v_weed;
 varying float v_random;
 
 void vertex() {
@@ -50,13 +54,15 @@ void vertex() {
 	v_height = along;
 	v_grown = grown;
 	v_tone = mask.g;
-	v_tall = smoothstep(0.7, 0.9, mask.r);
+	v_tall = smoothstep(0.66, 0.76, mask.r);
+	v_weed = smoothstep(0.86, 0.95, mask.r);
 	v_random = INSTANCE_CUSTOM.r;
 }
 
 void fragment() {
-	vec3 tip = mix(color_tip, color_tall_tip, v_tall);
-	vec3 tall = mix(color_root, tip, v_height) * (0.88 + 0.24 * v_random);
+	vec3 tip = mix(mix(color_tip, color_tall_tip, v_tall), color_weed_tip, v_weed);
+	vec3 root = mix(color_root, color_weed_root, v_weed);
+	vec3 tall = mix(root, tip, v_height * mix(1.0, v_height, v_weed)) * (0.88 + 0.24 * v_random);
 	vec3 cut = cut_color(v_tone) * (0.96 + 0.08 * v_random);
 	ALBEDO = mix(cut, tall, v_grown);
 	ROUGHNESS = 1.0;

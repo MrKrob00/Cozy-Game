@@ -3,7 +3,7 @@ extends Node3D
 ## Житель деревни. Появляется, когда выкошен его участок, и говорит
 ## короткие реплики, когда игрок подходит.
 
-enum Look { MASTER, GRANDMA }
+enum Look { MASTER, GRANDMA, POSTMAN }
 
 @export var look := Look.MASTER
 @export var display_name := "Мастер"
@@ -35,7 +35,7 @@ var _body: StaticBody3D
 
 func _ready() -> void:
 	_build_visuals()
-	rotation_degrees.y = facing_degrees
+	global_rotation.y = deg_to_rad(facing_degrees)
 	_present = appears_after_plot == "" or GameState.is_plot_completed(appears_after_plot)
 	visible = _present
 	_body.process_mode = Node.PROCESS_MODE_INHERIT if _present else Node.PROCESS_MODE_DISABLED
@@ -58,7 +58,7 @@ func _process(delta: float) -> void:
 	var near := to_player.length() < talk_distance
 	# Поворачивается к игроку, а без него — в исходную сторону.
 	var target := atan2(-to_player.x, -to_player.z) if near else deg_to_rad(facing_degrees)
-	rotation.y = lerp_angle(rotation.y, target, 1.0 - exp(-5.0 * delta))
+	global_rotation.y = lerp_angle(global_rotation.y, target, 1.0 - exp(-5.0 * delta))
 	if near != _near:
 		_near = near
 		if near:
@@ -116,6 +116,13 @@ func _build_visuals() -> void:
 			Placeholder.part(_model, Placeholder.cylinder(0.27, 0.12, 0.24), DARK, Vector3(0.0, 1.36, 0.0))
 			Placeholder.part(_model, Placeholder.box(Vector3(0.36, 0.04, 0.2)), DARK, Vector3(0.0, 1.32, -0.3))
 			Placeholder.part(_model, Placeholder.box(Vector3(0.24, 0.05, 0.05)), Color(0.4, 0.3, 0.24), Vector3(0.0, 1.05, -0.27))
+		Look.POSTMAN:
+			_model = Placeholder.person(self, Color(0.25, 0.38, 0.66), Color(0.3, 0.46, 0.78), SKIN, HAND)
+			# Синяя фуражка и сумка через плечо.
+			Placeholder.part(_model, Placeholder.cylinder(0.28, 0.14, 0.26), Color(0.2, 0.3, 0.56), Vector3(0.0, 1.37, 0.0))
+			Placeholder.part(_model, Placeholder.box(Vector3(0.4, 0.04, 0.22)), Color(0.14, 0.18, 0.3), Vector3(0.0, 1.31, -0.3))
+			Placeholder.part(_model, Placeholder.sphere(0.05), Color(1.0, 0.8, 0.25), Vector3(0.0, 1.4, -0.26))
+			Placeholder.part(_model, Placeholder.box(Vector3(0.34, 0.26, 0.12)), Color(0.62, 0.44, 0.28), Vector3(0.32, 0.5, 0.0))
 		Look.GRANDMA:
 			_model = Placeholder.person(self, Color(0.62, 0.48, 0.76), Color(0.97, 0.92, 0.84), SKIN, HAND)
 			# Седые волосы с пучком и платок на плечах.

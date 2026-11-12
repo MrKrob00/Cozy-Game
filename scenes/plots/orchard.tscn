@@ -1,0 +1,253 @@
+[gd_scene load_steps=13 format=3]
+
+[ext_resource type="Script" path="res://scripts/plot.gd" id="1_plot"]
+[ext_resource type="Script" path="res://scripts/mow_field.gd" id="2_field"]
+[ext_resource type="Script" path="res://scripts/plot_fence.gd" id="3_fence"]
+[ext_resource type="Script" path="res://scripts/plot_prop.gd" id="4_prop"]
+[ext_resource type="Script" path="res://scripts/grass_zone.gd" id="5_zone"]
+[ext_resource type="Script" path="res://scripts/compost_bin.gd" id="6_compost"]
+[ext_resource type="Script" path="res://scripts/stone.gd" id="7_stone"]
+[ext_resource type="Script" path="res://scripts/find_item.gd" id="8_find"]
+[ext_resource type="Script" path="res://scripts/flower_bed.gd" id="9_bed"]
+[ext_resource type="Script" path="res://scripts/wild_flowers.gd" id="10_wild"]
+[ext_resource type="Script" path="res://scripts/animal.gd" id="11_animal"]
+[ext_resource type="Script" path="res://scripts/stepping_stones.gd" id="12_stones"]
+
+[node name="Orchard" type="Node3D"]
+script = ExtResource("1_plot")
+plot_id = "orchard"
+plot_name = "Фруктовый сад"
+completed_title = "Фруктовый сад выкошен!"
+reward_coins = 400
+requires_plot = "square"
+unlock_text = "Калитка во фруктовый сад открыта — он рядом с площадью"
+locked_text = "Фруктовый сад пока закрыт. Сначала выкосите площадь"
+
+[node name="MowField" type="Node3D" parent="."]
+script = ExtResource("2_field")
+size = Vector2(30, 20)
+tall_grass_amount = 0.55
+random_seed = 21
+
+[node name="Fence" type="Node3D" parent="."]
+script = ExtResource("3_fence")
+random_seed = 23
+
+[node name="Pond" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.5, 0, -4.5)
+script = ExtResource("4_prop")
+kind = 6
+
+[node name="Lily1" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9, 0.08, -4)
+
+[node name="Lily2" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.3, 0.08, -5.2)
+
+[node name="Lily3" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.6, 0.08, -5.7)
+
+[node name="Path" type="Node3D" parent="."]
+script = ExtResource("12_stones")
+from = Vector3(0, 0, 9.6)
+to = Vector3(-6.6, 0, -2.4)
+count = 14
+random_seed = 31
+
+[node name="Tree1" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11, 0, 5)
+script = ExtResource("4_prop")
+fruit = true
+
+[node name="Tree2" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, 4.5)
+script = ExtResource("4_prop")
+fruit = true
+
+[node name="Tree3" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 4.6)
+script = ExtResource("4_prop")
+fruit = true
+
+[node name="Tree4" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, 4.8)
+script = ExtResource("4_prop")
+fruit = true
+
+[node name="Tree5" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.6, 0, 5.2)
+script = ExtResource("4_prop")
+fruit = true
+
+[node name="Tree6" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -2)
+script = ExtResource("4_prop")
+fruit = true
+
+[node name="Tree7" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, -1.6)
+script = ExtResource("4_prop")
+fruit = true
+
+[node name="Tree8" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.5, 0, -2.2)
+script = ExtResource("4_prop")
+fruit = true
+
+[node name="Tree9" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, -7)
+script = ExtResource("4_prop")
+fruit = true
+
+[node name="Tree10" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0, -7.4)
+script = ExtResource("4_prop")
+fruit = true
+
+[node name="WeedsCorner" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.6, 0, -8.6)
+script = ExtResource("5_zone")
+radius = 1.9
+
+[node name="WeedsFar" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13, 0, -7)
+script = ExtResource("5_zone")
+radius = 2.4
+
+[node name="WeedsSide" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13, 0, 0.6)
+script = ExtResource("5_zone")
+radius = 2.0
+
+[node name="WeedsMiddle" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, 1.8)
+script = ExtResource("5_zone")
+radius = 1.8
+
+[node name="Frog1" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.4, 0, -6.2)
+script = ExtResource("11_animal")
+kind = 2
+animal_id = "orchard_frog_1"
+display_name = "лягушку"
+home_path = NodePath("../Lily1")
+
+[node name="Frog2" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.6, 0, 0.6)
+script = ExtResource("11_animal")
+kind = 2
+animal_id = "orchard_frog_2"
+display_name = "лягушку"
+home_path = NodePath("../Lily2")
+
+[node name="Frog3" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0, 1.2)
+script = ExtResource("11_animal")
+kind = 2
+animal_id = "orchard_frog_3"
+display_name = "лягушку"
+home_path = NodePath("../Lily3")
+
+[node name="FindTeapot" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.2, 0, -7.6)
+script = ExtResource("8_find")
+find_id = "orchard_teapot"
+display_name = "старый чайник"
+kind = 6
+owner_name = "Бабушка"
+return_reward = 25
+thanks = "Мой чайник! Я в нём мяту заваривала."
+
+[node name="FindBottle" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.6, 0, -8.8)
+script = ExtResource("8_find")
+find_id = "orchard_bottle"
+display_name = "записка в бутылке"
+kind = 5
+owner_name = "Почтальон"
+return_reward = 30
+thanks = "Без адреса… Оставлю у себя, вдруг кто спросит."
+
+[node name="FindCoins" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.2, 0, -8.6)
+script = ExtResource("8_find")
+find_id = "orchard_coins"
+display_name = "клад в жестянке"
+kind = 2
+coins_reward = 30
+
+[node name="FindGnome" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0, 1.4)
+script = ExtResource("8_find")
+find_id = "orchard_gnome"
+display_name = "гном-рыбак"
+kind = 4
+owner_name = "Мастер"
+return_reward = 20
+thanks = "Второй! Теперь у них будет компания."
+
+[node name="Wild1" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0, 7.6)
+script = ExtResource("10_wild")
+flowers_id = "orchard_1"
+
+[node name="Wild2" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.4, 0, 7.9)
+script = ExtResource("10_wild")
+flowers_id = "orchard_2"
+
+[node name="Wild3" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.6, 0, 0.6)
+script = ExtResource("10_wild")
+flowers_id = "orchard_3"
+
+[node name="Wild4" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, -5.4)
+script = ExtResource("10_wild")
+flowers_id = "orchard_4"
+
+[node name="Wild5" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 1.6)
+script = ExtResource("10_wild")
+flowers_id = "orchard_5"
+
+[node name="BedLeft" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.6, 0, 8.4)
+script = ExtResource("9_bed")
+bed_id = "orchard_left"
+bed_size = Vector2(2.2, 0.9)
+
+[node name="BedRight" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.6, 0, 8.4)
+script = ExtResource("9_bed")
+bed_id = "orchard_right"
+bed_size = Vector2(2.2, 0.9)
+
+[node name="Stone1" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13.4, 0, 8.2)
+script = ExtResource("7_stone")
+stone_id = "orchard_1"
+
+[node name="Stone2" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 0, -4.4)
+script = ExtResource("7_stone")
+stone_id = "orchard_2"
+
+[node name="Stone3" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6, 0, -9)
+script = ExtResource("7_stone")
+stone_id = "orchard_3"
+
+[node name="Stone4" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 0, -4.2)
+script = ExtResource("7_stone")
+stone_id = "orchard_4"
+
+[node name="Bench" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.4, 0, -8.6)
+script = ExtResource("4_prop")
+kind = 2
+
+[node name="CompostBin" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.6, 0, 11.4)
+script = ExtResource("6_compost")

@@ -1,0 +1,205 @@
+[gd_scene load_steps=15 format=3]
+
+[ext_resource type="Script" path="res://scripts/plot.gd" id="1_plot"]
+[ext_resource type="Script" path="res://scripts/mow_field.gd" id="2_field"]
+[ext_resource type="Script" path="res://scripts/plot_fence.gd" id="3_fence"]
+[ext_resource type="Script" path="res://scripts/plot_prop.gd" id="4_prop"]
+[ext_resource type="Script" path="res://scripts/grass_zone.gd" id="5_zone"]
+[ext_resource type="Script" path="res://scripts/compost_bin.gd" id="6_compost"]
+[ext_resource type="Script" path="res://scripts/stone.gd" id="7_stone"]
+[ext_resource type="Script" path="res://scripts/find_item.gd" id="8_find"]
+[ext_resource type="Script" path="res://scripts/flower_bed.gd" id="9_bed"]
+[ext_resource type="Script" path="res://scripts/wild_flowers.gd" id="10_wild"]
+[ext_resource type="Script" path="res://scripts/villager.gd" id="11_villager"]
+[ext_resource type="Script" path="res://scripts/repairable.gd" id="12_repair"]
+[ext_resource type="Script" path="res://scripts/bureau.gd" id="13_bureau"]
+
+[node name="Square" type="Node3D"]
+script = ExtResource("1_plot")
+plot_id = "square"
+plot_name = "Площадь"
+completed_title = "Площадь выкошена!"
+reward_coins = 250
+requires_plot = "garden"
+unlock_text = "Калитка на площадь открыта — она через дорогу от двора"
+locked_text = "Площадь пока закрыта. Сначала выкосите сад бабушки"
+
+[node name="MowField" type="Node3D" parent="."]
+script = ExtResource("2_field")
+size = Vector2(22, 18)
+tall_grass_amount = 0.4
+bare_color = Color(0.78, 0.76, 0.72, 1)
+random_seed = 13
+
+[node name="Fence" type="Node3D" parent="."]
+script = ExtResource("3_fence")
+random_seed = 15
+
+[node name="Fountain" type="StaticBody3D" parent="."]
+script = ExtResource("4_prop")
+kind = 5
+
+[node name="FountainRepair" type="Node3D" parent="."]
+script = ExtResource("12_repair")
+repair_id = "square_fountain"
+title = "фонтан"
+cost = 80
+target_path = NodePath("../Fountain")
+
+[node name="PaveRing" type="Node3D" parent="."]
+script = ExtResource("5_zone")
+kind = 2
+radius = 3.5
+
+[node name="PaveGate" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 6.2)
+script = ExtResource("5_zone")
+kind = 2
+radius = 0.0
+zone_size = Vector2(2.4, 6)
+
+[node name="PaveBack" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6.2)
+script = ExtResource("5_zone")
+kind = 2
+radius = 0.0
+zone_size = Vector2(2.4, 6)
+
+[node name="PaveLeft" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.2, 0, 0)
+script = ExtResource("5_zone")
+kind = 2
+radius = 0.0
+zone_size = Vector2(8, 2.4)
+
+[node name="PaveRight" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.2, 0, 0)
+script = ExtResource("5_zone")
+kind = 2
+radius = 0.0
+zone_size = Vector2(8, 2.4)
+
+[node name="WeedsLeft" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0, 5.6)
+script = ExtResource("5_zone")
+radius = 2.6
+
+[node name="WeedsBack" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 0, -5.6)
+script = ExtResource("5_zone")
+radius = 3.0
+
+[node name="WeedsRight" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, 5.8)
+script = ExtResource("5_zone")
+radius = 2.1
+
+[node name="BenchLeft" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.6, 0, -3.4)
+script = ExtResource("4_prop")
+kind = 2
+
+[node name="BenchRight" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.6, 0, 3.6)
+script = ExtResource("4_prop")
+kind = 2
+
+[node name="Tree" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.2, 0, -7.2)
+script = ExtResource("4_prop")
+
+[node name="Stone1" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, -6.4)
+script = ExtResource("7_stone")
+stone_id = "square_1"
+
+[node name="Stone2" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.6, 0, 2.2)
+script = ExtResource("7_stone")
+stone_id = "square_2"
+
+[node name="Stone3" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.8, 0, -2.6)
+script = ExtResource("7_stone")
+stone_id = "square_3"
+
+[node name="Stone4" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.6, 0, 6.6)
+script = ExtResource("7_stone")
+stone_id = "square_4"
+
+[node name="Stone5" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.6, 0, -1.8)
+script = ExtResource("7_stone")
+stone_id = "square_5"
+
+[node name="FindLetter" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.6, 0, 6)
+script = ExtResource("8_find")
+find_id = "square_letter"
+display_name = "старое письмо"
+kind = 5
+owner_name = "Почтальон"
+return_reward = 30
+thanks = "Письмо из прошлого века! Доставлю, хоть и с опозданием."
+
+[node name="FindKey" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.2, 0, -5.8)
+script = ExtResource("8_find")
+find_id = "square_key"
+display_name = "ключик от почтового ящика"
+owner_name = "Почтальон"
+return_reward = 20
+thanks = "Вот он где! А я ящик проволокой закрывал."
+
+[node name="FindCoins" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -7)
+script = ExtResource("8_find")
+find_id = "square_coins"
+display_name = "кошелёк с мелочью"
+kind = 2
+coins_reward = 15
+
+[node name="Poppies" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.4, 0, -2.8)
+script = ExtResource("10_wild")
+flowers_id = "square_poppies"
+
+[node name="Daisies" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.2, 0, 2.6)
+script = ExtResource("10_wild")
+flowers_id = "square_daisies"
+
+[node name="Cornflowers" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.8, 0, -7.6)
+script = ExtResource("10_wild")
+flowers_id = "square_cornflowers"
+
+[node name="BedLeft" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.9, 0, 4.4)
+script = ExtResource("9_bed")
+bed_id = "square_left"
+bed_size = Vector2(2, 0.9)
+
+[node name="BedRight" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 0, -4.8)
+script = ExtResource("9_bed")
+bed_id = "square_right"
+bed_size = Vector2(2, 0.9)
+
+[node name="CompostBin" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.6, 0, 10.4)
+script = ExtResource("6_compost")
+
+[node name="Bureau" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.4, 0, 10.6)
+script = ExtResource("13_bureau")
+
+[node name="Postman" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, 10.6)
+script = ExtResource("11_villager")
+look = 2
+display_name = "Почтальон"
+appears_after_plot = "square"
+arrival_text = "В деревню вернулся почтальон — он у калитки площади"
+lines = PackedStringArray("Нашёл в траве чужую вещь? Неси в «Бюро находок» — верну хозяину.", "Фонтан бы починить… С водой площадь совсем другая.", "Фруктовый сад рядом. Говорят, в пруду там живут лягушки.")

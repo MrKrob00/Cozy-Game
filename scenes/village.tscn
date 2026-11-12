@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/village.gd" id="1_village"]
 [ext_resource type="Script" path="res://scripts/village_decor.gd" id="2_decor"]
@@ -7,6 +7,8 @@
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="5_player"]
 [ext_resource type="Script" path="res://scripts/follow_camera.gd" id="6_camera"]
 [ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="7_hud"]
+[ext_resource type="PackedScene" path="res://scenes/plots/square.tscn" id="8_square"]
+[ext_resource type="PackedScene" path="res://scenes/plots/orchard.tscn" id="9_orchard"]
 
 [sub_resource type="Environment" id="Environment_village"]
 background_mode = 1
@@ -36,6 +38,12 @@ script = ExtResource("2_decor")
 
 [node name="Garden" parent="." instance=ExtResource("4_garden")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 0, -1)
+
+[node name="Square" parent="." instance=ExtResource("8_square")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 6, 0, 25.6)
+
+[node name="Orchard" parent="." instance=ExtResource("9_orchard")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 42, 0, 26.6)
 
 [node name="Player" parent="." instance=ExtResource("5_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 6.6)

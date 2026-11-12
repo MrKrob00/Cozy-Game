@@ -3,14 +3,20 @@ extends Node3D
 ## Мелкая находка, спрятанная в высокой траве. Когда траву над ней
 ## скашивают, выскакивает с искрами и сама летит к игроку.
 
-enum Kind { KEY, DUCK, COINS, GLASSES, GNOME }
+enum Kind { KEY, DUCK, COINS, GLASSES, GNOME, LETTER, TEAPOT }
 
 ## Уникальный идентификатор для сохранения.
 @export var find_id := ""
 @export var display_name := "Находка"
 @export var kind := Kind.KEY
-## Сколько монет даёт находка.
+## Сколько монет даёт находка сразу.
 @export var coins_reward := 0
+## Чья это вещь (пусто — ничья). Вещи с владельцем возвращают через «Бюро находок».
+@export var owner_name := ""
+## Монеты за возврат владельцу.
+@export var return_reward := 0
+## Что говорит владелец, получив вещь.
+@export var thanks := ""
 ## Радиус высокой травы вокруг, которая прячет находку.
 @export var tall_grass_radius := 1.1
 
@@ -41,6 +47,24 @@ func _process(_delta: float) -> void:
 
 func is_collected() -> bool:
 	return GameState.has_flag("find_" + find_id)
+
+
+func is_returned() -> bool:
+	return GameState.has_flag("returned_" + find_id)
+
+
+## Можно ли вернуть вещь владельцу прямо сейчас.
+func can_return() -> bool:
+	return owner_name != "" and is_collected() and not is_returned()
+
+
+## Возвращает вещь владельцу и выдаёт награду.
+func give_back() -> void:
+	if not can_return():
+		return
+	GameState.set_flag("returned_" + find_id)
+	GameState.add_coins(return_reward)
+	GameState.save_game()
 
 
 func shape_grass(field: MowField) -> void:
@@ -126,6 +150,17 @@ func _build_visuals() -> void:
 			Placeholder.part(_model, Placeholder.sphere(0.11), Color(1.0, 0.82, 0.66), Vector3(0.0, 0.17, 0.0))
 			Placeholder.part(_model, Placeholder.sphere(0.09), Color(0.97, 0.97, 0.95), Vector3(0.0, 0.1, -0.07))
 			Placeholder.part(_model, Placeholder.cylinder(0.12, 0.26, 0.0), Color(0.9, 0.3, 0.26), Vector3(0.0, 0.36, 0.0))
+		Kind.LETTER:
+			Placeholder.part(_model, Placeholder.box(Vector3(0.34, 0.02, 0.24)), Color(0.98, 0.95, 0.86), Vector3(0.0, 0.0, 0.0))
+			Placeholder.part(_model, Placeholder.box(Vector3(0.07, 0.025, 0.08)), Color(0.86, 0.3, 0.28), Vector3(0.11, 0.005, -0.06))
+			Placeholder.part(_model, Placeholder.box(Vector3(0.16, 0.025, 0.02)), DARK, Vector3(-0.05, 0.005, 0.03))
+		Kind.TEAPOT:
+			const ENAMEL := Color(0.4, 0.62, 0.86)
+			Placeholder.part(_model, Placeholder.sphere(0.16), ENAMEL, Vector3(0.0, 0.05, 0.0))
+			Placeholder.part(_model, Placeholder.cylinder(0.1, 0.03), ENAMEL, Vector3(0.0, 0.2, 0.0))
+			Placeholder.part(_model, Placeholder.sphere(0.035), GOLD, Vector3(0.0, 0.24, 0.0))
+			Placeholder.part(_model, Placeholder.cylinder(0.03, 0.18), ENAMEL, Vector3(0.2, 0.09, 0.0), Vector3(0.0, 0.0, -55.0))
+			Placeholder.part(_model, Placeholder.cylinder(0.11, 0.03), ENAMEL, Vector3(-0.19, 0.06, 0.0), Vector3(90.0, 0.0, 0.0))
 		Kind.COINS:
 			for i in 3:
 				Placeholder.part(_model, Placeholder.cylinder(0.11, 0.03), GOLD,

@@ -313,7 +313,8 @@ custom_minimum_size = Vector2(900, 0)
 layout_mode = 2
 theme_override_constants/separation = 22
 
-[node name="Title" type="Label" parent="Root/WorkshopPanel/Center/WorkshopWindow/Rows"]
+[node name="WorkshopTitle" type="Label" parent="Root/WorkshopPanel/Center/WorkshopWindow/Rows"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 54
 text = "Мастерская"
@@ -335,3 +336,27 @@ unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 text = "Закрыть"
+
+[node name="Night" type="ColorRect" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.06, 0.08, 0.16, 1)
+
+[node name="NightLabel" type="Label" parent="Root/Night"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 0.96, 0.86, 1)
+theme_override_font_sizes/font_size = 96
+text = "День 2"
+horizontal_alignment = 1
+vertical_alignment = 1

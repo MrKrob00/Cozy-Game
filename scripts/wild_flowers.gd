@@ -58,7 +58,7 @@ func is_alive() -> bool:
 
 
 func shape_grass(field: MowField) -> void:
-	field.block_circle(global_position, radius)
+	field.block_circle(global_position, radius, false)
 
 
 func _cut() -> void:

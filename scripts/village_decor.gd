@@ -3,7 +3,7 @@ extends Node3D
 ## Всё временное, из примитивов (см. Placeholder).
 
 ## Улица (мировые X, Z; ширина, длина): по ней игрок ходит между участками.
-@export var street := Rect2(-11.0, 9.4, 50.0, 3.8)
+@export var street := Rect2(-11.0, 9.4, 73.0, 3.8)
 @export var tree_count := 60
 @export var random_seed := 11
 
@@ -13,7 +13,13 @@ const ROAD_EDGE := Color(0.78, 0.67, 0.47)
 const TRUNK := Color(0.50, 0.35, 0.25)
 const POST := Color(0.30, 0.30, 0.34)
 const LANTERN := Color(1.0, 0.9, 0.55)
+const FLAGS := [Color(1.0, 0.45, 0.45), Color(1.0, 0.82, 0.3), Color(0.45, 0.8, 1.0),
+		Color(0.7, 0.55, 1.0), Color(0.55, 0.85, 0.5)]
 const LEAVES := [Color(0.30, 0.62, 0.32), Color(0.40, 0.70, 0.34), Color(0.24, 0.54, 0.36)]
+
+
+var _lamps: Array[Vector3] = []
+var _bunting: Node3D
 
 
 func _enter_tree() -> void:
@@ -48,6 +54,32 @@ func _ready() -> void:
 	_build_near_bushes(road_rect, rng)
 	_build_trees(road_rect, rng)
 
+	var village := get_tree().get_first_node_in_group("village") as Village
+	if village:
+		village.festival_started.connect(_on_festival_started)
+
+
+# Праздник: между фонарями появляются гирлянды флажков.
+func _on_festival_started(_announce: bool) -> void:
+	if _bunting:
+		return
+	_bunting = Node3D.new()
+	add_child(_bunting)
+	var flag := Placeholder.prism(Vector3(0.3, 0.34, 0.03))
+	var index := 0
+	for i in _lamps.size() - 1:
+		var from := _lamps[i] + Vector3(0.0, 2.45, 0.0)
+		var to := _lamps[i + 1] + Vector3(0.0, 2.45, 0.0)
+		var count := maxi(int(from.distance_to(to) / 0.55), 2)
+		for k in range(1, count):
+			var t := float(k) / count
+			# Верёвка провисает посередине.
+			var at := from.lerp(to, t) - Vector3(0.0, sin(t * PI) * 0.55, 0.0)
+			var pennant := Placeholder.part(_bunting, flag, FLAGS[index % FLAGS.size()], at,
+					Vector3(180.0, 0.0, 0.0))
+			pennant.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			index += 1
+
 
 # Кусты в торцах улицы показывают, что дальше дороги нет.
 func _build_street_ends(road: Rect2, rng: RandomNumberGenerator) -> void:
@@ -66,6 +98,7 @@ func _build_lamps(road: Rect2) -> void:
 			var lamp := Node3D.new()
 			lamp.position = Vector3(x, 0.0, road.position.y + 0.3)
 			add_child(lamp)
+			_lamps.append(lamp.position)
 			Placeholder.part(lamp, Placeholder.cylinder(0.06, 2.3), POST, Vector3(0.0, 1.15, 0.0))
 			Placeholder.part(lamp, Placeholder.box(Vector3(0.3, 0.06, 0.3)), POST, Vector3(0.0, 2.52, 0.0))
 			var glow := Placeholder.part(lamp, Placeholder.sphere(0.16), LANTERN, Vector3(0.0, 2.36, 0.0))
@@ -80,18 +113,24 @@ func _build_lamps(road: Rect2) -> void:
 func _build_near_bushes(road: Rect2, rng: RandomNumberGenerator) -> void:
 	var x := road.position.x + 1.0
 	while x < road.end.x:
-		_bush(Vector3(x + rng.randf_range(-0.6, 0.6), 0.0, road.end.y + rng.randf_range(0.6, 1.6)),
-				rng.randf_range(0.3, 0.5), rng)
+		var at := Vector3(x + rng.randf_range(-0.6, 0.6), 0.0, road.end.y + rng.randf_range(0.6, 1.6))
+		# Там, где с ближней стороны стоит участок, кусты не нужны.
+		if not _inside_plot(at, 1.0, false):
+			_bush(at, rng.randf_range(0.3, 0.5), rng)
 		x += rng.randf_range(2.0, 4.0)
 
 
-# Деревья только на дальней стороне улицы и вне участков.
+# Деревья растут вне участков. На дальней стороне улицы — вплотную, на ближней —
+# с большим запасом, чтобы кроны не заслоняли игрока от камеры.
 func _build_trees(road: Rect2, rng: RandomNumberGenerator) -> void:
-	var area := Rect2(road.position.x - 25.0, road.position.y - 55.0, road.size.x + 50.0, 54.0)
-	for i in tree_count:
+	var area := Rect2(road.position.x - 25.0, road.position.y - 55.0, road.size.x + 50.0, 120.0)
+	for i in tree_count * 2:
 		var at := Vector3(
 				rng.randf_range(area.position.x, area.end.x), 0.0,
 				rng.randf_range(area.position.y, area.end.y))
+		var near_side := at.z > road.position.y - 1.0
+		if near_side and (at.z < road.end.y + 9.0 or _inside_plot(at, 9.0, false)):
+			continue
 		if _inside_plot(at, 3.5, false):
 			continue
 		var tree := Node3D.new()

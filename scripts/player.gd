@@ -17,6 +17,8 @@ signal interaction_target_changed(target: Interactable)
 ## Множитель скорости в высокой траве (с лучшим мотором замедление меньше).
 @export_range(0.1, 1.0) var tall_grass_speed := 0.6
 @export_range(0.1, 1.0) var tall_grass_speed_best_motor := 0.8
+## Множитель скорости в бурьяне (когда нож его берёт).
+@export_range(0.1, 1.0) var weed_speed := 0.45
 
 ## Расстояние от персонажа до центра ножа.
 const BLADE_OFFSET := 0.95
@@ -55,6 +57,7 @@ var _cutting := false
 var _bag_ratio := 0.0
 var _bag_shown := 0.0
 var _time := 0.0
+var _weed_hint_time := 0.0
 
 
 func _ready() -> void:
@@ -103,7 +106,15 @@ func _physics_process(delta: float) -> void:
 		# Чем сильнее надо повернуть, тем медленнее едем — получается дуга, а не занос.
 		var alignment := clampf(cos(angle), 0.0, 1.0)
 		target_speed = speed * strength * lerpf(0.35, 1.0, alignment)
-		if _grass_height_at(get_blade_position() + forward * 0.25) > 0.8:
+		var ahead := _grass_height_at(get_blade_position() + forward * 0.25)
+		if ahead > 0.9:
+			# Бурьян: слабый нож в него упирается, хороший идёт медленно.
+			if can_cut_weeds():
+				target_speed *= weed_speed
+			else:
+				target_speed = 0.0
+				_stuck_in_weeds()
+		elif ahead > 0.7:
 			target_speed *= tall_grass_speed_best_motor if GameState.is_upgrade_maxed("motor") \
 					else tall_grass_speed
 	else:
@@ -124,7 +135,7 @@ func _physics_process(delta: float) -> void:
 	if is_blade_spinning():
 		var field := _field_at(blade_position)
 		if field:
-			units = field.mow(blade_position, forward, blade_width, BLADE_LENGTH)
+			units = field.mow(blade_position, forward, blade_width, BLADE_LENGTH, can_cut_weeds())
 			if units > 0.0:
 				GameState.add_grass(units)
 
@@ -173,6 +184,21 @@ func get_blade_position() -> Vector3:
 ## Режет ли нож прямо сейчас: косилка едет и в мешке есть место.
 func is_blade_spinning() -> bool:
 	return _current_speed > 0.1 and not GameState.is_bag_full()
+
+
+## Берёт ли нож бурьян (нужен второй уровень ножа).
+func can_cut_weeds() -> bool:
+	return GameState.upgrade_level("blade") >= 1
+
+
+# Косилка упёрлась в бурьян: трясётся и время от времени напоминает, что нужен нож получше.
+func _stuck_in_weeds() -> void:
+	_cut_amount = 1.0
+	if _time < _weed_hint_time:
+		return
+	_weed_hint_time = _time + 9.0
+	Sfx.play("deny", -4.0)
+	GameState.toast("Бурьян не поддаётся. Нужен нож второго уровня — он есть в мастерской")
 
 
 ## Взаимодействует с ближайшим доступным объектом, если он есть.

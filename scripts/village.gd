@@ -7,6 +7,9 @@ extends Node3D
 
 ## Игрок перешёл на другой участок (или подошёл к нему ближе, чем к остальным).
 signal current_plot_changed(plot: Plot)
+## Все участки выкошены: в деревне праздник. announce — показывать ли торжество
+## (false при загрузке сохранения, где праздник уже был).
+signal festival_started(announce: bool)
 
 @export_group("Оживление цветом")
 ## Насыщенность картинки на заросшем и на выкошенном участке.
@@ -20,6 +23,9 @@ signal current_plot_changed(plot: Plot)
 const CHIRPS := ["chirp_1", "chirp_2", "chirp_3"]
 ## Насколько ближе должен быть другой участок, чтобы стать текущим.
 const SWITCH_MARGIN := 0.5
+const FESTIVAL_FLAG := "festival"
+## Пауза между покосом последнего участка и праздником, секунд.
+const FESTIVAL_DELAY := 11.0
 
 var current_plot: Plot
 
@@ -49,13 +55,17 @@ func _ready() -> void:
 		elif child is DirectionalLight3D:
 			_sun = child
 	_update_current_plot()
-	_mood = current_plot.get_progress() if current_plot else 1.0
+	_mood = current_plot.get_mood() if current_plot else 1.0
 	_apply_mood()
+	for plot in _plots:
+		plot.completed.connect(_on_plot_completed)
+	if GameState.has_flag(FESTIVAL_FLAG):
+		festival_started.emit(false)
 
 
 func _process(delta: float) -> void:
 	_update_current_plot()
-	var progress := current_plot.get_progress() if current_plot else 1.0
+	var progress := current_plot.get_mood() if current_plot else 1.0
 	if not is_equal_approx(_mood, progress):
 		_mood = lerpf(_mood, progress, 1.0 - exp(-1.5 * delta))
 		_apply_mood()
@@ -66,6 +76,47 @@ func _process(delta: float) -> void:
 		_chirp_timer = lerpf(14.0, 3.5, progress) * randf_range(0.6, 1.4)
 		if progress > 0.05:
 			Sfx.play(CHIRPS.pick_random(), randf_range(-16.0, -10.0), 1.0, 0.12)
+
+
+func is_festival() -> bool:
+	return GameState.has_flag(FESTIVAL_FLAG)
+
+
+## Итоги для финального окна.
+func get_summary() -> Array[String]:
+	var finds := get_tree().get_nodes_in_group("find")
+	var found := finds.filter(func(find: FindItem) -> bool: return find.is_collected()).size()
+	var earned := 0
+	var total := 0
+	for plot in _plots:
+		for stamp in plot.get_stamps():
+			total += 1
+			if stamp["earned"]:
+				earned += 1
+	return [
+		"Участков выкошено: %d" % _plots.size(),
+		"Дней в деревне: %d" % GameState.day,
+		"Находок: %d из %d" % [found, finds.size()],
+		"Штампов: %d из %d" % [earned, total],
+	]
+
+
+func _on_plot_completed() -> void:
+	if is_festival():
+		return
+	for plot in _plots:
+		if not plot.is_completed():
+			return
+	# Сначала игрок видит завершение последнего участка, потом начинается праздник.
+	await get_tree().create_timer(FESTIVAL_DELAY).timeout
+	GameState.set_flag(FESTIVAL_FLAG)
+	festival_started.emit(true)
+	Sfx.play("complete", 0.0, 1.12)
+	Sfx.buzz(80)
+	if _player:
+		for i in 3:
+			Juice.confetti(self, _player.global_position + Vector3(i * 1.5 - 1.5, 1.4, 0.0), 60)
+	GameState.save_game()
 
 
 func _update_current_plot() -> void:

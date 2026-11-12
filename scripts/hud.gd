@@ -38,9 +38,12 @@ const COMPLETION_DELAY := 5.0
 @onready var _quit_button: Button = %QuitButton
 @onready var _workshop_panel: Control = %WorkshopPanel
 @onready var _workshop_window: PanelContainer = %WorkshopWindow
+@onready var _workshop_title: Label = %WorkshopTitle
 @onready var _workshop_coins: Label = %WorkshopCoins
 @onready var _workshop_rows: VBoxContainer = %WorkshopRows
 @onready var _workshop_close: Button = %WorkshopClose
+@onready var _night: ColorRect = %Night
+@onready var _night_label: Label = %NightLabel
 @onready var _speech: PanelContainer = %Speech
 @onready var _speech_label: Label = %SpeechLabel
 @onready var _pinch_zoom: PinchZoom = %PinchZoom
@@ -60,6 +63,7 @@ var _shown_compost := 0
 var _action_pulse: Tween
 ## Кто сейчас говорит (чтобы чужой уход не закрывал реплику).
 var _speaker: Node
+var _stamp_tweens: Array[Tween] = []
 
 
 func _enter_tree() -> void:
@@ -82,6 +86,7 @@ func _ready() -> void:
 	_workshop_panel.visible = false
 	_action_button.visible = false
 	_speech.visible = false
+	_night.visible = false
 
 	for plot: Plot in get_tree().get_nodes_in_group("plot"):
 		plot.completed.connect(_on_plot_completed.bind(plot))
@@ -89,6 +94,7 @@ func _ready() -> void:
 	if village:
 		# Деревня сообщит текущий участок, когда будет готова.
 		village.current_plot_changed.connect(_show_plot)
+		village.festival_started.connect(_on_festival_started.bind(village))
 	else:
 		_show_plot(get_tree().get_first_node_in_group("plot") as Plot)
 	if _player:
@@ -114,7 +120,9 @@ func _ready() -> void:
 	_quit_button.pressed.connect(func() -> void:
 		GameState.save_game()
 		get_tree().quit())
-	_continue_button.pressed.connect(func() -> void: _completion.visible = false)
+	_continue_button.pressed.connect(func() -> void:
+		_completion.visible = false
+		_continue_button.text = "Косить дальше")
 	_workshop_close.pressed.connect(close_workshop)
 	# На телефоне и в браузере приложение закрывает система.
 	_quit_button.visible = not (OS.has_feature("mobile") or OS.has_feature("web"))
@@ -149,8 +157,42 @@ func show_toast(text: String) -> void:
 
 ## Открывает мастерскую (вызывается объектом Workshop через группу «hud»).
 func open_workshop() -> void:
+	_open_window(_fill_workshop)
+
+
+## Открывает «Бюро находок» (вызывается объектом Bureau через группу «hud»).
+func open_bureau() -> void:
+	_open_window(_fill_bureau)
+
+
+## Ночь: экран темнеет, наступает новый день, экран светлеет.
+func play_night() -> void:
+	if _night.visible:
+		return
 	get_tree().paused = true
-	_fill_workshop()
+	_night.visible = true
+	_night.modulate.a = 0.0
+	_night_label.modulate.a = 0.0
+	_night_label.text = "День %d" % (GameState.day + 1)
+	var tween := create_tween()
+	tween.tween_property(_night, "modulate:a", 1.0, 0.7)
+	tween.tween_callback(GameState.next_day)
+	tween.tween_property(_night_label, "modulate:a", 1.0, 0.4)
+	tween.tween_interval(1.1)
+	tween.tween_callback(func() -> void:
+		Sfx.play("chirp_1", -6.0)
+		Sfx.play("chirp_3", -8.0))
+	tween.tween_property(_night, "modulate:a", 0.0, 0.8)
+	tween.tween_callback(func() -> void:
+		_night.visible = false
+		get_tree().paused = false
+		show_toast("Доброе утро! На выкошенных участках подросла трава"))
+
+
+# Окно со списком (мастерская, бюро находок): игра на паузе, пока оно открыто.
+func _open_window(fill: Callable) -> void:
+	get_tree().paused = true
+	fill.call()
 	_workshop_panel.visible = true
 	Juice.pop_in(_workshop_window, 0.25)
 	Sfx.play("pop")
@@ -283,6 +325,7 @@ func _on_plot_completed(plot: Plot) -> void:
 	await get_tree().create_timer(COMPLETION_DELAY).timeout
 	_completion_title.text = plot.completed_title
 	_completion_reward.text = "Награда: +%d монет" % plot.reward_coins
+	_kill_stamp_tweens()
 	var stamps := _fill_stamps(_completion_stamps, plot)
 	_completion.visible = true
 	Juice.pop_in(_completion_panel, 0.4)
@@ -293,12 +336,23 @@ func _on_plot_completed(plot: Plot) -> void:
 		var shown_alpha := stamp.modulate.a
 		stamp.modulate.a = 0.0
 		var tween := create_tween()
+		_stamp_tweens.append(tween)
 		tween.tween_interval(0.45 + 0.28 * i)
 		tween.tween_callback(func() -> void:
+			# Окно могло перезаполниться, пока шла анимация.
+			if not is_instance_valid(stamp):
+				return
 			stamp.modulate.a = shown_alpha
 			Juice.punch(stamp, 0.25)
 			if shown_alpha > 0.9:
 				Sfx.play("coin", -8.0, 0.9 + 0.08 * i, 0.0))
+
+
+func _kill_stamp_tweens() -> void:
+	for tween in _stamp_tweens:
+		if tween.is_valid():
+			tween.kill()
+	_stamp_tweens.clear()
 
 
 func _set_paused(paused: bool) -> void:
@@ -344,10 +398,92 @@ func _fill_stamps(container: VBoxContainer, plot: Plot) -> Array[Label]:
 	return labels
 
 
+# Финал: все участки выкошены. Окно с итогами показывается один раз.
+func _on_festival_started(announce: bool, village: Village) -> void:
+	if not announce:
+		return
+	show_toast("Деревня ожила! Сегодня праздник")
+	await get_tree().create_timer(3.0).timeout
+	_kill_stamp_tweens()
+	_completion_title.text = "Деревня ожила!"
+	_completion_reward.text = "Спасибо за игру! Косить можно и дальше"
+	for child in _completion_stamps.get_children():
+		child.queue_free()
+	for line in village.get_summary():
+		var label := Label.new()
+		label.text = line
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_completion_stamps.add_child(label)
+	_continue_button.text = "Остаться в деревне"
+	_completion.visible = true
+	Juice.pop_in(_completion_panel, 0.4)
+	Sfx.play("pop")
+
+
+# Строки бюро находок: найденные вещи, у которых есть владелец.
+func _fill_bureau() -> void:
+	for child in _workshop_rows.get_children():
+		child.queue_free()
+	_workshop_title.text = "Бюро находок"
+	var finds := get_tree().get_nodes_in_group("find")
+	var found := finds.filter(func(find: FindItem) -> bool: return find.is_collected()).size()
+	_workshop_coins.text = "Найдено вещей: %d из %d · Монеты: %d" % [found, finds.size(), GameState.coins]
+	var listed := 0
+	for find: FindItem in finds:
+		if find.owner_name == "" or not find.is_collected():
+			continue
+		listed += 1
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 28)
+		_workshop_rows.add_child(row)
+		var text := VBoxContainer.new()
+		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(text)
+		var title := Label.new()
+		title.text = find.display_name.left(1).to_upper() + find.display_name.substr(1)
+		text.add_child(title)
+		var about := Label.new()
+		about.add_theme_font_size_override("font_size", 28)
+		about.modulate.a = 0.7
+		about.text = "Владелец: %s" % find.owner_name
+		text.add_child(about)
+		if find.is_returned():
+			var done := Label.new()
+			done.text = "Возвращено"
+			done.add_theme_color_override("font_color", GREEN_DARK)
+			done.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			row.add_child(done)
+			continue
+		var give := Button.new()
+		give.text = "Вернуть · +%d" % find.return_reward
+		give.focus_mode = Control.FOCUS_NONE
+		give.custom_minimum_size = Vector2(280.0, 0.0)
+		give.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		give.pressed.connect(_on_return_pressed.bind(find))
+		row.add_child(give)
+	if listed == 0:
+		var empty := Label.new()
+		empty.text = "Пока нечего возвращать. Чужие вещи прячутся в траве"
+		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		empty.modulate.a = 0.7
+		_workshop_rows.add_child(empty)
+
+
+func _on_return_pressed(find: FindItem) -> void:
+	find.give_back()
+	Sfx.play("coin")
+	Sfx.buzz(25)
+	if find.thanks != "":
+		show_toast("%s: %s" % [find.owner_name, find.thanks])
+	_fill_bureau()
+	Juice.punch(_workshop_coins, 0.2)
+
+
 # Строки мастерской: по одной на апгрейд, с ценой следующего уровня.
 func _fill_workshop() -> void:
 	for child in _workshop_rows.get_children():
 		child.queue_free()
+	_workshop_title.text = "Мастерская"
 	_workshop_coins.text = "Монеты: %d" % GameState.coins
 	for id: String in GameState.UPGRADES:
 		var info: Dictionary = GameState.UPGRADES[id]

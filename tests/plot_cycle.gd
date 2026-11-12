@@ -95,7 +95,7 @@ func _run() -> void:
 
 	# 4. Находка: скашиваем траву над монетками.
 	var coins_find = current_scene.get_node("Yard/FindCoins")
-	check(field.get_height_at(coins_find.global_position) == 1.0, "tall grass hides the find")
+	check(field.get_height_at(coins_find.global_position) > 0.7, "tall grass hides the find")
 	field.mow(coins_find.global_position, Vector3.FORWARD, 1.0, 1.0)
 	for i in 200:
 		await process_frame

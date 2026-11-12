@@ -57,9 +57,15 @@ func get_gate_position() -> Vector3:
 ## Проход через калитку (мировые X, Z): от края участка до улицы за забором.
 func get_gate_rect(walk_margin: float) -> Rect2:
 	var gate := get_gate_position()
-	var inner_edge := gate.z - fence_offset + walk_margin
-	var width := gate_width - 0.7
-	return Rect2(gate.x - width * 0.5, inner_edge - 0.4, width, fence_offset - walk_margin + 1.8)
+	# Наружу калитка смотрит вдоль локальной оси +Z (участок может быть повёрнут).
+	var outward := global_basis.z.normalized()
+	var across := global_basis.x.normalized() * (gate_width - 0.7) * 0.5
+	var inside := gate - outward * (fence_offset - walk_margin + 0.4)
+	var outside := gate + outward * 1.4
+	var rect := Rect2(Vector2(inside.x - across.x, inside.z - across.z), Vector2.ZERO)
+	for corner: Vector3 in [inside + across, outside - across, outside + across]:
+		rect = rect.expand(Vector2(corner.x, corner.z))
+	return rect
 
 
 ## Открывает или закрывает калитку.

@@ -137,7 +137,9 @@ script = ExtResource("8_find")
 find_id = "garden_glasses"
 display_name = "очки бабушки"
 kind = 3
-coins_reward = 20
+owner_name = "Бабушка"
+return_reward = 25
+thanks = "Мои очки! Теперь я снова вижу свой сад."
 
 [node name="FindGnome" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.4, 0, 1)
@@ -145,6 +147,9 @@ script = ExtResource("8_find")
 find_id = "garden_gnome"
 display_name = "садовый гном"
 kind = 4
+owner_name = "Мастер"
+return_reward = 15
+thanks = "Мой гном! Я его ещё мальчишкой раскрашивал."
 
 [node name="FindCoins" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.6, 0, -5)

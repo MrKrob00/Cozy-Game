@@ -52,7 +52,7 @@ func _run() -> void:
 	gs.toast_requested.connect(func(t): toasts.append(t))
 
 	# 1. Два участка; игрок начинает во дворе.
-	check(get_nodes_in_group("plot").size() == 2, "village has two plots")
+	check(get_nodes_in_group("plot").size() == 4, "village has four plots")
 	check(village.current_plot == yard, "player starts in the yard")
 	check(hud.get_node("%ProgressLabel").text.begins_with("Двор"), "HUD shows the yard")
 	check(yard.is_unlocked() and not garden.is_unlocked(), "garden is locked until the yard is mowed")

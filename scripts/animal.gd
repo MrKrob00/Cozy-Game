@@ -3,7 +3,7 @@ extends Interactable
 ## Зверёк в траве. Косилка в него упирается и навредить не может.
 ## Игрок переносит зверька — тот прыжками уходит в свой уголок.
 
-enum Kind { HEDGEHOG, CAT }
+enum Kind { HEDGEHOG, CAT, FROG }
 
 @export var kind := Kind.HEDGEHOG
 @export var animal_id := "hedgehog"
@@ -121,10 +121,13 @@ func _flag() -> String:
 func _build_visuals() -> void:
 	_model = Node3D.new()
 	add_child(_model)
-	if kind == Kind.CAT:
-		_build_cat()
-	else:
-		_build_hedgehog()
+	match kind:
+		Kind.CAT:
+			_build_cat()
+		Kind.FROG:
+			_build_frog()
+		_:
+			_build_hedgehog()
 
 	_body = StaticBody3D.new()
 	var shape := CollisionShape3D.new()
@@ -135,6 +138,20 @@ func _build_visuals() -> void:
 	shape.position = Vector3(0.0, 0.35, 0.0)
 	_body.add_child(shape)
 	add_child(_body)
+
+
+func _build_frog() -> void:
+	const SKIN := Color(0.42, 0.74, 0.3)
+	const BELLY := Color(0.85, 0.92, 0.6)
+	const DARK := Color(0.15, 0.13, 0.13)
+	var body := Placeholder.part(_model, Placeholder.sphere(0.26), SKIN, Vector3(0.0, 0.17, 0.04))
+	body.scale = Vector3(1.1, 0.75, 1.2)
+	Placeholder.part(_model, Placeholder.sphere(0.17), BELLY, Vector3(0.0, 0.12, -0.14))
+	for side: float in [-1.0, 1.0]:
+		Placeholder.part(_model, Placeholder.sphere(0.09), SKIN, Vector3(0.13 * side, 0.36, -0.14))
+		Placeholder.part(_model, Placeholder.sphere(0.045), DARK, Vector3(0.14 * side, 0.38, -0.21))
+		var leg := Placeholder.part(_model, Placeholder.sphere(0.13), SKIN, Vector3(0.27 * side, 0.08, 0.14))
+		leg.scale = Vector3(0.8, 0.6, 1.3)
 
 
 # Спящий рыжий кот, свернувшийся калачиком.

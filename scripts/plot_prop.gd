@@ -3,12 +3,14 @@ extends StaticBody3D
 ## Крупный объект участка: дом, сарай, скамейка, дерево.
 ## Сам строит временную модель, коллизию и убирает траву под собой.
 
-enum Kind { HOUSE, SHED, BENCH, TREE, WELL }
+enum Kind { HOUSE, SHED, BENCH, TREE, WELL, FOUNTAIN, POND }
 
 @export var kind := Kind.TREE
 ## Цвета стен и крыши дома.
 @export var wall_color := Color(0.98, 0.92, 0.78)
 @export var roof_color := Color(0.80, 0.36, 0.30)
+## Дерево с яблоками.
+@export var fruit := false
 
 const WOOD := Color(0.72, 0.52, 0.34)
 const WOOD_DARK := Color(0.52, 0.36, 0.24)
@@ -20,10 +22,20 @@ const LEAVES_LIGHT := Color(0.44, 0.74, 0.36)
 
 
 const DOOR_OPEN_ANGLE := -1.9
+const POND_RADIUS := 2.8
+## Насколько растворяется крона, когда заслоняет игрока.
+const CROWN_FADE := 0.3
 
 var _windows: Array[MeshInstance3D] = []
 var _door: Node3D
 var _padlock: MeshInstance3D
+var _crown_material: ShaderMaterial
+var _crown_light_material: ShaderMaterial
+var _apple_material: ShaderMaterial
+var _crown_fade := 1.0
+# Части фонтана, которые меняются после починки.
+var _fountain_broken: Node3D
+var _fountain_fixed: Node3D
 
 
 func _enter_tree() -> void:
@@ -54,6 +66,15 @@ func _ready() -> void:
 			_build_tree()
 		Kind.WELL:
 			_build_well()
+		Kind.FOUNTAIN:
+			_build_fountain()
+		Kind.POND:
+			_build_pond()
+	set_process(kind == Kind.TREE)
+
+
+func _process(delta: float) -> void:
+	_update_crown_fade(delta)
 
 
 func shape_grass(field: MowField) -> void:
@@ -68,6 +89,10 @@ func shape_grass(field: MowField) -> void:
 			field.block_circle(global_position, 0.45)
 		Kind.WELL:
 			field.block_circle(global_position, 0.9)
+		Kind.FOUNTAIN:
+			field.block_circle(global_position, 2.0)
+		Kind.POND:
+			field.block_circle(global_position, POND_RADIUS + 0.25)
 
 
 func _build_house() -> void:
@@ -145,15 +170,147 @@ func _build_bench() -> void:
 
 func _build_tree() -> void:
 	Placeholder.part(self, Placeholder.cylinder(0.32, 2.2, 0.22), WOOD_DARK, Vector3(0.0, 1.1, 0.0))
-	Placeholder.part(self, Placeholder.sphere(1.5), LEAVES, Vector3(0.0, 3.1, 0.0))
-	Placeholder.part(self, Placeholder.sphere(1.05), LEAVES_LIGHT, Vector3(0.7, 4.0, 0.3))
-	Placeholder.part(self, Placeholder.sphere(0.9), LEAVES, Vector3(-0.8, 3.7, -0.4))
+	# У кроны свои материалы: она растворяется, когда заслоняет игрока.
+	_crown_material = Placeholder.material(LEAVES).duplicate()
+	_crown_light_material = Placeholder.material(LEAVES_LIGHT).duplicate()
+	var crown: Array[MeshInstance3D] = [
+		Placeholder.part(self, Placeholder.sphere(1.5), LEAVES, Vector3(0.0, 3.1, 0.0)),
+		Placeholder.part(self, Placeholder.sphere(1.05), LEAVES_LIGHT, Vector3(0.7, 4.0, 0.3)),
+		Placeholder.part(self, Placeholder.sphere(0.9), LEAVES, Vector3(-0.8, 3.7, -0.4)),
+	]
+	crown[0].material_override = _crown_material
+	crown[1].material_override = _crown_light_material
+	crown[2].material_override = _crown_material
+	if fruit:
+		var apple_material: ShaderMaterial = Placeholder.material(Color(0.92, 0.26, 0.24)).duplicate()
+		var rng := RandomNumberGenerator.new()
+		rng.seed = hash(name)
+		for i in 9:
+			var direction := Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-0.5, 0.6),
+					rng.randf_range(-1.0, 1.0)).normalized()
+			var apple := Placeholder.part(self, Placeholder.sphere(0.14), Color.WHITE,
+					Vector3(0.0, 3.1, 0.0) + direction * 1.5)
+			apple.material_override = apple_material
+		_apple_material = apple_material
 	var shape := CollisionShape3D.new()
 	var cylinder := CylinderShape3D.new()
 	cylinder.radius = 0.4
 	cylinder.height = 2.0
 	shape.shape = cylinder
 	shape.position = Vector3(0.0, 1.0, 0.0)
+	add_child(shape)
+
+
+# Крона заслоняет игрока, если стоит между ним и камерой: тогда она растворяется точками.
+func _update_crown_fade(delta: float) -> void:
+	var camera := get_viewport().get_camera_3d()
+	var player := get_tree().get_first_node_in_group("player") as Node3D
+	if camera == null or player == null or _crown_material == null:
+		return
+	var view := -camera.global_basis.z
+	view.y = 0.0
+	view = view.normalized()
+	var offset := player.global_position - global_position
+	offset.y = 0.0
+	# Вдоль взгляда игрок должен быть за деревом, поперёк — в пределах кроны.
+	var along := offset.dot(view)
+	var across := absf(offset.cross(view).y)
+	var hidden := along > 0.6 and along < 5.2 and across < 1.9
+	var target := CROWN_FADE if hidden else 1.0
+	if is_equal_approx(_crown_fade, target):
+		return
+	_crown_fade = move_toward(_crown_fade, target, delta * 3.0)
+	for crown_material: ShaderMaterial in [_crown_material, _crown_light_material, _apple_material]:
+		if crown_material:
+			crown_material.set_shader_parameter("fade", _crown_fade)
+
+
+## Чинит фонтан: чаша светлеет, появляется вода и струя.
+func set_repaired(_animated: bool) -> void:
+	if _fountain_fixed == null:
+		return
+	_fountain_broken.visible = false
+	_fountain_fixed.visible = true
+
+
+func _build_fountain() -> void:
+	const OLD_STONE := Color(0.56, 0.55, 0.52)
+	const NEW_STONE := Color(0.86, 0.84, 0.8)
+	const WATER := Color(0.42, 0.72, 0.92)
+	const MOSS := Color(0.36, 0.5, 0.3)
+
+	# Заброшенный: тёмный камень, сухая чаша во мху, покосившаяся верхушка.
+	_fountain_broken = Node3D.new()
+	add_child(_fountain_broken)
+	Placeholder.part(_fountain_broken, Placeholder.cylinder(1.8, 0.5), OLD_STONE, Vector3(0.0, 0.25, 0.0))
+	Placeholder.part(_fountain_broken, Placeholder.cylinder(1.5, 0.04), MOSS, Vector3(0.0, 0.5, 0.0))
+	Placeholder.part(_fountain_broken, Placeholder.cylinder(0.3, 1.1), OLD_STONE, Vector3(0.0, 0.9, 0.0))
+	Placeholder.part(_fountain_broken, Placeholder.cylinder(0.3, 0.2, 0.7), OLD_STONE,
+			Vector3(0.12, 1.5, 0.0), Vector3(0.0, 0.0, -16.0))
+	Placeholder.part(_fountain_broken, Placeholder.box(Vector3(0.5, 0.3, 0.4)), OLD_STONE,
+			Vector3(1.1, 0.62, 0.5), Vector3(20.0, 30.0, 10.0))
+
+	# Починенный: светлый камень, вода, струя.
+	_fountain_fixed = Node3D.new()
+	_fountain_fixed.visible = false
+	add_child(_fountain_fixed)
+	Placeholder.part(_fountain_fixed, Placeholder.cylinder(1.8, 0.5), NEW_STONE, Vector3(0.0, 0.25, 0.0))
+	Placeholder.part(_fountain_fixed, Placeholder.cylinder(1.55, 0.04), WATER, Vector3(0.0, 0.5, 0.0))
+	Placeholder.part(_fountain_fixed, Placeholder.cylinder(0.3, 1.1), NEW_STONE, Vector3(0.0, 0.9, 0.0))
+	Placeholder.part(_fountain_fixed, Placeholder.cylinder(0.3, 0.2, 0.75), NEW_STONE, Vector3(0.0, 1.5, 0.0))
+	Placeholder.part(_fountain_fixed, Placeholder.cylinder(0.62, 0.03), WATER, Vector3(0.0, 1.6, 0.0))
+	var jet := CPUParticles3D.new()
+	jet.position = Vector3(0.0, 1.65, 0.0)
+	jet.amount = 60
+	jet.lifetime = 1.1
+	jet.mesh = Placeholder.sphere(0.05)
+	var drops := StandardMaterial3D.new()
+	drops.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	drops.albedo_color = Color(0.75, 0.9, 1.0)
+	jet.material_override = drops
+	jet.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	jet.direction = Vector3.UP
+	jet.spread = 14.0
+	jet.initial_velocity_min = 3.6
+	jet.initial_velocity_max = 4.4
+	jet.gravity = Vector3(0.0, -8.0, 0.0)
+	_fountain_fixed.add_child(jet)
+
+	var shape := CollisionShape3D.new()
+	var cylinder := CylinderShape3D.new()
+	cylinder.radius = 1.85
+	cylinder.height = 1.6
+	shape.shape = cylinder
+	shape.position = Vector3(0.0, 0.8, 0.0)
+	add_child(shape)
+
+
+func _build_pond() -> void:
+	const WATER := Color(0.4, 0.68, 0.86)
+	const LILY := Color(0.36, 0.66, 0.36)
+	var water := Placeholder.part(self, Placeholder.cylinder(POND_RADIUS, 0.06), WATER, Vector3(0.0, 0.03, 0.0))
+	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 21
+	# Камни по берегу и листья кувшинок.
+	var rim := 22
+	for i in rim:
+		var angle := TAU * i / rim
+		var pebble := Placeholder.part(self, Placeholder.sphere(rng.randf_range(0.2, 0.32)), STONE,
+				Vector3(cos(angle), 0.0, sin(angle)) * (POND_RADIUS + 0.05) + Vector3(0.0, 0.08, 0.0))
+		pebble.scale = Vector3(1.0, 0.6, 1.0)
+	for i in 6:
+		var angle := rng.randf() * TAU
+		var distance := rng.randf_range(0.5, POND_RADIUS - 0.6)
+		Placeholder.part(self, Placeholder.cylinder(rng.randf_range(0.22, 0.34), 0.03), LILY,
+				Vector3(cos(angle) * distance, 0.08, sin(angle) * distance))
+	Placeholder.part(self, Placeholder.sphere(0.09), Color(1.0, 0.7, 0.8), Vector3(0.6, 0.16, -0.4))
+	var shape := CollisionShape3D.new()
+	var cylinder := CylinderShape3D.new()
+	cylinder.radius = POND_RADIUS
+	cylinder.height = 1.0
+	shape.shape = cylinder
+	shape.position = Vector3(0.0, 0.5, 0.0)
 	add_child(shape)
 
 

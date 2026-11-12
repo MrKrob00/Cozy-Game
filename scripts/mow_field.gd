@@ -17,10 +17,15 @@ const GROUND_SHADER := preload("res://shaders/ground.gdshader")
 
 ## Байтов на ячейку: высота, тон полосы, «голая» ячейка.
 const CHANNELS := 3
-## Высота обычной и высокой травы в маске (0–255).
+## Высота травы в маске (0–255): отросшая короткая, обычная, высокая и бурьян.
+const HEIGHT_SHORT := 77
 const HEIGHT_NORMAL := 153
-const HEIGHT_TALL := 255
+const HEIGHT_TALL := 204
+const HEIGHT_WEED := 255
 const TONE_NEUTRAL := 128
+## Значения _blocked: ячейка занята, земля в ней голая или под газоном.
+const BLOCKED_BARE := 1
+const BLOCKED_LAWN := 2
 
 ## Размер поля в метрах (X, Z). Центр — в начале координат узла.
 @export var size := Vector2(24.0, 24.0)
@@ -35,11 +40,13 @@ const TONE_NEUTRAL := 128
 @export var stripe_axis := Vector2(-1.0, -1.0)
 ## Доля поля под высокой травой (примерно).
 @export_range(0.0, 1.0) var tall_grass_amount := 0.35
+## Цвет «голых» ячеек после покоса: земля во дворе, камень на площади.
+@export var bare_color := Color(0.66, 0.54, 0.38)
 @export var random_seed := 1
 
 var _resolution := Vector2i.ZERO
 var _data := PackedByteArray()
-## 1 — в ячейке ничего не растёт (занята объектом), она не входит в процент.
+## Не ноль — в ячейке ничего не растёт (занята объектом), она не входит в процент.
 var _blocked := PackedByteArray()
 var _image: Image
 var _texture: ImageTexture
@@ -81,9 +88,11 @@ func get_progress() -> float:
 
 
 ## Срезает траву под прямоугольником ножа и красит полосу.
-## Возвращает количество срезанной травы в единицах мешка
-## (1 ед. за м² обычной травы, 2 ед. за м² высокой).
-func mow(world_position: Vector3, forward: Vector3, width: float, length: float) -> float:
+## Возвращает количество срезанной травы в единицах мешка за м²:
+## 0,5 — отросшая короткая, 1 — обычная, 2 — высокая, 3 — бурьян.
+## Если cut_weeds выключен, бурьян остаётся нетронутым.
+func mow(world_position: Vector3, forward: Vector3, width: float, length: float,
+		cut_weeds := true) -> float:
 	var center := _to_field(world_position)
 	var local_forward := global_basis.inverse() * forward
 	var f := Vector2(local_forward.x, local_forward.z).normalized()
@@ -98,7 +107,9 @@ func mow(world_position: Vector3, forward: Vector3, width: float, length: float)
 	var from := Vector2i(((center - extent) / cell_size).floor()).clamp(Vector2i.ZERO, last)
 	var to := Vector2i(((center + extent) / cell_size).floor()).clamp(Vector2i.ZERO, last)
 
-	var tone := int(clampf(0.5 + 0.5 * f.dot(stripe_axis.normalized()), 0.0, 1.0) * 255.0)
+	# Тон полосы считается в мировых координатах, чтобы не зависеть от поворота поля.
+	var world_forward := Vector2(forward.x, forward.z).normalized()
+	var tone := int(clampf(0.5 + 0.5 * world_forward.dot(stripe_axis.normalized()), 0.0, 1.0) * 255.0)
 	var cell_area := cell_size * cell_size
 	var units := 0.0
 
@@ -108,19 +119,48 @@ func mow(world_position: Vector3, forward: Vector3, width: float, length: float)
 			if absf(p.dot(f)) > half_l or absf(p.dot(r)) > half_w:
 				continue
 			var cell := y * _resolution.x + x
-			if _blocked[cell] == 1:
+			if _blocked[cell] != 0:
 				continue
 			var i := cell * CHANNELS
 			var height := _data[i]
+			if height > HEIGHT_TALL and not cut_weeds:
+				continue
 			if height > 0:
 				_data[i] = 0
 				_cut_cells += 1
-				units += cell_area * (2.0 if height > HEIGHT_NORMAL else 1.0)
+				units += cell_area * _units_per_area(height)
 				_dirty = true
 			if _data[i + 1] != tone:
 				_data[i + 1] = tone
 				_dirty = true
 	return units
+
+
+func _units_per_area(height: int) -> float:
+	if height > HEIGHT_TALL:
+		return 3.0
+	if height > HEIGHT_NORMAL:
+		return 2.0
+	if height < HEIGHT_NORMAL:
+		return 0.5
+	return 1.0
+
+
+## Новый день: на скошенных местах отрастает короткая трава.
+## Дорожки и другие «голые» ячейки остаются чистыми.
+func regrow() -> void:
+	_cut_cells = 0
+	for cell in _blocked.size():
+		if _blocked[cell] != 0:
+			continue
+		var i := cell * CHANNELS
+		if _data[i] == 0 and _data[i + 2] == 0:
+			_data[i] = HEIGHT_SHORT
+			_data[i + 1] = TONE_NEUTRAL
+		if _data[i] == 0:
+			_cut_cells += 1
+	_upload()
+	progress_changed.emit(get_progress())
 
 
 ## Лежит ли точка в пределах поля.
@@ -181,7 +221,7 @@ func set_state(state: PackedByteArray) -> bool:
 		return false
 	_cut_cells = 0
 	for cell in _blocked.size():
-		if _blocked[cell] == 1:
+		if _blocked[cell] != 0:
 			continue
 		var i := cell * CHANNELS
 		# Трава не может стать выше, чем выросла изначально.
@@ -196,16 +236,18 @@ func set_state(state: PackedByteArray) -> bool:
 
 # --- Формирование травы объектами участка (вызывается из shape_grass) ---
 
-## В круге ничего не растёт: ствол дерева, столб.
-func block_circle(world_center: Vector3, radius: float) -> void:
+## В круге ничего не растёт: ствол дерева, столб. Если bare выключен,
+## земля в круге выглядит как стриженый газон, а не как голая почва.
+func block_circle(world_center: Vector3, radius: float, bare := true) -> void:
 	for cell in _cells_in_circle(world_center, radius):
-		_blocked[cell] = 1
+		_blocked[cell] = BLOCKED_BARE if bare else BLOCKED_LAWN
 
 
 ## В прямоугольнике ничего не растёт: скамейка, клумба, стена.
+## yaw — поворот объекта в мире (global_rotation.y).
 func block_rect(world_center: Vector3, rect_size: Vector2, yaw := 0.0) -> void:
-	for cell in _cells_in_rect(world_center, rect_size, yaw):
-		_blocked[cell] = 1
+	for cell in _cells_in_rect(world_center, rect_size, yaw - global_rotation.y):
+		_blocked[cell] = BLOCKED_BARE
 
 
 ## Под травой в круге — не газон, а камень или земля: после покоса стерни не остаётся.
@@ -216,14 +258,25 @@ func pave_circle(world_center: Vector3, radius: float) -> void:
 
 ## То же для прямоугольника: клумба, площадка.
 func pave_rect(world_center: Vector3, rect_size: Vector2, yaw := 0.0) -> void:
-	for cell in _cells_in_rect(world_center, rect_size, yaw):
+	for cell in _cells_in_rect(world_center, rect_size, yaw - global_rotation.y):
 		_data[cell * CHANNELS + 2] = 255
 
 
-## В круге растёт высокая трава (чтобы спрятать находку).
+## В круге растёт высокая трава (чтобы спрятать находку). Бурьян не понижает.
 func grow_tall_circle(world_center: Vector3, radius: float) -> void:
 	for cell in _cells_in_circle(world_center, radius):
-		_data[cell * CHANNELS] = HEIGHT_TALL
+		_data[cell * CHANNELS] = maxi(_data[cell * CHANNELS], HEIGHT_TALL)
+
+
+## В круге растёт бурьян: его берёт только нож второго уровня.
+func grow_weeds_circle(world_center: Vector3, radius: float) -> void:
+	for cell in _cells_in_circle(world_center, radius):
+		_data[cell * CHANNELS] = HEIGHT_WEED
+
+
+func grow_weeds_rect(world_center: Vector3, rect_size: Vector2, yaw := 0.0) -> void:
+	for cell in _cells_in_rect(world_center, rect_size, yaw - global_rotation.y):
+		_data[cell * CHANNELS] = HEIGHT_WEED
 
 
 func _to_field(world_position: Vector3) -> Vector2:
@@ -300,9 +353,9 @@ func _finish_mask() -> void:
 	_mowable_cells = 0
 	_cut_cells = 0
 	for cell in _blocked.size():
-		if _blocked[cell] == 1:
+		if _blocked[cell] != 0:
 			_data[cell * CHANNELS] = 0
-			_data[cell * CHANNELS + 2] = 255
+			_data[cell * CHANNELS + 2] = 255 if _blocked[cell] == BLOCKED_BARE else 0
 		else:
 			_mowable_cells += 1
 	_image = Image.create_from_data(_resolution.x, _resolution.y, false, Image.FORMAT_RGB8, _data)
@@ -316,15 +369,19 @@ func _upload() -> void:
 
 
 func _build_materials() -> void:
-	var field_min := Vector2(global_position.x, global_position.z) - size * 0.5
+	var axis_x := global_basis.x
+	var axis_z := global_basis.z
 	_grass_material = ShaderMaterial.new()
 	_grass_material.shader = GRASS_SHADER
 	_ground_material = ShaderMaterial.new()
 	_ground_material.shader = GROUND_SHADER
 	for mat: ShaderMaterial in [_grass_material, _ground_material]:
 		mat.set_shader_parameter("mow_mask", _texture)
-		mat.set_shader_parameter("field_min", field_min)
+		mat.set_shader_parameter("field_center", Vector2(global_position.x, global_position.z))
+		mat.set_shader_parameter("field_x", Vector2(axis_x.x, axis_x.z).normalized())
+		mat.set_shader_parameter("field_z", Vector2(axis_z.x, axis_z.z).normalized())
 		mat.set_shader_parameter("field_size", size)
+	_ground_material.set_shader_parameter("bare_color", bare_color)
 	_grass_material.set_shader_parameter("pusher_position", Vector3(0.0, -100.0, 0.0))
 
 
@@ -365,7 +422,7 @@ func _build_grass() -> void:
 							Vector3(s, rng.randf_range(0.85, 1.1), s))
 					var cell := Vector2i(((origin + Vector2(px, pz)) / cell_size).floor())
 					cell = cell.clamp(Vector2i.ZERO, _resolution - Vector2i.ONE)
-					if _blocked[cell.y * _resolution.x + cell.x] == 1:
+					if _blocked[cell.y * _resolution.x + cell.x] != 0:
 						continue
 					transforms.append(Transform3D(turn, Vector3(px, 0.0, pz)))
 			if transforms.is_empty():
