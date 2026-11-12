@@ -28,6 +28,22 @@ static func part(parent: Node3D, mesh: Mesh, color: Color, position := Vector3.Z
 	return instance
 
 
+## Фигурка человека лицом к −Z: комбинезон, рубашка, голова с глазами,
+## ладони и ботинки. Головной убор и причёску добавляет вызывающий.
+static func person(parent: Node3D, clothes: Color, shirt: Color, skin: Color, hand: Vector3) -> Node3D:
+	const DARK := Color(0.22, 0.22, 0.26)
+	var figure := Node3D.new()
+	parent.add_child(figure)
+	part(figure, capsule(0.24, 0.62), clothes, Vector3(0.0, 0.42, 0.0))
+	part(figure, sphere(0.23), shirt, Vector3(0.0, 0.74, 0.0))
+	part(figure, sphere(0.27), skin, Vector3(0.0, 1.12, 0.0))
+	for side: float in [-1.0, 1.0]:
+		part(figure, sphere(0.09), skin, hand * Vector3(side, 1.0, 1.0))
+		part(figure, sphere(0.11), DARK, Vector3(0.13 * side, 0.09, -0.03))
+		part(figure, sphere(0.035), DARK, Vector3(0.1 * side, 1.16, -0.24))
+	return figure
+
+
 static func box(size: Vector3) -> BoxMesh:
 	var mesh := BoxMesh.new()
 	mesh.size = size

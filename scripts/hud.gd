@@ -1,6 +1,6 @@
 extends CanvasLayer
 ## Интерфейс: прогресс участка, мешок, ресурсы, контекстная кнопка,
-## всплывающие сообщения, окно завершения участка и пауза.
+## всплывающие сообщения, окно завершения участка, мастерская и пауза.
 
 const CREAM := Color(1.0, 0.96, 0.86)
 const INK := Color(0.27, 0.22, 0.17)
@@ -36,9 +36,17 @@ const COMPLETION_DELAY := 5.0
 @onready var _sound_button: Button = %SoundButton
 @onready var _reset_button: Button = %ResetButton
 @onready var _quit_button: Button = %QuitButton
+@onready var _workshop_panel: Control = %WorkshopPanel
+@onready var _workshop_window: PanelContainer = %WorkshopWindow
+@onready var _workshop_coins: Label = %WorkshopCoins
+@onready var _workshop_rows: VBoxContainer = %WorkshopRows
+@onready var _workshop_close: Button = %WorkshopClose
+@onready var _speech: PanelContainer = %Speech
+@onready var _speech_label: Label = %SpeechLabel
 @onready var _pinch_zoom: PinchZoom = %PinchZoom
 
 var _player: Player
+## Участок, прогресс которого сейчас показан.
 var _plot: Plot
 var _touch := false
 var _toasts: Array[String] = []
@@ -50,6 +58,12 @@ var _shown_percent := -1
 var _shown_coins := 0
 var _shown_compost := 0
 var _action_pulse: Tween
+## Кто сейчас говорит (чтобы чужой уход не закрывал реплику).
+var _speaker: Node
+
+
+func _enter_tree() -> void:
+	add_to_group("hud")
 
 
 func _ready() -> void:
@@ -58,7 +72,6 @@ func _ready() -> void:
 	_apply_safe_area()
 
 	_player = get_tree().get_first_node_in_group("player") as Player
-	_plot = get_tree().get_first_node_in_group("plot") as Plot
 	var camera := get_viewport().get_camera_3d() as FollowCamera
 	if camera:
 		_pinch_zoom.pinch_step.connect(camera.zoom_step)
@@ -66,12 +79,18 @@ func _ready() -> void:
 	_toast.visible = false
 	_completion.visible = false
 	_pause_panel.visible = false
+	_workshop_panel.visible = false
 	_action_button.visible = false
+	_speech.visible = false
 
-	if _plot:
-		_plot.field.progress_changed.connect(_on_progress_changed)
-		_plot.completed.connect(_on_plot_completed)
-		_on_progress_changed(_plot.field.get_progress())
+	for plot: Plot in get_tree().get_nodes_in_group("plot"):
+		plot.completed.connect(_on_plot_completed.bind(plot))
+	var village := get_tree().get_first_node_in_group("village") as Village
+	if village:
+		# Деревня сообщит текущий участок, когда будет готова.
+		village.current_plot_changed.connect(_show_plot)
+	else:
+		_show_plot(get_tree().get_first_node_in_group("plot") as Plot)
 	if _player:
 		_player.interaction_target_changed.connect(_on_target_changed)
 
@@ -96,11 +115,12 @@ func _ready() -> void:
 		GameState.save_game()
 		get_tree().quit())
 	_continue_button.pressed.connect(func() -> void: _completion.visible = false)
+	_workshop_close.pressed.connect(close_workshop)
 	# На телефоне и в браузере приложение закрывает система.
 	_quit_button.visible = not (OS.has_feature("mobile") or OS.has_feature("web"))
 	_update_sound_button()
 	for button: Button in [_action_button, _pause_button, _resume_button, _sound_button,
-			_reset_button, _quit_button, _continue_button]:
+			_reset_button, _quit_button, _continue_button, _workshop_close]:
 		button.pressed.connect(_on_any_button_pressed.bind(button))
 
 	if _touch:
@@ -113,7 +133,10 @@ func _ready() -> void:
 
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause"):
-		_set_paused(not get_tree().paused)
+		if _workshop_panel.visible:
+			close_workshop()
+		else:
+			_set_paused(not get_tree().paused)
 		get_viewport().set_input_as_handled()
 
 
@@ -122,6 +145,33 @@ func show_toast(text: String) -> void:
 	_toasts.append(text)
 	if not _toast_busy:
 		_next_toast()
+
+
+## Открывает мастерскую (вызывается объектом Workshop через группу «hud»).
+func open_workshop() -> void:
+	get_tree().paused = true
+	_fill_workshop()
+	_workshop_panel.visible = true
+	Juice.pop_in(_workshop_window, 0.25)
+	Sfx.play("pop")
+
+
+func close_workshop() -> void:
+	_workshop_panel.visible = false
+	get_tree().paused = false
+
+
+## Показывает реплику жителя внизу экрана (вызывается через группу «hud»).
+func show_speech(speaker: Node, speaker_name: String, text: String) -> void:
+	_speaker = speaker
+	_speech_label.text = "%s: %s" % [speaker_name, text]
+	Juice.pop_in(_speech, 0.22)
+
+
+func hide_speech(speaker: Node) -> void:
+	if speaker == _speaker:
+		_speaker = null
+		_speech.visible = false
 
 
 func _next_toast() -> void:
@@ -139,11 +189,26 @@ func _next_toast() -> void:
 		_next_toast())
 
 
+# Переключает панель прогресса на другой участок.
+func _show_plot(plot: Plot) -> void:
+	if plot == _plot or plot == null:
+		return
+	if _plot:
+		_plot.field.progress_changed.disconnect(_on_progress_changed)
+	var first := _plot == null
+	_plot = plot
+	_plot.field.progress_changed.connect(_on_progress_changed)
+	_shown_percent = -1
+	_on_progress_changed(_plot.get_progress())
+	if not first:
+		Juice.punch(_progress_label, 0.15)
+
+
 func _on_progress_changed(ratio: float) -> void:
 	var percent := floori(ratio * 100.0 + 0.0001)
 	if percent == _shown_percent:
 		return
-	_progress_label.text = "Скошено: %d %%" % percent
+	_progress_label.text = "%s: %d %%" % [_plot.plot_name, percent]
 	# Каждый новый процент слегка «подпрыгивает», круглые — сильнее.
 	if _shown_percent >= 0:
 		Juice.punch(_progress_label, 0.22 if percent % 10 == 0 else 0.08)
@@ -212,13 +277,13 @@ func _on_target_changed(target: Interactable) -> void:
 			.set_trans(Tween.TRANS_SINE)
 
 
-func _on_plot_completed() -> void:
+func _on_plot_completed(plot: Plot) -> void:
 	# Сначала облёт камеры, чтобы игрок увидел выкошенный участок, потом окно.
-	show_toast(_plot.completed_title)
+	show_toast(plot.completed_title)
 	await get_tree().create_timer(COMPLETION_DELAY).timeout
-	_completion_title.text = _plot.completed_title
-	_completion_reward.text = "Награда: +%d монет" % _plot.reward_coins
-	var stamps := _fill_stamps(_completion_stamps)
+	_completion_title.text = plot.completed_title
+	_completion_reward.text = "Награда: +%d монет" % plot.reward_coins
+	var stamps := _fill_stamps(_completion_stamps, plot)
 	_completion.visible = true
 	Juice.pop_in(_completion_panel, 0.4)
 	Sfx.play("pop")
@@ -243,7 +308,7 @@ func _set_paused(paused: bool) -> void:
 	_reset_button.text = "Начать заново"
 	if paused and _plot:
 		_pause_title.text = _plot.plot_name
-		_fill_stamps(_pause_stamps)
+		_fill_stamps(_pause_stamps, _plot)
 		Juice.pop_in(_pause_window, 0.22)
 
 
@@ -265,11 +330,11 @@ func _update_sound_button() -> void:
 	_sound_button.text = "Звук: включён" if GameState.sound_enabled else "Звук: выключен"
 
 
-func _fill_stamps(container: VBoxContainer) -> Array[Label]:
+func _fill_stamps(container: VBoxContainer, plot: Plot) -> Array[Label]:
 	for child in container.get_children():
 		child.queue_free()
 	var labels: Array[Label] = []
-	for stamp in _plot.get_stamps():
+	for stamp in plot.get_stamps():
 		var label := Label.new()
 		label.text = ("+  " if stamp["earned"] else "·  ") + stamp["title"]
 		label.add_theme_color_override("font_color", GREEN_DARK if stamp["earned"] else INK)
@@ -277,6 +342,74 @@ func _fill_stamps(container: VBoxContainer) -> Array[Label]:
 		container.add_child(label)
 		labels.append(label)
 	return labels
+
+
+# Строки мастерской: по одной на апгрейд, с ценой следующего уровня.
+func _fill_workshop() -> void:
+	for child in _workshop_rows.get_children():
+		child.queue_free()
+	_workshop_coins.text = "Монеты: %d" % GameState.coins
+	for id: String in GameState.UPGRADES:
+		var info: Dictionary = GameState.UPGRADES[id]
+		var level := GameState.upgrade_level(id)
+		var values: Array = info["values"]
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 28)
+		_workshop_rows.add_child(row)
+
+		var text := VBoxContainer.new()
+		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(text)
+		var title := Label.new()
+		title.text = "%s — уровень %d из %d" % [info["title"], level + 1, values.size()]
+		text.add_child(title)
+		var about := Label.new()
+		about.add_theme_font_size_override("font_size", 28)
+		about.modulate.a = 0.7
+		if GameState.is_upgrade_maxed(id):
+			about.text = "%s: %s %s" % [info["about"], _number(values[level]), info["unit"]]
+		else:
+			about.text = "%s: %s → %s %s" % [info["about"], _number(values[level]),
+					_number(values[level + 1]), info["unit"]]
+		text.add_child(about)
+
+		if GameState.is_upgrade_maxed(id):
+			var done := Label.new()
+			done.text = "Максимум"
+			done.add_theme_color_override("font_color", GREEN_DARK)
+			done.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			row.add_child(done)
+			continue
+		var cost := GameState.upgrade_cost(id)
+		var buy := Button.new()
+		buy.text = "%d монет" % cost
+		buy.focus_mode = Control.FOCUS_NONE
+		buy.custom_minimum_size = Vector2(240.0, 0.0)
+		buy.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		# Недоступную покупку приглушаем, но нажать можно — игра объяснит звуком.
+		buy.modulate.a = 1.0 if GameState.coins >= cost else 0.5
+		buy.pressed.connect(_on_buy_pressed.bind(id, buy))
+		row.add_child(buy)
+
+
+func _on_buy_pressed(id: String, button: Button) -> void:
+	if not GameState.buy_upgrade(id):
+		Sfx.play("deny")
+		Juice.punch(_workshop_coins, 0.25)
+		Juice.punch(button, 0.06, 0.2)
+		return
+	Sfx.play("coin")
+	Sfx.play("plant", -6.0)
+	Sfx.buzz(30)
+	_fill_workshop()
+	Juice.punch(_workshop_coins, 0.25)
+
+
+# Число для показа: целое без дроби, дробное с запятой.
+func _number(value: float) -> String:
+	if is_equal_approx(value, roundf(value)):
+		return "%d" % roundi(value)
+	return ("%.1f" % value).replace(".", ",")
 
 
 # На телефонах отодвигает интерфейс от вырезов и скруглений экрана.

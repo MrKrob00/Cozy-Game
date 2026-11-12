@@ -60,7 +60,7 @@ func _run() -> void:
 		check(InputMap.has_action(action) and InputMap.action_get_events(action).size() >= 2,
 				"action %s has events" % action)
 
-	change_scene_to_file("res://scenes/yard.tscn")
+	change_scene_to_file("res://scenes/village.tscn")
 	await frames(5)
 	var field = get_first_node_in_group("mow_field")
 	var player = get_first_node_in_group("player")
@@ -130,13 +130,17 @@ func _run() -> void:
 	click.pressed = false
 	Input.parse_input_event(click)
 
-	# 6. Границы: держим «влево» 15 секунд, игрок не уходит за забор.
+	# 6. Границы: держим «влево» 15 секунд, игрок остаётся там, где можно ходить.
 	Input.action_press("move_left")
 	await frames(900)
 	Input.action_release("move_left")
-	var limit: Vector2 = field.size * 0.5 + Vector2(1.45, 1.45)
-	check(absf(player.global_position.x) <= limit.x and absf(player.global_position.z) <= limit.y,
-			"player stays inside bounds")
+	var at := Vector2(player.global_position.x, player.global_position.z)
+	var inside := false
+	for area in get_nodes_in_group("walk_area"):
+		for rect: Rect2 in area.get_walk_rects():
+			if rect.grow(0.05).has_point(at):
+				inside = true
+	check(inside, "player stays inside walkable areas")
 
 	game_state.clear()
 	if FileAccess.file_exists("user://save.dat"):

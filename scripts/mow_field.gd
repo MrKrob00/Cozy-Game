@@ -57,8 +57,11 @@ func _enter_tree() -> void:
 func _ready() -> void:
 	_resolution = Vector2i(ceili(size.x / cell_size), ceili(size.y / cell_size))
 	_build_mask()
+	# Траву формируют только объекты того же участка (или сцены, если участка нет).
+	var owner_node := get_parent()
 	for shaper in get_tree().get_nodes_in_group("grass_shaper"):
-		shaper.shape_grass(self)
+		if owner_node == null or owner_node.is_ancestor_of(shaper):
+			shaper.shape_grass(self)
 	_finish_mask()
 	_build_materials()
 	_build_ground()
@@ -118,6 +121,11 @@ func mow(world_position: Vector3, forward: Vector3, width: float, length: float)
 				_data[i + 1] = tone
 				_dirty = true
 	return units
+
+
+## Лежит ли точка в пределах поля.
+func contains(world_position: Vector3) -> bool:
+	return _cell_at(world_position) != -1
 
 
 ## Высота травы в точке, 0–1 (0 — скошено, занято объектом или вне поля).

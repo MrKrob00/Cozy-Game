@@ -3,12 +3,13 @@ extends StaticBody3D
 ## Крупный объект участка: дом, сарай, скамейка, дерево.
 ## Сам строит временную модель, коллизию и убирает траву под собой.
 
-enum Kind { HOUSE, SHED, BENCH, TREE }
+enum Kind { HOUSE, SHED, BENCH, TREE, WELL }
 
 @export var kind := Kind.TREE
+## Цвета стен и крыши дома.
+@export var wall_color := Color(0.98, 0.92, 0.78)
+@export var roof_color := Color(0.80, 0.36, 0.30)
 
-const CREAM := Color(0.98, 0.92, 0.78)
-const ROOF := Color(0.80, 0.36, 0.30)
 const WOOD := Color(0.72, 0.52, 0.34)
 const WOOD_DARK := Color(0.52, 0.36, 0.24)
 const GLASS := Color(0.62, 0.84, 0.94)
@@ -18,7 +19,11 @@ const LEAVES := Color(0.34, 0.66, 0.34)
 const LEAVES_LIGHT := Color(0.44, 0.74, 0.36)
 
 
+const DOOR_OPEN_ANGLE := -1.9
+
 var _windows: Array[MeshInstance3D] = []
+var _door: Node3D
+var _padlock: MeshInstance3D
 
 
 func _enter_tree() -> void:
@@ -47,6 +52,8 @@ func _ready() -> void:
 			_build_bench()
 		Kind.TREE:
 			_build_tree()
+		Kind.WELL:
+			_build_well()
 
 
 func shape_grass(field: MowField) -> void:
@@ -59,12 +66,14 @@ func shape_grass(field: MowField) -> void:
 			field.block_rect(global_position, Vector2(1.6, 0.7), global_rotation.y)
 		Kind.TREE:
 			field.block_circle(global_position, 0.45)
+		Kind.WELL:
+			field.block_circle(global_position, 0.9)
 
 
 func _build_house() -> void:
-	Placeholder.part(self, Placeholder.box(Vector3(6.0, 3.0, 4.5)), CREAM, Vector3(0.0, 1.5, 0.0))
+	Placeholder.part(self, Placeholder.box(Vector3(6.0, 3.0, 4.5)), wall_color, Vector3(0.0, 1.5, 0.0))
 	Placeholder.part(self, Placeholder.box(Vector3(6.2, 0.4, 4.7)), STONE, Vector3(0.0, 0.2, 0.0))
-	Placeholder.part(self, Placeholder.prism(Vector3(6.8, 2.0, 5.2)), ROOF, Vector3(0.0, 4.0, 0.0))
+	Placeholder.part(self, Placeholder.prism(Vector3(6.8, 2.0, 5.2)), roof_color, Vector3(0.0, 4.0, 0.0))
 	Placeholder.part(self, Placeholder.box(Vector3(0.6, 1.4, 0.6)), STONE, Vector3(1.7, 4.2, -0.8))
 	# Фасад смотрит на +Z: дверь, крыльцо, окна.
 	Placeholder.part(self, Placeholder.box(Vector3(1.0, 1.9, 0.12)), WOOD_DARK, Vector3(0.0, 1.15, 2.26))
@@ -83,10 +92,46 @@ func _build_house() -> void:
 func _build_shed() -> void:
 	Placeholder.part(self, Placeholder.box(Vector3(2.4, 2.0, 2.2)), WOOD, Vector3(0.0, 1.0, 0.0))
 	Placeholder.part(self, Placeholder.prism(Vector3(2.9, 0.9, 2.7)), WOOD_DARK, Vector3(0.0, 2.45, 0.0))
-	Placeholder.part(self, Placeholder.box(Vector3(0.9, 1.6, 0.1)), WOOD_DARK, Vector3(0.0, 0.8, 1.11))
+	# Дверь на петлях у левого края; тёмный проём за ней виден, когда она открыта.
+	Placeholder.part(self, Placeholder.box(Vector3(0.9, 1.6, 0.04)), Color(0.2, 0.16, 0.14), Vector3(0.0, 0.8, 1.09))
+	_door = Node3D.new()
+	_door.position = Vector3(-0.45, 0.0, 1.12)
+	add_child(_door)
+	Placeholder.part(_door, Placeholder.box(Vector3(0.9, 1.6, 0.08)), WOOD_DARK, Vector3(0.45, 0.8, 0.0))
 	# Замок: сарай пока заперт.
-	Placeholder.part(self, Placeholder.box(Vector3(0.2, 0.2, 0.1)), GOLD, Vector3(0.3, 0.9, 1.2))
+	_padlock = Placeholder.part(_door, Placeholder.box(Vector3(0.2, 0.2, 0.1)), GOLD, Vector3(0.75, 0.9, 0.08))
 	_add_box_collision(Vector3(2.6, 2.0, 2.4), Vector3(0.0, 1.0, 0.0))
+
+
+## Отпирает сарай: замок пропадает, дверь распахивается.
+func set_unlocked(animated: bool) -> void:
+	if _door == null:
+		return
+	_padlock.visible = false
+	if not animated:
+		_door.rotation.y = DOOR_OPEN_ANGLE
+		return
+	Juice.sparkle(self, _padlock.global_position)
+	var tween := create_tween()
+	tween.tween_property(_door, "rotation:y", DOOR_OPEN_ANGLE, 0.8) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+func _build_well() -> void:
+	Placeholder.part(self, Placeholder.cylinder(0.75, 0.7), STONE, Vector3(0.0, 0.35, 0.0))
+	Placeholder.part(self, Placeholder.cylinder(0.58, 0.04), Color(0.25, 0.45, 0.6), Vector3(0.0, 0.7, 0.0))
+	for side: float in [-1.0, 1.0]:
+		Placeholder.part(self, Placeholder.box(Vector3(0.12, 1.5, 0.12)), WOOD_DARK, Vector3(0.68 * side, 1.2, 0.0))
+	Placeholder.part(self, Placeholder.cylinder(0.06, 1.4), WOOD, Vector3(0.0, 1.6, 0.0), Vector3(0.0, 0.0, 90.0))
+	Placeholder.part(self, Placeholder.prism(Vector3(1.9, 0.6, 1.3)), roof_color, Vector3(0.0, 2.2, 0.0))
+	Placeholder.part(self, Placeholder.cylinder(0.14, 0.24, 0.17), WOOD, Vector3(0.2, 1.15, 0.0))
+	var shape := CollisionShape3D.new()
+	var cylinder := CylinderShape3D.new()
+	cylinder.radius = 0.8
+	cylinder.height = 1.4
+	shape.shape = cylinder
+	shape.position = Vector3(0.0, 0.7, 0.0)
+	add_child(shape)
 
 
 func _build_bench() -> void:

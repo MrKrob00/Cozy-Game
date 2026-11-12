@@ -35,7 +35,8 @@ func _enter_tree() -> void:
 
 
 func _ready() -> void:
-	_field = get_tree().get_first_node_in_group("mow_field") as MowField
+	var plot := Plot.of(self)
+	_field = plot.field if plot else get_tree().get_first_node_in_group("mow_field") as MowField
 	# Расстояние меряется от центра, поэтому длинной клумбе нужен радиус побольше.
 	interact_radius = 1.2 + maxf(bed_size.x, bed_size.y) * 0.5
 	_build_border()

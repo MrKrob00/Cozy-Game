@@ -160,6 +160,26 @@ theme_override_font_sizes/font_size = 40
 text = "WASD или зажмите левую кнопку мыши, чтобы косить"
 horizontal_alignment = 1
 
+[node name="SpeechHolder" type="MarginContainer" parent="Root/Margin"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 8
+mouse_filter = 2
+theme_override_constants/margin_bottom = 20
+
+[node name="Speech" type="PanelContainer" parent="Root/Margin/SpeechHolder"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+
+[node name="SpeechLabel" type="Label" parent="Root/Margin/SpeechHolder/Speech"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(880, 0)
+layout_mode = 2
+text = "Житель: реплика"
+horizontal_alignment = 1
+autowrap_mode = 3
+
 [node name="Completion" type="CenterContainer" parent="Root"]
 unique_name_in_owner = true
 layout_mode = 1
@@ -265,3 +285,53 @@ unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 text = "Выйти из игры"
+
+[node name="WorkshopPanel" type="ColorRect" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.08, 0.14, 0.09, 0.55)
+
+[node name="Center" type="CenterContainer" parent="Root/WorkshopPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="WorkshopWindow" type="PanelContainer" parent="Root/WorkshopPanel/Center"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Rows" type="VBoxContainer" parent="Root/WorkshopPanel/Center/WorkshopWindow"]
+custom_minimum_size = Vector2(900, 0)
+layout_mode = 2
+theme_override_constants/separation = 22
+
+[node name="Title" type="Label" parent="Root/WorkshopPanel/Center/WorkshopWindow/Rows"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 54
+text = "Мастерская"
+horizontal_alignment = 1
+
+[node name="WorkshopCoins" type="Label" parent="Root/WorkshopPanel/Center/WorkshopWindow/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Монеты: 0"
+horizontal_alignment = 1
+
+[node name="WorkshopRows" type="VBoxContainer" parent="Root/WorkshopPanel/Center/WorkshopWindow/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="WorkshopClose" type="Button" parent="Root/WorkshopPanel/Center/WorkshopWindow/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Закрыть"

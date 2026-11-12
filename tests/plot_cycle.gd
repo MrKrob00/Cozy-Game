@@ -45,7 +45,7 @@ func _initialize() -> void:
 func _run() -> void:
 	gs = root.get_node("GameState")
 	gs.clear()
-	change_scene_to_file("res://scenes/yard.tscn")
+	change_scene_to_file("res://scenes/village.tscn")
 	await frames(5)
 	var plot = get_first_node_in_group("plot")
 	var field = plot.field
@@ -56,7 +56,7 @@ func _run() -> void:
 	var mowable: int = field.get("_mowable_cells")
 	print("mowable cells=%d (%.1f m2)" % [mowable, mowable * 0.125 * 0.125])
 	check(mowable > 10000 and mowable < 10752, "field has blocked cells under bench and tree")
-	check(get_nodes_in_group("find").size() == 3 and get_nodes_in_group("animal").size() == 1, "3 finds and 1 animal")
+	check(plot.members("find").size() == 3 and plot.members("animal").size() == 1, "3 finds and 1 animal in the yard")
 	check(plot.get_stamps().size() == 5, "5 stamps listed")
 	check(not hud.get_node("%ActionButton").visible, "action button hidden at start")
 
@@ -75,7 +75,7 @@ func _run() -> void:
 	check(is_equal_approx(field.get_progress(), before), "full bag stops cutting")
 
 	# 3. Компостный ящик.
-	var bin = current_scene.get_node("CompostBin")
+	var bin = current_scene.get_node("Yard/CompostBin")
 	check(bin.get("_arrow").visible, "arrow shown over compost bin when bag is full")
 	player.global_position = Vector3(3.3, 0, 4.6)
 	player.rotation = Vector3(0, PI, 0)  # лицом к +Z, к ящику
@@ -94,7 +94,7 @@ func _run() -> void:
 	check(not bin.get("_arrow").visible, "arrow hidden after emptying")
 
 	# 4. Находка: скашиваем траву над монетками.
-	var coins_find = current_scene.get_node("FindCoins")
+	var coins_find = current_scene.get_node("Yard/FindCoins")
 	check(field.get_height_at(coins_find.global_position) == 1.0, "tall grass hides the find")
 	field.mow(coins_find.global_position, Vector3.FORWARD, 1.0, 1.0)
 	for i in 200:
@@ -104,7 +104,7 @@ func _run() -> void:
 	check(toasts.any(func(t): return t.begins_with("Найдено: старые монетки")), "find toast")
 
 	# 5. Ёжик: косилка упирается, потом переносим.
-	var hedgehog = current_scene.get_node("Hedgehog")
+	var hedgehog = current_scene.get_node("Yard/Hedgehog")
 	var start_h: Vector3 = hedgehog.global_position
 	player.global_position = start_h + Vector3(3.0, 0, 3.0)
 	player.rotation = Vector3(0, PI * 0.25, 0)  # лицом к (-1,-1)
@@ -118,14 +118,14 @@ func _run() -> void:
 	player.try_interact()
 	for i in 400:
 		await process_frame
-	var home: Node3D = current_scene.get_node("AnimalCorner")
+	var home: Node3D = current_scene.get_node("Yard/AnimalCorner")
 	check(hedgehog.is_moved() and hedgehog.global_position.distance_to(home.global_position) < 0.1, "hedgehog hops to its corner")
 	await hold("move_up", 120)
 	check(field.get_height_at(start_h) == 0.0, "can mow where the hedgehog was")
 
 	# 5a. Клумбы: открываются покосом, цветы сажаются за компост.
-	var bed = current_scene.get_node("BedByHouse")
-	var bed2 = current_scene.get_node("BedByBench")
+	var bed = current_scene.get_node("Yard/BedByHouse")
+	var bed2 = current_scene.get_node("Yard/BedByBench")
 	check(not bed.can_interact(player), "overgrown flower bed is not interactable")
 	field.mow(bed.global_position, Vector3.FORWARD, 3.0, 1.6)
 	field.mow(bed2.global_position, Vector3.FORWARD, 2.2, 1.8)
@@ -208,11 +208,11 @@ func _run() -> void:
 	plot = get_first_node_in_group("plot")
 	check(plot.field.get_progress() == 1.0, "mowing progress restored after reload")
 	check(plot.is_completed() and gs.coins == saved_coins, "completed plot does not pay twice")
-	hedgehog = current_scene.get_node("Hedgehog")
-	check(hedgehog.is_moved() and hedgehog.global_position.distance_to(current_scene.get_node("AnimalCorner").global_position) < 0.1, "hedgehog stays in its corner after reload")
-	check(current_scene.get_node("FindCoins").is_collected(), "find stays collected after reload")
+	hedgehog = current_scene.get_node("Yard/Hedgehog")
+	check(hedgehog.is_moved() and hedgehog.global_position.distance_to(current_scene.get_node("Yard/AnimalCorner").global_position) < 0.1, "hedgehog stays in its corner after reload")
+	check(current_scene.get_node("Yard/FindCoins").is_collected(), "find stays collected after reload")
 	check(not current_scene.get_node("HUD").get_node("%Completion").visible, "no completion window on reload")
-	check(current_scene.get_node("BedByHouse").is_planted() and current_scene.get_node("BedByBench").is_planted(), "flower beds stay planted after reload")
+	check(current_scene.get_node("Yard/BedByHouse").is_planted() and current_scene.get_node("Yard/BedByBench").is_planted(), "flower beds stay planted after reload")
 	check(gs.compost == saved_compost, "spent compost stays spent after reload")
 
 	gs.clear()

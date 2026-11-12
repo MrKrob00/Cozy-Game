@@ -3,28 +3,24 @@ extends CharacterBody3D
 ## Персонаж с газонокосилкой.
 ##
 ## Косилка режет сама, пока движется и пока в мешке есть место.
-## Назад не едет: разворот дугой.
+## Назад не едет: разворот дугой. Скорость, ширина ножа и мешок берутся
+## из апгрейдов (GameState).
 ## Источники ввода: клавиатура, геймпад и сенсорный джойстик (все через
 ## действия InputMap), а также удержание левой кнопки мыши (идти к курсору).
 
 ## Меняется объект, с которым сейчас можно взаимодействовать (или null).
 signal interaction_target_changed(target: Interactable)
 
-## Скорость на обычной траве, м/с.
-@export var speed := 2.5
 ## Скорость поворота, рад/с.
 @export var turn_rate := 4.5
 @export var acceleration := 9.0
-## Ширина ножа в метрах.
-@export var blade_width := 0.6
-## Множитель скорости в высокой траве.
+## Множитель скорости в высокой траве (с лучшим мотором замедление меньше).
 @export_range(0.1, 1.0) var tall_grass_speed := 0.6
+@export_range(0.1, 1.0) var tall_grass_speed_best_motor := 0.8
 
 ## Расстояние от персонажа до центра ножа.
 const BLADE_OFFSET := 0.95
 const BLADE_LENGTH := 0.4
-## Насколько игрок может выйти за край поля (чтобы докосить края и развернуться).
-const FIELD_MARGIN := 1.4
 ## Курсор ближе этого расстояния не двигает персонажа.
 const MOUSE_DEADZONE := 1.3
 ## Точка впереди персонажа, от которой меряется расстояние до объектов.
@@ -34,14 +30,19 @@ const CHARACTER_SCALE := 1.15
 const HAND := Vector3(0.26, 0.82, -0.36)
 
 var interaction_target: Interactable
+## Текущие параметры косилки (из апгрейдов).
+var speed := 2.5
+var blade_width := 0.6
 
-var _field: MowField
+var _fields: Array[MowField] = []
+var _walk_areas: Array[Node] = []
 var _pinch_zoom: PinchZoom
 var _current_speed := 0.0
 var _mouse_held := false
 var _clippings: CPUParticles3D
 var _bag: MeshInstance3D
 var _character: Node3D
+var _mower_root: Node3D
 var _mower: Node3D
 var _engine_cap: MeshInstance3D
 var _engine_sound: AudioStreamPlayer
@@ -57,12 +58,16 @@ var _time := 0.0
 
 
 func _ready() -> void:
-	_field = get_tree().get_first_node_in_group("mow_field") as MowField
+	for node in get_tree().get_nodes_in_group("mow_field"):
+		_fields.append(node as MowField)
+	_walk_areas = get_tree().get_nodes_in_group("walk_area")
 	_pinch_zoom = get_tree().get_first_node_in_group("pinch_zoom") as PinchZoom
-	_build_visuals()
+	_build_character()
+	_apply_upgrades(false)
 	_engine_sound = Sfx.create_loop("mower_loop", self)
 	_cut_sound = Sfx.create_loop("cut_loop", self)
 	GameState.bag_changed.connect(_on_bag_changed)
+	GameState.upgrades_changed.connect(_apply_upgrades.bind(true))
 	_on_bag_changed(GameState.bag_fill, GameState.bag_capacity)
 	_bag_shown = _bag_ratio
 
@@ -88,7 +93,6 @@ func _physics_process(delta: float) -> void:
 	var desired := _desired_direction()
 	var strength := minf(desired.length(), 1.0)
 	var forward := -global_basis.z
-	var blade_position := global_position + forward * BLADE_OFFSET
 	var target_speed := 0.0
 
 	if strength > 0.05:
@@ -99,24 +103,28 @@ func _physics_process(delta: float) -> void:
 		# Чем сильнее надо повернуть, тем медленнее едем — получается дуга, а не занос.
 		var alignment := clampf(cos(angle), 0.0, 1.0)
 		target_speed = speed * strength * lerpf(0.35, 1.0, alignment)
-		if _field and _field.get_height_at(blade_position + forward * 0.25) > 0.8:
-			target_speed *= tall_grass_speed
+		if _grass_height_at(get_blade_position() + forward * 0.25) > 0.8:
+			target_speed *= tall_grass_speed_best_motor if GameState.is_upgrade_maxed("motor") \
+					else tall_grass_speed
 	else:
 		_turn_speed = lerpf(_turn_speed, 0.0, 0.2)
 
 	_current_speed = move_toward(_current_speed, target_speed, acceleration * delta)
 	forward = -global_basis.z
 	velocity = forward * _current_speed
+	var before := global_position
 	move_and_slide()
+	global_position = _constrain(before, global_position)
 
+	var blade_position := get_blade_position()
+	var pusher := global_position + forward * BLADE_OFFSET * 0.6
+	for field in _fields:
+		field.set_pusher_position(pusher)
 	var units := 0.0
-	if _field:
-		global_position = _field.clamp_to_bounds(global_position, FIELD_MARGIN)
-		blade_position = global_position + forward * BLADE_OFFSET
-		_field.set_pusher_position(global_position + forward * BLADE_OFFSET * 0.6)
-		# Полный мешок останавливает нож: ехать можно, косить — нет.
-		if _current_speed > 0.1 and not GameState.is_bag_full():
-			units = _field.mow(blade_position, forward, blade_width, BLADE_LENGTH)
+	if is_blade_spinning():
+		var field := _field_at(blade_position)
+		if field:
+			units = field.mow(blade_position, forward, blade_width, BLADE_LENGTH)
 			if units > 0.0:
 				GameState.add_grass(units)
 
@@ -157,10 +165,58 @@ func _process(delta: float) -> void:
 	_cut_sound.volume_db = linear_to_db(maxf(_cut_amount * 0.3, 0.0001))
 
 
+## Центр ножа в мировых координатах.
+func get_blade_position() -> Vector3:
+	return global_position - global_basis.z * BLADE_OFFSET
+
+
+## Режет ли нож прямо сейчас: косилка едет и в мешке есть место.
+func is_blade_spinning() -> bool:
+	return _current_speed > 0.1 and not GameState.is_bag_full()
+
+
 ## Взаимодействует с ближайшим доступным объектом, если он есть.
 func try_interact() -> void:
 	if interaction_target and interaction_target.can_interact(self):
 		interaction_target.interact(self)
+
+
+func _field_at(world_position: Vector3) -> MowField:
+	for field in _fields:
+		if field.contains(world_position):
+			return field
+	return null
+
+
+func _grass_height_at(world_position: Vector3) -> float:
+	var field := _field_at(world_position)
+	return field.get_height_at(world_position) if field else 0.0
+
+
+# Удерживает игрока там, где можно ходить: участки, открытые калитки, улица.
+# Если точка вне всех областей, она прижимается к краю той, где игрок стоял,
+# поэтому вдоль заборов он скользит, а не застревает.
+func _constrain(before: Vector3, after: Vector3) -> Vector3:
+	var point := Vector2(after.x, after.z)
+	var from := Vector2(before.x, before.z)
+	var best := point
+	var best_cost := INF
+	var any := false
+	for area in _walk_areas:
+		for rect: Rect2 in area.get_walk_rects():
+			any = true
+			if rect.has_point(point):
+				return after
+			var clamped := point.clamp(rect.position, rect.end)
+			var cost := clamped.distance_to(point)
+			if not rect.grow(0.02).has_point(from):
+				cost += 1000.0
+			if cost < best_cost:
+				best_cost = cost
+				best = clamped
+	if not any:
+		return after
+	return Vector3(best.x, after.y, best.y)
 
 
 func _update_interaction() -> void:
@@ -217,49 +273,62 @@ func _on_bag_changed(fill: float, capacity: float) -> void:
 	_bag_ratio = clampf(fill / maxf(capacity, 1.0), 0.0, 1.0)
 
 
-# Временный вид персонажа и косилки из примитивов (см. Placeholder).
-func _build_visuals() -> void:
-	const SKIN := Color(1.0, 0.82, 0.66)
-	const OVERALLS := Color(0.27, 0.48, 0.80)
-	const SHIRT := Color(0.98, 0.95, 0.86)
+# Применяет апгрейды: скорость, ширину ножа; косилка перестраивается под новый нож.
+func _apply_upgrades(announce: bool) -> void:
+	speed = GameState.upgrade_value("motor")
+	blade_width = GameState.upgrade_value("blade")
+	_build_mower()
+	var mower_shape := get_node_or_null("MowerShape") as CollisionShape3D
+	if mower_shape and mower_shape.shape is BoxShape3D:
+		var box := mower_shape.shape as BoxShape3D
+		box.size.x = blade_width + 0.1
+	if announce:
+		Juice.squash(_mower_root, 0.3)
+		Juice.sparkle(self, _mower_root.global_position + Vector3.UP * 0.6)
+
+
+# Временный вид персонажа из примитивов (см. Placeholder).
+func _build_character() -> void:
 	const STRAW := Color(0.96, 0.82, 0.42)
-	const RED := Color(0.90, 0.30, 0.26)
+	_character = Placeholder.person(self, Color(0.27, 0.48, 0.80), Color(0.98, 0.95, 0.86),
+			Color(1.0, 0.82, 0.66), HAND)
+	_character.name = "Character"
+	_character.scale = Vector3.ONE * CHARACTER_SCALE
+	Placeholder.part(_character, Placeholder.cylinder(0.42, 0.04), STRAW, Vector3(0.0, 1.33, 0.0))
+	Placeholder.part(_character, Placeholder.cylinder(0.24, 0.16, 0.19), STRAW, Vector3(0.0, 1.42, 0.0))
+
+
+# Временный вид косилки. Нарочно крупная и яркая, чтобы её было видно в высокой траве.
+# Цвет корпуса и размер мотора меняются с апгрейдами.
+func _build_mower() -> void:
+	const CREAM := Color(0.98, 0.95, 0.86)
+	const STRAW := Color(0.96, 0.82, 0.42)
 	const DARK := Color(0.22, 0.22, 0.26)
 	const METAL := Color(0.72, 0.74, 0.78)
 	const CANVAS := Color(0.55, 0.68, 0.42)
+	const BODY_COLORS := [Color(0.90, 0.30, 0.26), Color(0.95, 0.55, 0.20), Color(0.30, 0.62, 0.85)]
 
-	var character := Node3D.new()
-	_character = character
-	character.name = "Character"
-	character.scale = Vector3.ONE * CHARACTER_SCALE
-	add_child(character)
-	Placeholder.part(character, Placeholder.capsule(0.24, 0.62), OVERALLS, Vector3(0.0, 0.42, 0.0))
-	Placeholder.part(character, Placeholder.sphere(0.23), SHIRT, Vector3(0.0, 0.74, 0.0))
-	Placeholder.part(character, Placeholder.sphere(0.27), SKIN, Vector3(0.0, 1.12, 0.0))
-	Placeholder.part(character, Placeholder.cylinder(0.42, 0.04), STRAW, Vector3(0.0, 1.33, 0.0))
-	Placeholder.part(character, Placeholder.cylinder(0.24, 0.16, 0.19), STRAW, Vector3(0.0, 1.42, 0.0))
-	for side: float in [-1.0, 1.0]:
-		Placeholder.part(character, Placeholder.sphere(0.09), SKIN, HAND * Vector3(side, 1.0, 1.0))
-		Placeholder.part(character, Placeholder.sphere(0.11), DARK, Vector3(0.13 * side, 0.09, -0.03))
-
-	# Косилка нарочно крупная и яркая, чтобы её было видно в высокой траве.
-	var mower_root := Node3D.new()
-	mower_root.name = "Mower"
-	mower_root.position = Vector3(0.0, 0.0, -BLADE_OFFSET)
-	add_child(mower_root)
+	if _mower_root:
+		_mower_root.free()
+	_mower_root = Node3D.new()
+	_mower_root.name = "Mower"
+	_mower_root.position = Vector3(0.0, 0.0, -BLADE_OFFSET)
+	add_child(_mower_root)
 	# Отдельный узел, чтобы тряска мотора не сдвигала саму косилку.
-	var mower := Node3D.new()
-	_mower = mower
-	mower_root.add_child(mower)
+	_mower = Node3D.new()
+	_mower_root.add_child(_mower)
+
+	var body_color: Color = BODY_COLORS[mini(GameState.upgrade_level("blade"), BODY_COLORS.size() - 1)]
+	var engine := 1.0 + 0.18 * GameState.upgrade_level("motor")
 	var deck_width := blade_width + 0.1
-	Placeholder.part(mower, Placeholder.box(Vector3(deck_width, 0.26, 0.7)), RED, Vector3(0.0, 0.27, 0.0))
-	Placeholder.part(mower, Placeholder.box(Vector3(deck_width + 0.06, 0.08, 0.08)), SHIRT, Vector3(0.0, 0.2, -0.37))
-	Placeholder.part(mower, Placeholder.box(Vector3(0.4, 0.26, 0.36)), DARK, Vector3(0.0, 0.53, -0.06))
-	_engine_cap = Placeholder.part(mower, Placeholder.cylinder(0.09, 0.08), STRAW, Vector3(0.0, 0.7, -0.06))
-	_bag = Placeholder.part(mower, Placeholder.box(Vector3(deck_width * 0.85, 0.4, 0.32)), CANVAS)
+	Placeholder.part(_mower, Placeholder.box(Vector3(deck_width, 0.26, 0.7)), body_color, Vector3(0.0, 0.27, 0.0))
+	Placeholder.part(_mower, Placeholder.box(Vector3(deck_width + 0.06, 0.08, 0.08)), CREAM, Vector3(0.0, 0.2, -0.37))
+	Placeholder.part(_mower, Placeholder.box(Vector3(0.4 * engine, 0.26, 0.36 * engine)), DARK, Vector3(0.0, 0.53, -0.06))
+	_engine_cap = Placeholder.part(_mower, Placeholder.cylinder(0.09 * engine, 0.08), STRAW, Vector3(0.0, 0.7, -0.06))
+	_bag = Placeholder.part(_mower, Placeholder.box(Vector3(deck_width * 0.85, 0.4, 0.32)), CANVAS)
 	for side: float in [-1.0, 1.0]:
 		for z: float in [-0.24, 0.26]:
-			Placeholder.part(mower, Placeholder.cylinder(0.15, 0.1), DARK,
+			Placeholder.part(_mower, Placeholder.cylinder(0.15, 0.1), DARK,
 					Vector3((deck_width * 0.5 + 0.04) * side, 0.15, z), Vector3(0.0, 0.0, 90.0))
 
 	# Ручки тянутся от корпуса к ладоням персонажа.
@@ -268,9 +337,9 @@ func _build_visuals() -> void:
 	var handle_length := base.distance_to(grip)
 	var handle_tilt := -rad_to_deg(atan2(grip.y - base.y, grip.z - base.z))
 	for side: float in [-1.0, 1.0]:
-		Placeholder.part(mower, Placeholder.box(Vector3(0.05, 0.05, handle_length)), METAL,
+		Placeholder.part(_mower, Placeholder.box(Vector3(0.05, 0.05, handle_length)), METAL,
 				(base + grip) * 0.5 * Vector3(side, 1.0, 1.0), Vector3(handle_tilt, 0.0, 0.0))
-	Placeholder.part(mower, Placeholder.box(Vector3(grip.x * 2.0 + 0.1, 0.05, 0.05)), METAL,
+	Placeholder.part(_mower, Placeholder.box(Vector3(grip.x * 2.0 + 0.1, 0.05, 0.05)), METAL,
 			Vector3(0.0, grip.y, grip.z))
 
 	_clippings = CPUParticles3D.new()
@@ -294,4 +363,4 @@ func _build_visuals() -> void:
 	_clippings.gravity = Vector3(0.0, -9.0, 0.0)
 	_clippings.scale_amount_min = 0.7
 	_clippings.scale_amount_max = 1.3
-	mower.add_child(_clippings)
+	_mower.add_child(_clippings)

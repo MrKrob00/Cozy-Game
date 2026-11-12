@@ -3,7 +3,7 @@ extends Node3D
 ## Мелкая находка, спрятанная в высокой траве. Когда траву над ней
 ## скашивают, выскакивает с искрами и сама летит к игроку.
 
-enum Kind { KEY, DUCK, COINS }
+enum Kind { KEY, DUCK, COINS, GLASSES, GNOME }
 
 ## Уникальный идентификатор для сохранения.
 @export var find_id := ""
@@ -26,7 +26,8 @@ func _enter_tree() -> void:
 
 
 func _ready() -> void:
-	_field = get_tree().get_first_node_in_group("mow_field") as MowField
+	var plot := Plot.of(self)
+	_field = plot.field if plot else get_tree().get_first_node_in_group("mow_field") as MowField
 	_build_visuals()
 	_model.visible = false
 	if is_collected():
@@ -113,6 +114,18 @@ func _build_visuals() -> void:
 			Placeholder.part(_model, Placeholder.box(Vector3(0.09, 0.03, 0.09)), BEAK, Vector3(0.0, 0.16, -0.2))
 			for side: float in [-1.0, 1.0]:
 				Placeholder.part(_model, Placeholder.sphere(0.02), DARK, Vector3(0.05 * side, 0.22, -0.16))
+		Kind.GLASSES:
+			for side: float in [-1.0, 1.0]:
+				Placeholder.part(_model, Placeholder.cylinder(0.1, 0.03), Color(0.62, 0.84, 0.94),
+						Vector3(0.12 * side, 0.05, 0.0), Vector3(90.0, 0.0, 0.0))
+				Placeholder.part(_model, Placeholder.box(Vector3(0.03, 0.03, 0.22)), DARK,
+						Vector3(0.22 * side, 0.05, 0.11))
+			Placeholder.part(_model, Placeholder.box(Vector3(0.08, 0.03, 0.03)), DARK, Vector3(0.0, 0.07, 0.0))
+		Kind.GNOME:
+			Placeholder.part(_model, Placeholder.cylinder(0.13, 0.22, 0.1), Color(0.3, 0.5, 0.85), Vector3(0.0, -0.02, 0.0))
+			Placeholder.part(_model, Placeholder.sphere(0.11), Color(1.0, 0.82, 0.66), Vector3(0.0, 0.17, 0.0))
+			Placeholder.part(_model, Placeholder.sphere(0.09), Color(0.97, 0.97, 0.95), Vector3(0.0, 0.1, -0.07))
+			Placeholder.part(_model, Placeholder.cylinder(0.12, 0.26, 0.0), Color(0.9, 0.3, 0.26), Vector3(0.0, 0.36, 0.0))
 		Kind.COINS:
 			for i in 3:
 				Placeholder.part(_model, Placeholder.cylinder(0.11, 0.03), GOLD,

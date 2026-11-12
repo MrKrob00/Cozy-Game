@@ -1,11 +1,15 @@
 class_name Plot
 extends Node3D
-## Участок: следит за прогрессом покоса, отмечает завершение, выдаёт
-## награду и штампы, подсвечивает остатки травы, хранит своё состояние.
-## Чем больше скошено, тем ярче и теплее становится картинка.
+## Участок деревни: поле с травой и всё, что на нём стоит.
+##
+## Следит за прогрессом покоса, отмечает завершение, выдаёт награду и
+## штампы, подсвечивает остатки травы, хранит своё состояние. Участок может
+## быть закрыт, пока не выкошен другой.
 
 ## Участок выкошен (один раз, в момент пересечения порога).
 signal completed
+## Калитка участка открылась.
+signal unlocked
 
 ## Идентификатор для сохранения.
 @export var plot_id := "yard"
@@ -13,43 +17,51 @@ signal completed
 ## Заголовок окна завершения.
 @export var completed_title := "Двор выкошен!"
 @export var reward_coins := 50
+## Участок, который нужно выкосить, чтобы открылся этот (пусто — открыт сразу).
+@export var requires_plot := ""
+## Сообщение, когда участок открывается.
+@export var unlock_text := ""
+## Сообщение, если подойти к закрытой калитке.
+@export var locked_text := ""
 ## Доля покоса, при которой участок считается выкошенным.
 @export_range(0.5, 1.0) var complete_at := 0.95
 ## Доля покоса, с которой остатки травы подсвечиваются светлячками.
 @export_range(0.5, 1.0) var hints_from := 0.9
 
-@export_group("Оживление цветом")
-## Насыщенность картинки на заросшем и на выкошенном участке.
-@export var saturation_range := Vector2(0.72, 1.1)
-@export var sun_energy_range := Vector2(0.58, 0.74)
-@export var sun_color_overgrown := Color(0.9, 0.93, 1.0)
-@export var sun_color_mowed := Color(1.0, 0.95, 0.84)
-@export var sky_color_overgrown := Color(0.72, 0.79, 0.82)
-@export var sky_color_mowed := Color(0.66, 0.88, 0.98)
-
+## Насколько игрок может выйти за край поля (чтобы докосить края и развернуться).
+const WALK_MARGIN := 1.1
 const MAX_HINTS := 10
 const HINT_REFRESH := 0.6
-const CHIRPS := ["chirp_1", "chirp_2", "chirp_3"]
 
 var field: MowField
+var fence: PlotFence
 
 var _state: Dictionary
 var _hints: Array[Node3D] = []
 var _hint_timer := 0.0
 var _time := 0.0
-var _environment: Environment
-var _sun: DirectionalLight3D
-## Сглаженный прогресс, по которому меняется картинка.
-var _mood := 0.0
-var _chirp_timer := 3.0
+var _locked_toast_cooldown := 0.0
+
+
+## Участок, которому принадлежит узел (ближайший предок-участок).
+static func of(node: Node) -> Plot:
+	var current := node
+	while current:
+		if current is Plot:
+			return current
+		current = current.get_parent()
+	return null
 
 
 func _enter_tree() -> void:
 	add_to_group("plot")
-	# Поле нужно другим узлам уже в их _ready, поэтому ищем его заранее.
+	add_to_group("walk_area")
+	# Поле и забор нужны другим узлам уже в их _ready, поэтому ищем их заранее.
 	for child in get_children():
 		if child is MowField:
 			field = child
+		elif child is PlotFence:
+			fence = child
 
 
 func _ready() -> void:
@@ -60,18 +72,14 @@ func _ready() -> void:
 	GameState.saving.connect(_store_state)
 	_build_hints()
 
-	for child in get_children():
-		if child is WorldEnvironment:
-			# Копия, чтобы не менять общий ресурс сцены.
-			_environment = child.environment.duplicate()
-			_environment.adjustment_enabled = true
-			child.environment = _environment
-		elif child is DirectionalLight3D:
-			_sun = child
-	_mood = field.get_progress()
-	_apply_mood()
+	if requires_plot != "":
+		for other: Plot in get_tree().get_nodes_in_group("plot"):
+			if other.plot_id == requires_plot:
+				other.completed.connect(_on_required_plot_completed)
+	if fence:
+		fence.set_gate_open(is_unlocked(), false)
 	if is_completed():
-		get_tree().call_group("plot_light", "light_up")
+		_light_up()
 
 
 func _process(delta: float) -> void:
@@ -82,22 +90,52 @@ func _process(delta: float) -> void:
 		_refresh_hints()
 	for i in _hints.size():
 		_hints[i].position.y = 0.7 + sin(_time * 2.6 + i * 1.7) * 0.14
-
-	var progress := field.get_progress()
-	if not is_equal_approx(_mood, progress):
-		_mood = lerpf(_mood, progress, 1.0 - exp(-1.5 * delta))
-		_apply_mood()
-
-	# Птицы: чем больше скошено, тем чаще поют.
-	_chirp_timer -= delta
-	if _chirp_timer <= 0.0:
-		_chirp_timer = lerpf(14.0, 3.5, progress) * randf_range(0.6, 1.4)
-		if progress > 0.05:
-			Sfx.play(CHIRPS.pick_random(), randf_range(-16.0, -10.0), 1.0, 0.12)
+	_locked_toast_cooldown -= delta
+	if not is_unlocked() and _locked_toast_cooldown <= 0.0:
+		_check_locked_gate()
 
 
 func is_completed() -> bool:
 	return _state.get("completed", false)
+
+
+func is_unlocked() -> bool:
+	return requires_plot == "" or GameState.is_plot_completed(requires_plot)
+
+
+func get_progress() -> float:
+	return field.get_progress()
+
+
+## Узлы группы, принадлежащие этому участку.
+func members(group: String) -> Array[Node]:
+	var result: Array[Node] = []
+	for node in get_tree().get_nodes_in_group(group):
+		if is_ancestor_of(node):
+			result.append(node)
+	return result
+
+
+## Прямоугольник (мировые X, Z), по которому игрок ходит внутри участка.
+func get_inner_rect() -> Rect2:
+	var half := field.size * 0.5 + Vector2.ONE * WALK_MARGIN
+	var center := Vector2(field.global_position.x, field.global_position.z)
+	return Rect2(center - half, half * 2.0)
+
+
+## Где можно ходить: сам участок и проход через калитку, если она открыта.
+func get_walk_rects() -> Array[Rect2]:
+	var rects: Array[Rect2] = [get_inner_rect()]
+	if fence and is_unlocked():
+		rects.append(fence.get_gate_rect(WALK_MARGIN))
+	return rects
+
+
+## Расстояние от точки до участка (0 — внутри).
+func distance_to(world_position: Vector3) -> float:
+	var rect := get_inner_rect()
+	var point := Vector2(world_position.x, world_position.z)
+	return point.distance_to(point.clamp(rect.position, rect.end))
 
 
 ## Необязательный чек-лист участка: [{title, earned}].
@@ -112,11 +150,13 @@ func get_stamps() -> Array[Dictionary]:
 			func(animal: Animal) -> bool: return animal.is_moved())
 	_add_count_stamp(stamps, "flower_bed", "Клумбы цветут",
 			func(bed: FlowerBed) -> bool: return bed.is_planted())
+	_add_count_stamp(stamps, "wild_flowers", "Полевые цветы сохранены",
+			func(flowers: WildFlowers) -> bool: return flowers.is_alive())
 	return stamps
 
 
 func _add_count_stamp(stamps: Array[Dictionary], group: String, title: String, done: Callable) -> void:
-	var nodes := get_tree().get_nodes_in_group(group)
+	var nodes := members(group)
 	if nodes.is_empty():
 		return
 	var count := nodes.filter(done).size()
@@ -140,30 +180,56 @@ func _on_progress_changed(ratio: float) -> void:
 		GameState.save_game()
 
 
+func _on_required_plot_completed() -> void:
+	if fence:
+		fence.set_gate_open(true, true)
+	unlocked.emit()
+	if unlock_text != "":
+		GameState.toast(unlock_text)
+
+
 func _celebrate() -> void:
 	Sfx.play("complete")
 	Sfx.buzz(60)
-	get_tree().call_group("plot_light", "light_up")
+	_light_up()
 	var camera := get_viewport().get_camera_3d() as FollowCamera
 	if camera:
 		camera.play_flyover()
 	var player := get_tree().get_first_node_in_group("player") as Node3D
 	if player:
 		Juice.confetti(self, player.global_position + Vector3.UP * 1.2)
+	# Бережному садовнику — монеты за каждую сохранённую куртину цветов.
+	var bonus := 0
+	for flowers: WildFlowers in members("wild_flowers"):
+		if flowers.is_alive():
+			bonus += flowers.bonus_coins
+	if bonus > 0:
+		GameState.add_coins(bonus)
+		GameState.toast("Бережный садовник: +%d монет за сохранённые цветы" % bonus)
+
+
+# Зажигает окна домов на участке.
+func _light_up() -> void:
+	for prop in members("plot_light"):
+		prop.light_up()
 
 
 func _store_state() -> void:
 	_state["mask"] = field.get_state()
 
 
-# Заросший участок блёклый и прохладный; выкошенный — яркий и тёплый.
-func _apply_mood() -> void:
-	if _environment:
-		_environment.adjustment_saturation = lerpf(saturation_range.x, saturation_range.y, _mood)
-		_environment.background_color = sky_color_overgrown.lerp(sky_color_mowed, _mood)
-	if _sun:
-		_sun.light_energy = lerpf(sun_energy_range.x, sun_energy_range.y, _mood)
-		_sun.light_color = sun_color_overgrown.lerp(sun_color_mowed, _mood)
+# Подсказка, если игрок подошёл к закрытой калитке.
+func _check_locked_gate() -> void:
+	if fence == null or locked_text == "":
+		return
+	var player := get_tree().get_first_node_in_group("player") as Node3D
+	if player == null:
+		return
+	var gate := fence.get_gate_position()
+	if Vector2(player.global_position.x - gate.x, player.global_position.z - gate.z).length() < 2.6:
+		_locked_toast_cooldown = 10.0
+		GameState.toast(locked_text)
+		Sfx.play("deny", -6.0)
 
 
 func _build_hints() -> void:

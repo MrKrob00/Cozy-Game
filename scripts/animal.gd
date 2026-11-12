@@ -3,6 +3,9 @@ extends Interactable
 ## Зверёк в траве. Косилка в него упирается и навредить не может.
 ## Игрок переносит зверька — тот прыжками уходит в свой уголок.
 
+enum Kind { HEDGEHOG, CAT }
+
+@export var kind := Kind.HEDGEHOG
 @export var animal_id := "hedgehog"
 @export var display_name := "ёжика"
 ## Маркер уголка, куда зверёк уходит.
@@ -114,14 +117,51 @@ func _flag() -> String:
 	return "animal_" + animal_id
 
 
-# Временная модель ёжика из примитивов (см. Placeholder).
+# Временные модели из примитивов (см. Placeholder).
 func _build_visuals() -> void:
+	_model = Node3D.new()
+	add_child(_model)
+	if kind == Kind.CAT:
+		_build_cat()
+	else:
+		_build_hedgehog()
+
+	_body = StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var cylinder := CylinderShape3D.new()
+	cylinder.radius = 0.38
+	cylinder.height = 0.7
+	shape.shape = cylinder
+	shape.position = Vector3(0.0, 0.35, 0.0)
+	_body.add_child(shape)
+	add_child(_body)
+
+
+# Спящий рыжий кот, свернувшийся калачиком.
+func _build_cat() -> void:
+	const FUR := Color(0.95, 0.62, 0.28)
+	const FUR_LIGHT := Color(0.99, 0.86, 0.66)
+	const DARK := Color(0.15, 0.13, 0.13)
+	var body := Placeholder.part(_model, Placeholder.sphere(0.3), FUR, Vector3(0.0, 0.2, 0.06))
+	body.scale = Vector3(1.15, 0.7, 1.3)
+	Placeholder.part(_model, Placeholder.sphere(0.19), FUR, Vector3(0.0, 0.24, -0.3))
+	Placeholder.part(_model, Placeholder.sphere(0.09), FUR_LIGHT, Vector3(0.0, 0.19, -0.44))
+	Placeholder.part(_model, Placeholder.sphere(0.025), Color(0.95, 0.5, 0.55), Vector3(0.0, 0.22, -0.52))
+	for side: float in [-1.0, 1.0]:
+		Placeholder.part(_model, Placeholder.cylinder(0.07, 0.14, 0.0), FUR, Vector3(0.11 * side, 0.43, -0.28))
+		# Закрытые глаза.
+		Placeholder.part(_model, Placeholder.box(Vector3(0.07, 0.015, 0.02)), DARK, Vector3(0.08 * side, 0.28, -0.47))
+	# Хвост, обёрнутый вокруг тела.
+	for i in 6:
+		var angle := 0.5 + i * 0.42
+		Placeholder.part(_model, Placeholder.sphere(0.075 - i * 0.004), FUR if i < 5 else FUR_LIGHT,
+				Vector3(sin(angle) * 0.4, 0.09, 0.06 + cos(angle) * 0.42))
+
+
+func _build_hedgehog() -> void:
 	const SPIKES := Color(0.45, 0.32, 0.24)
 	const FACE := Color(0.93, 0.80, 0.64)
 	const DARK := Color(0.15, 0.13, 0.13)
-
-	_model = Node3D.new()
-	add_child(_model)
 	var back := Placeholder.part(_model, Placeholder.sphere(0.3), SPIKES, Vector3(0.0, 0.24, 0.05))
 	back.scale = Vector3(1.0, 0.85, 1.2)
 	Placeholder.part(_model, Placeholder.sphere(0.17), FACE, Vector3(0.0, 0.17, -0.3))
@@ -136,13 +176,3 @@ func _build_visuals() -> void:
 		var spike := Placeholder.part(_model, Placeholder.cylinder(0.05, 0.2, 0.0), SPIKES,
 				Vector3(sin(angle) * 0.17, 0.44, 0.07 + cos(angle) * 0.2))
 		spike.rotation_degrees = Vector3(cos(angle) * tilt, 0.0, -sin(angle) * tilt)
-
-	_body = StaticBody3D.new()
-	var shape := CollisionShape3D.new()
-	var cylinder := CylinderShape3D.new()
-	cylinder.radius = 0.38
-	cylinder.height = 0.7
-	shape.shape = cylinder
-	shape.position = Vector3(0.0, 0.35, 0.0)
-	_body.add_child(shape)
-	add_child(_body)
