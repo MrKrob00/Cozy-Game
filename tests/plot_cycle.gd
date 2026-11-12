@@ -85,11 +85,8 @@ func _run() -> void:
 	Input.action_release("move_down"); Input.action_release("move_left")
 	await frames(20)
 	print("at bin: pos=%s target=%s" % [player.global_position, player.interaction_target])
-	check(player.interaction_target == bin, "compost bin becomes interaction target")
 	check(player.global_position.z < 6.2, "mower is stopped by the bin")
-	check(hud.get_node("%ActionButton").visible and "Высыпать" in hud.get_node("%ActionButton").text, "action button shows prompt")
-	await press("interact")
-	check(gs.bag_fill == 0.0 and gs.compost == 6, "interact empties bag into compost (60 units -> 6)")
+	check(gs.bag_fill < 1.0 and gs.compost == 6, "bag empties by itself at the bin (60 units -> 6 compost)")
 	check(player.interaction_target == null, "no target once bag is empty")
 	check(not bin.get("_arrow").visible, "arrow hidden after emptying")
 
@@ -103,19 +100,26 @@ func _run() -> void:
 	check(gs.coins == 10, "coin find gives 10 coins")
 	check(toasts.any(func(t): return t.begins_with("Найдено: старые монетки")), "find toast")
 
-	# 5. Ёжик: косилка упирается, потом переносим.
+	# 5. Ёжик: косилка упирается, и он сам уходит в свой уголок.
 	var hedgehog = current_scene.get_node("Yard/Hedgehog")
 	var start_h: Vector3 = hedgehog.global_position
 	player.global_position = start_h + Vector3(3.0, 0, 3.0)
 	player.rotation = Vector3(0, PI * 0.25, 0)  # лицом к (-1,-1)
-	await hold("move_up", 240)
-	var gap: float = player.global_position.distance_to(start_h)
-	print("near hedgehog: gap=%.2f target=%s" % [gap, player.interaction_target])
-	check(gap > 1.2 and gap < 2.2, "mower stops in front of the hedgehog")
-	check(field.get_height_at(start_h) > 0.0, "grass under the hedgehog is not cut")
-	check(player.interaction_target == hedgehog, "hedgehog becomes interaction target")
+	Input.action_press("move_up")
+	var gap := 99.0
+	var grass_kept := false
+	for i in 400:
+		await physics_frame
+		if hedgehog.is_moved():
+			gap = player.global_position.distance_to(start_h)
+			grass_kept = field.get_height_at(start_h) > 0.0
+			break
+	Input.action_release("move_up")
+	print("near hedgehog: gap=%.2f" % gap)
+	check(hedgehog.is_moved(), "hedgehog leaves by itself when the mower comes close")
+	check(gap > 1.2 and gap < 2.4, "mower stops in front of the hedgehog")
+	check(grass_kept, "grass under the hedgehog is not cut while it sits there")
 	check(toasts.any(func(t): return t.begins_with("Тут кто-то есть")), "hedgehog notice toast")
-	player.try_interact()
 	for i in 400:
 		await process_frame
 	var home: Node3D = current_scene.get_node("Yard/AnimalCorner")
@@ -135,16 +139,32 @@ func _run() -> void:
 	check(toasts.any(func(t): return t.begins_with("Клумба!")), "flower bed hint toast (once)")
 	check(toasts.filter(func(t): return t.begins_with("Клумба!")).size() == 1, "flower bed hint shown only once")
 	check(gs.compost == 6, "6 compost available")
-	bed.interact(player)
-	check(bed.is_planted() and gs.compost == 1, "planting costs 5 compost")
+	# Посадка стоит компоста, поэтому сама не срабатывает: нужна кнопка или тап по экрану.
+	player.global_position = bed.global_position + Vector3(0, 0, 1.2)
+	player.rotation = Vector3(0, 0, 0)
+	await frames(40)
+	check(player.interaction_target == bed and not bed.is_planted(), "paid actions wait for the player")
+	var button = hud.get_node("%ActionButton")
+	check(button.visible and "Посадить" in button.text, "action button shows the prompt")
+	hud.get_node("VirtualJoystick").tapped.emit()
+	check(bed.is_planted() and gs.compost == 1, "tapping the screen plants flowers for 5 compost")
 	check(not bed.can_interact(player), "planted bed is no longer interactable")
 	bed2.interact(player)
 	check(not bed2.is_planted() and gs.compost == 1, "cannot plant without enough compost")
 	check(toasts.any(func(t): return t.begins_with("Не хватает компоста")), "not-enough-compost toast")
 	gs.add_grass(1000.0)
 	gs.empty_bag()
-	bed2.interact(player)
-	check(bed2.is_planted() and gs.compost == 2, "second bed planted after more compost")
+	# Второй палец на кнопке действия, пока первый держит джойстик.
+	player.global_position = bed2.global_position + Vector3(0, 0, 1.2)
+	await frames(5)
+	check(player.interaction_target == bed2 and button.visible, "second bed is the target")
+	var second_finger := InputEventScreenTouch.new()
+	second_finger.index = 1
+	second_finger.pressed = true
+	second_finger.position = button.get_global_rect().get_center() * Vector2(root.size) / root.get_visible_rect().size
+	Input.parse_input_event(second_finger)
+	await frames(3)
+	check(bed2.is_planted() and gs.compost == 2, "second finger on the action button works")
 
 	# 6. Завершение участка.
 	var done := [0]

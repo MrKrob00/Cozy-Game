@@ -22,6 +22,7 @@ func _enter_tree() -> void:
 
 func _ready() -> void:
 	interact_radius = 1.5
+	auto_interact = true
 	_build_visuals()
 	if GameState.has_flag(_flag()):
 		_removed = true

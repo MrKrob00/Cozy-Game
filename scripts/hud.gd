@@ -34,6 +34,11 @@ const COMPLETION_DELAY := 5.0
 @onready var _pause_stamps: VBoxContainer = %PauseStamps
 @onready var _resume_button: Button = %ResumeButton
 @onready var _sound_button: Button = %SoundButton
+@onready var _graphics_button: Button = %GraphicsButton
+@onready var _fps_button: Button = %FpsButton
+@onready var _diag_label: Label = %DiagLabel
+@onready var _fps_label: Label = %FpsLabel
+@onready var _joystick: VirtualJoystick = $VirtualJoystick
 @onready var _reset_button: Button = %ResetButton
 @onready var _quit_button: Button = %QuitButton
 @onready var _workshop_panel: Control = %WorkshopPanel
@@ -64,6 +69,7 @@ var _action_pulse: Tween
 ## Кто сейчас говорит (чтобы чужой уход не закрывал реплику).
 var _speaker: Node
 var _stamp_tweens: Array[Tween] = []
+var _fps_timer := 0.0
 
 
 func _enter_tree() -> void:
@@ -74,6 +80,9 @@ func _ready() -> void:
 	_touch = DisplayServer.is_touchscreen_available()
 	_root.theme = _build_theme()
 	_apply_safe_area()
+	get_tree().root.size_changed.connect(_apply_safe_area)
+	# Короткий тап по экрану — то же, что кнопка действия.
+	_joystick.tapped.connect(_on_screen_tapped)
 
 	_player = get_tree().get_first_node_in_group("player") as Player
 	var camera := get_viewport().get_camera_3d() as FollowCamera
@@ -106,6 +115,7 @@ func _ready() -> void:
 	GameState.compost_changed.connect(_on_compost_changed)
 	GameState.bag_changed.connect(_on_bag_changed)
 	GameState.toast_requested.connect(show_toast)
+	GameState.settings_changed.connect(_update_settings_buttons)
 	_on_coins_changed(GameState.coins)
 	_on_compost_changed(GameState.compost)
 	_on_bag_changed(GameState.bag_fill, GameState.bag_capacity)
@@ -115,7 +125,13 @@ func _ready() -> void:
 	_resume_button.pressed.connect(_set_paused.bind(false))
 	_sound_button.pressed.connect(func() -> void:
 		GameState.set_sound_enabled(not GameState.sound_enabled)
-		_update_sound_button())
+		_update_settings_buttons())
+	_graphics_button.pressed.connect(func() -> void:
+		GameState.set_graphics_quality((GameState.get_quality() + 1) % Graphics.PRESETS.size())
+		_update_settings_buttons())
+	_fps_button.pressed.connect(func() -> void:
+		GameState.set_show_fps(not GameState.show_fps)
+		_update_settings_buttons())
 	_reset_button.pressed.connect(_on_reset_pressed)
 	_quit_button.pressed.connect(func() -> void:
 		GameState.save_game()
@@ -126,9 +142,10 @@ func _ready() -> void:
 	_workshop_close.pressed.connect(close_workshop)
 	# На телефоне и в браузере приложение закрывает система.
 	_quit_button.visible = not (OS.has_feature("mobile") or OS.has_feature("web"))
-	_update_sound_button()
+	_update_settings_buttons()
 	for button: Button in [_action_button, _pause_button, _resume_button, _sound_button,
-			_reset_button, _quit_button, _continue_button, _workshop_close]:
+			_graphics_button, _fps_button, _reset_button, _quit_button, _continue_button,
+			_workshop_close]:
 		button.pressed.connect(_on_any_button_pressed.bind(button))
 
 	if _touch:
@@ -139,7 +156,27 @@ func _ready() -> void:
 	_hint_label.visible = not _hint_hidden
 
 
+func _process(delta: float) -> void:
+	# Счётчик FPS и диагностика обновляются пару раз в секунду.
+	_fps_timer -= delta
+	if _fps_timer > 0.0:
+		return
+	_fps_timer = 0.5
+	if _fps_label.visible:
+		_fps_label.text = "%d FPS" % Engine.get_frames_per_second()
+	if _pause_panel.visible:
+		_diag_label.text = _diagnostics()
+
+
 func _input(event: InputEvent) -> void:
+	# Кнопки Godot слышат только первый палец. Если левый палец держит джойстик,
+	# нажатие вторым пальцем на кнопку действия ловим сами.
+	if event is InputEventScreenTouch and event.pressed and event.index > 0 \
+			and _action_button.visible and not get_tree().paused \
+			and _action_button.get_global_rect().has_point(event.position):
+		_action_button.pressed.emit()
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("pause"):
 		if _workshop_panel.visible:
 			close_workshop()
@@ -380,8 +417,26 @@ func _on_any_button_pressed(button: Button) -> void:
 	Juice.punch(button, 0.08, 0.2)
 
 
-func _update_sound_button() -> void:
+func _on_screen_tapped() -> void:
+	if _player and _player.interaction_target and not get_tree().paused:
+		_action_button.pressed.emit()
+
+
+func _update_settings_buttons() -> void:
 	_sound_button.text = "Звук: включён" if GameState.sound_enabled else "Звук: выключен"
+	_graphics_button.text = "Графика: %s" % Graphics.preset["title"]
+	_fps_button.text = "Счётчик FPS: включён" if GameState.show_fps else "Счётчик FPS: выключен"
+	_fps_label.visible = GameState.show_fps
+
+
+# Сведения об устройстве: помогают разобраться, если на телефоне что-то не так.
+func _diagnostics() -> String:
+	var window := DisplayServer.window_get_size()
+	var safe := DisplayServer.get_display_safe_area()
+	return "%d FPS · окно %d×%d · холст %d×%d · безопасная область %d,%d %d×%d · %s · %s · графика: %s" % [
+		Engine.get_frames_per_second(), window.x, window.y, int(_root.size.x), int(_root.size.y),
+		safe.position.x, safe.position.y, safe.size.x, safe.size.y,
+		OS.get_model_name(), RenderingServer.get_video_adapter_name(), Graphics.preset["title"]]
 
 
 func _fill_stamps(container: VBoxContainer, plot: Plot) -> Array[Label]:
@@ -550,18 +605,36 @@ func _number(value: float) -> String:
 
 # На телефонах отодвигает интерфейс от вырезов и скруглений экрана.
 func _apply_safe_area() -> void:
-	if not OS.has_feature("mobile"):
-		return
-	var window := Vector2(DisplayServer.window_get_size())
-	var safe := Rect2(DisplayServer.get_display_safe_area())
-	if window.x <= 0.0 or window.y <= 0.0 or safe.size.x <= 0.0:
-		return
-	var scale := _root.size / window
+	var insets: Array[float] = [0.0, 0.0, 0.0, 0.0]
+	if OS.has_feature("mobile"):
+		insets = safe_insets(Vector2(DisplayServer.window_get_size()),
+				Rect2(DisplayServer.get_display_safe_area()), _root.size)
 	const BASE := 36.0
-	_margin.add_theme_constant_override("margin_left", int(BASE + safe.position.x * scale.x))
-	_margin.add_theme_constant_override("margin_top", int(BASE + safe.position.y * scale.y))
-	_margin.add_theme_constant_override("margin_right", int(BASE + (window.x - safe.end.x) * scale.x))
-	_margin.add_theme_constant_override("margin_bottom", int(BASE + (window.y - safe.end.y) * scale.y))
+	var names := ["margin_left", "margin_top", "margin_right", "margin_bottom"]
+	for i in names.size():
+		_margin.add_theme_constant_override(names[i], int(BASE + insets[i]))
+
+
+## Отступы безопасной области в единицах интерфейса: слева, сверху, справа, снизу.
+## Устройство может сообщить область в чужих координатах (например, для другой
+## ориентации экрана). Такие значения отбрасываются: иначе интерфейс уедет за край.
+static func safe_insets(window: Vector2, safe: Rect2, canvas: Vector2) -> Array[float]:
+	var insets: Array[float] = [0.0, 0.0, 0.0, 0.0]
+	if window.x <= 0.0 or window.y <= 0.0 or canvas.x <= 0.0 or canvas.y <= 0.0:
+		return insets
+	var scale := canvas / window
+	var raw: Array[float] = [
+		safe.position.x * scale.x,
+		safe.position.y * scale.y,
+		(window.x - safe.end.x) * scale.x,
+		(window.y - safe.end.y) * scale.y,
+	]
+	# Вырез или скругление не бывает больше восьмой части экрана.
+	var limits: Array[float] = [canvas.x * 0.12, canvas.y * 0.12, canvas.x * 0.12, canvas.y * 0.12]
+	for i in raw.size():
+		if raw[i] > 0.0 and raw[i] <= limits[i]:
+			insets[i] = raw[i]
+	return insets
 
 
 func _build_theme() -> Theme:

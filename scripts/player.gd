@@ -11,8 +11,13 @@ extends CharacterBody3D
 ## Меняется объект, с которым сейчас можно взаимодействовать (или null).
 signal interaction_target_changed(target: Interactable)
 
-## Скорость поворота, рад/с.
-@export var turn_rate := 4.5
+## Наибольшая скорость поворота, рад/с.
+@export var turn_rate := 3.0
+## Насколько охотно косилка доворачивает к нужному направлению (1/с).
+## Малые отклонения исправляются мягко, поэтому она не дёргается.
+@export var turn_response := 6.0
+## Сглаживание направления ввода (1/с): гасит дрожание пальца на джойстике.
+@export var input_smoothing := 10.0
 @export var acceleration := 9.0
 ## Множитель скорости в высокой траве (с лучшим мотором замедление меньше).
 @export_range(0.1, 1.0) var tall_grass_speed := 0.6
@@ -27,6 +32,8 @@ const BLADE_LENGTH := 0.4
 const MOUSE_DEADZONE := 1.3
 ## Точка впереди персонажа, от которой меряется расстояние до объектов.
 const REACH_OFFSET := 0.9
+## Сколько секунд нужно пробыть рядом, чтобы простое действие выполнилось само.
+const AUTO_INTERACT_DELAY := 0.4
 const CHARACTER_SCALE := 1.15
 ## Положение правой ладони в координатах персонажа.
 const HAND := Vector3(0.26, 0.82, -0.36)
@@ -58,6 +65,8 @@ var _bag_ratio := 0.0
 var _bag_shown := 0.0
 var _time := 0.0
 var _weed_hint_time := 0.0
+var _smoothed_direction := Vector3.ZERO
+var _target_time := 0.0
 
 
 func _ready() -> void:
@@ -93,14 +102,17 @@ func _input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	var desired := _desired_direction()
+	_smoothed_direction = _smoothed_direction.lerp(_desired_direction(),
+			1.0 - exp(-input_smoothing * delta))
+	var desired := _smoothed_direction
 	var strength := minf(desired.length(), 1.0)
 	var forward := -global_basis.z
 	var target_speed := 0.0
 
 	if strength > 0.05:
 		var angle := forward.signed_angle_to(desired.normalized(), Vector3.UP)
-		var turn := clampf(angle, -turn_rate * delta, turn_rate * delta)
+		var turn := clampf(angle * minf(turn_response * delta, 1.0),
+				-turn_rate * delta, turn_rate * delta)
 		rotate_y(turn)
 		_turn_speed = lerpf(_turn_speed, turn / delta, 0.2)
 		# Чем сильнее надо повернуть, тем медленнее едем — получается дуга, а не занос.
@@ -141,7 +153,7 @@ func _physics_process(delta: float) -> void:
 
 	_cutting = units > 0.0
 	_clippings.emitting = _cutting
-	_update_interaction()
+	_update_interaction(delta)
 
 
 func _process(delta: float) -> void:
@@ -245,7 +257,7 @@ func _constrain(before: Vector3, after: Vector3) -> Vector3:
 	return Vector3(best.x, after.y, best.y)
 
 
-func _update_interaction() -> void:
+func _update_interaction(delta: float) -> void:
 	var reach := global_position - global_basis.z * REACH_OFFSET
 	var best: Interactable = null
 	var best_distance := INF
@@ -261,7 +273,14 @@ func _update_interaction() -> void:
 			best_distance = distance
 	if best != interaction_target:
 		interaction_target = best
+		_target_time = 0.0
 		interaction_target_changed.emit(best)
+	elif best and best.auto_interact:
+		# Простые действия выполняются сами, если немного постоять рядом.
+		_target_time += delta
+		if _target_time >= AUTO_INTERACT_DELAY:
+			_target_time = 0.0
+			try_interact()
 
 
 ## Желаемое направление в мировых координатах, длина 0–1.

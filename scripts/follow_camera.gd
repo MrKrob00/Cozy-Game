@@ -9,13 +9,17 @@ extends Camera3D
 ## Расстояния до цели для ступеней масштаба, от близкой к дальней.
 @export var zoom_distances: Array[float] = [12.0, 17.0, 24.0]
 @export var zoom_index := 1
-@export var follow_speed := 5.0
+@export var follow_speed := 4.0
 @export var zoom_speed := 6.0
 ## Насколько камера смотрит вперёд по ходу движения, в метрах.
-@export var look_ahead := 1.2
+@export var look_ahead := 0.7
+## Как быстро опережение подстраивается под новое направление (1/с).
+## Малое значение не даёт камере метаться, когда косилка поворачивает.
+@export var look_ahead_speed := 1.2
 
 var _target: Node3D
 var _focus := Vector3.ZERO
+var _ahead := Vector3.ZERO
 var _distance := 17.0
 # Добавки на время облёта (см. play_flyover).
 var _yaw_offset := 0.0
@@ -47,7 +51,9 @@ func _process(delta: float) -> void:
 		var wanted := _target.global_position
 		var body := _target as CharacterBody3D
 		if body:
-			wanted += body.velocity.limit_length(1.0) * look_ahead
+			_ahead = _ahead.lerp(body.velocity.limit_length(1.0) * look_ahead,
+					1.0 - exp(-look_ahead_speed * delta))
+			wanted += _ahead
 		_focus = _focus.lerp(wanted, 1.0 - exp(-follow_speed * delta))
 	_distance = lerpf(_distance, zoom_distances[zoom_index], 1.0 - exp(-zoom_speed * delta))
 	_apply()

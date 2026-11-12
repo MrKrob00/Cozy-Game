@@ -28,6 +28,8 @@ func _enter_tree() -> void:
 
 
 func _ready() -> void:
+	# Зверёк сам уходит в свой уголок, когда косилка подъезжает вплотную.
+	auto_interact = true
 	_build_visuals()
 	if GameState.has_flag(_flag()):
 		_moved = true
@@ -46,7 +48,7 @@ func _process(delta: float) -> void:
 		_noticed = true
 		Sfx.play("squeak")
 		Juice.floating_text(self, global_position + Vector3.UP * 0.9, "!", Color(1.0, 0.9, 0.4))
-		GameState.toast("Тут кто-то есть! Косилка его не заденет — подойдите и перенесите")
+		GameState.toast("Тут кто-то есть! Косилка его не заденет — подъезжайте ближе, и он уйдёт")
 		_hop_in_place()
 
 

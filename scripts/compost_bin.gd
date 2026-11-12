@@ -18,6 +18,9 @@ var _time := 0.0
 
 
 func _ready() -> void:
+	# Трава высыпается сама, стоит подъехать к ящику.
+	auto_interact = true
+	interact_radius = 2.0
 	_build_visuals()
 	GameState.bag_changed.connect(_on_bag_changed)
 	GameState.compost_changed.connect(_update_pile)

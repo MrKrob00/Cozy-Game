@@ -54,6 +54,8 @@ func _ready() -> void:
 			child.environment = _environment
 		elif child is DirectionalLight3D:
 			_sun = child
+	Graphics.quality_changed.connect(_apply_quality)
+	_apply_quality()
 	_update_current_plot()
 	_mood = current_plot.get_mood() if current_plot else 1.0
 	_apply_mood()
@@ -136,6 +138,11 @@ func _update_current_plot() -> void:
 		return
 	current_plot = nearest
 	current_plot_changed.emit(current_plot)
+
+
+func _apply_quality() -> void:
+	if _sun:
+		_sun.directional_shadow_max_distance = Graphics.preset["shadow_distance"]
 
 
 func _apply_mood() -> void:

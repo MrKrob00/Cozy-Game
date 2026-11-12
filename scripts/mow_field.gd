@@ -12,7 +12,6 @@ extends Node3D
 
 signal progress_changed(ratio: float)
 
-const GRASS_SHADER := preload("res://shaders/grass.gdshader")
 const GROUND_SHADER := preload("res://shaders/ground.gdshader")
 
 ## Байтов на ячейку: высота, тон полосы, «голая» ячейка.
@@ -55,6 +54,7 @@ var _mowable_cells := 0
 var _cut_cells := 0
 var _grass_material: ShaderMaterial
 var _ground_material: ShaderMaterial
+var _grass_nodes: Array[MultiMeshInstance3D] = []
 
 
 func _enter_tree() -> void:
@@ -73,6 +73,7 @@ func _ready() -> void:
 	_build_materials()
 	_build_ground()
 	_build_grass()
+	Graphics.quality_changed.connect(_rebuild_grass)
 
 
 func _process(_delta: float) -> void:
@@ -372,7 +373,7 @@ func _build_materials() -> void:
 	var axis_x := global_basis.x
 	var axis_z := global_basis.z
 	_grass_material = ShaderMaterial.new()
-	_grass_material.shader = GRASS_SHADER
+	_grass_material.shader = Graphics.grass_shader()
 	_ground_material = ShaderMaterial.new()
 	_ground_material.shader = GROUND_SHADER
 	for mat: ShaderMaterial in [_grass_material, _ground_material]:
@@ -396,11 +397,21 @@ func _build_ground() -> void:
 	add_child(ground)
 
 
+# Качество графики сменилось: пучки травы создаются заново с новой плотностью.
+func _rebuild_grass() -> void:
+	for node in _grass_nodes:
+		node.free()
+	_grass_nodes.clear()
+	_grass_material.shader = Graphics.grass_shader()
+	_build_grass()
+
+
 func _build_grass() -> void:
-	var clump := _create_clump_mesh()
+	var quality := Graphics.preset
+	var clump := _create_clump_mesh(quality["blade_width"])
 	var rng := RandomNumberGenerator.new()
 	rng.seed = random_seed
-	var spacing := 1.0 / sqrt(density)
+	var spacing := 1.0 / sqrt(density * quality["grass_density"])
 	var chunks := Vector2i(ceili(size.x / chunk_size), ceili(size.y / chunk_size))
 
 	for cy in chunks.y:
@@ -447,17 +458,19 @@ func _build_grass() -> void:
 					Vector3(-0.5, 0.0, -0.5),
 					Vector3(extent.x + 1.0, blade_height * 1.3, extent.y + 1.0))
 			add_child(instance)
+			_grass_nodes.append(instance)
 
 
 ## Пучок из трёх широких «мультяшных» травинок. UV.y — высота вдоль травинки.
-func _create_clump_mesh() -> ArrayMesh:
+## width_scale делает травинки шире, когда пучков меньше.
+func _create_clump_mesh(width_scale := 1.0) -> ArrayMesh:
 	var vertices := PackedVector3Array()
 	var normals := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	var indices := PackedInt32Array()
 	const BLADES := 3
-	const WIDTH := 0.11
-	const SPREAD := 0.07
+	var blade_width := 0.11 * width_scale
+	var spread := 0.07 * width_scale
 
 	for b in BLADES:
 		var angle := TAU * b / BLADES + 0.4
@@ -465,11 +478,11 @@ func _create_clump_mesh() -> ArrayMesh:
 		var lean := 0.12 + 0.05 * b
 		var height := blade_height * (1.0 - 0.12 * b)
 		var points := [
-			Vector3(-WIDTH * 0.5, 0.0, SPREAD),
-			Vector3(WIDTH * 0.5, 0.0, SPREAD),
-			Vector3(-WIDTH * 0.36, height * 0.55, SPREAD + lean * 0.4),
-			Vector3(WIDTH * 0.36, height * 0.55, SPREAD + lean * 0.4),
-			Vector3(0.0, height, SPREAD + lean),
+			Vector3(-blade_width * 0.5, 0.0, spread),
+			Vector3(blade_width * 0.5, 0.0, spread),
+			Vector3(-blade_width * 0.36, height * 0.55, spread + lean * 0.4),
+			Vector3(blade_width * 0.36, height * 0.55, spread + lean * 0.4),
+			Vector3(0.0, height, spread + lean),
 		]
 		var start := vertices.size()
 		for point: Vector3 in points:

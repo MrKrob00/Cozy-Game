@@ -68,8 +68,11 @@ var bag_capacity: float:
 	get:
 		return upgrade_value("bag")
 
-## Настройка, а не прогресс: переживает «Начать заново».
+# Настройки, а не прогресс: переживают «Начать заново».
 var sound_enabled := true
+## Качество графики: 0 — низкое, 1 — среднее, 2 — высокое, -1 — выбрать по устройству.
+var graphics_quality := -1
+var show_fps := false
 
 
 func _ready() -> void:
@@ -200,6 +203,25 @@ func set_sound_enabled(enabled: bool) -> void:
 	save_game()
 
 
+## Действующее качество графики: на телефоне и в браузере по умолчанию низкое.
+func get_quality() -> int:
+	if graphics_quality >= 0:
+		return clampi(graphics_quality, 0, 2)
+	return 0 if OS.has_feature("mobile") or OS.has_feature("web") else 2
+
+
+func set_graphics_quality(quality: int) -> void:
+	graphics_quality = clampi(quality, 0, 2)
+	settings_changed.emit()
+	save_game()
+
+
+func set_show_fps(enabled: bool) -> void:
+	show_fps = enabled
+	settings_changed.emit()
+	save_game()
+
+
 func save_game() -> void:
 	saving.emit()
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -213,6 +235,8 @@ func save_game() -> void:
 		"grass_banked": grass_banked,
 		"compost_spent": compost_spent,
 		"sound_enabled": sound_enabled,
+		"graphics_quality": graphics_quality,
+		"show_fps": show_fps,
 		"bag_fill": bag_fill,
 		"upgrade_levels": upgrade_levels,
 		"flags": flags,
@@ -235,6 +259,8 @@ func load_game() -> void:
 	grass_banked = data.get("grass_banked", 0.0)
 	compost_spent = data.get("compost_spent", 0)
 	sound_enabled = data.get("sound_enabled", true)
+	graphics_quality = data.get("graphics_quality", -1)
+	show_fps = data.get("show_fps", false)
 	bag_fill = data.get("bag_fill", 0.0)
 	upgrade_levels = data.get("upgrade_levels", {})
 	flags = data.get("flags", {})

@@ -14,10 +14,10 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-joystick_mode = 2
-joystick_size = 240.0
-tip_size = 100.0
-deadzone_ratio = 0.12
+joystick_mode = 1
+joystick_size = 340.0
+tip_size = 140.0
+deadzone_ratio = 0.18
 action_left = &"move_left"
 action_right = &"move_right"
 action_up = &"move_up"
@@ -120,6 +120,17 @@ layout_mode = 2
 focus_mode = 0
 text = "II"
 
+[node name="FpsLabel" type="Label" parent="Root/Margin"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0.16, 0.3, 0.2, 1)
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 30
+text = "60 FPS"
+
 [node name="ToastHolder" type="MarginContainer" parent="Root/Margin"]
 layout_mode = 2
 size_flags_horizontal = 4
@@ -140,7 +151,7 @@ horizontal_alignment = 1
 
 [node name="ActionButton" type="Button" parent="Root/Margin"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(340, 120)
+custom_minimum_size = Vector2(380, 150)
 layout_mode = 2
 size_flags_horizontal = 8
 size_flags_vertical = 8
@@ -246,9 +257,8 @@ unique_name_in_owner = true
 layout_mode = 2
 
 [node name="Rows" type="VBoxContainer" parent="Root/PausePanel/Center/PauseWindow"]
-custom_minimum_size = Vector2(600, 0)
 layout_mode = 2
-theme_override_constants/separation = 18
+theme_override_constants/separation = 16
 
 [node name="PauseTitle" type="Label" parent="Root/PausePanel/Center/PauseWindow/Rows"]
 unique_name_in_owner = true
@@ -257,34 +267,66 @@ theme_override_font_sizes/font_size = 54
 text = "Пауза"
 horizontal_alignment = 1
 
-[node name="PauseStamps" type="VBoxContainer" parent="Root/PausePanel/Center/PauseWindow/Rows"]
-unique_name_in_owner = true
+[node name="Columns" type="HBoxContainer" parent="Root/PausePanel/Center/PauseWindow/Rows"]
 layout_mode = 2
+theme_override_constants/separation = 40
+
+[node name="PauseStamps" type="VBoxContainer" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(560, 0)
+layout_mode = 2
+size_flags_vertical = 4
 theme_override_constants/separation = 6
 
-[node name="ResumeButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows"]
+[node name="Buttons" type="VBoxContainer" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns"]
+custom_minimum_size = Vector2(520, 0)
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="ResumeButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 text = "Продолжить"
 
-[node name="SoundButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows"]
+[node name="SoundButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 text = "Звук: включён"
 
-[node name="ResetButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows"]
+[node name="GraphicsButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Графика: высокая"
+
+[node name="FpsButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Счётчик FPS: выключен"
+
+[node name="ResetButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 text = "Начать заново"
 
-[node name="QuitButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows"]
+[node name="QuitButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 text = "Выйти из игры"
+
+[node name="DiagLabel" type="Label" parent="Root/PausePanel/Center/PauseWindow/Rows"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(1000, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Диагностика"
+horizontal_alignment = 1
+autowrap_mode = 3
 
 [node name="WorkshopPanel" type="ColorRect" parent="Root"]
 unique_name_in_owner = true
