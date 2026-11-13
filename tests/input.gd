@@ -156,7 +156,7 @@ func _run() -> void:
 	print("turn: blade moved %.2f, body moved %.2f" % [blade_shift, body_shift])
 	check(blade_shift < body_shift, "turning pivots around the mower, not the character")
 	check(is_equal_approx(player.get_cut_width(), player.blade_width + 0.18), "cut reaches the middle of the wheels")
-	player.global_position = Vector3(-60.0, 0, 11.3)
+	player.global_position = Vector3(-24.0, 0, 11.3)
 	player.rotation = Vector3(0, PI * 0.5, 0)
 	await frames(5)
 	Input.action_press("move_up"); Input.action_press("move_left")
@@ -165,7 +165,7 @@ func _run() -> void:
 	Input.action_release("move_up"); Input.action_release("move_left")
 	print("road speed %.2f" % road_speed)
 	check(road_speed > player.speed * 1.3, "the mower rolls faster on the street")
-	check(player.global_position.y > 2.0, "the street climbs toward the next plots")
+	check(player.global_position.y > 0.2, "the road climbs toward the next plots")
 	player.global_position = Vector3(0, 0, 3.0)
 	await frames(30)
 

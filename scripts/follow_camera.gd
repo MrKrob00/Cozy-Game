@@ -91,13 +91,13 @@ func set_menu(on: bool) -> void:
 	_menu = on
 	if _flyover:
 		_flyover.kill()
-	_flyover = create_tween().set_parallel(true)
-	_flyover.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	if on:
 		_distance_offset = MENU_PULL_BACK
-	else:
-		_flyover.tween_property(self, "_distance_offset", 0.0, 1.6)
-		_flyover.tween_property(self, "_yaw_offset", 0.0, 1.6)
+		return
+	_flyover = create_tween().set_parallel(true)
+	_flyover.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_flyover.tween_property(self, "_distance_offset", 0.0, 1.6)
+	_flyover.tween_property(self, "_yaw_offset", 0.0, 1.6)
 
 
 ## Короткий наезд: камера на миг приближается на amount метров и возвращается.

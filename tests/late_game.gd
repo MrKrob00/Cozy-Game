@@ -46,6 +46,32 @@ func mow_all(plot) -> void:
 	await frames(5)
 
 
+## Ставит игрока на дороге перед калиткой участка лицом к ней и ведёт внутрь
+## n кадров. Возвращает, насколько игрок прошёл за калитку, в метрах
+## (отрицательное — остался снаружи). Работает при любом повороте участка.
+func enter_gate(plot, player, n: int) -> float:
+	var gate: Vector3 = plot.fence.get_gate_position()
+	var outward: Vector3 = plot.fence.global_basis.z.normalized()
+	var inward := -outward
+	player.global_position = gate + outward * 2.6
+	player.look_at(player.global_position + inward, Vector3.UP)
+	# Ввод задаётся относительно камеры: «вправо» — (1, 0, −1), «вверх» — (−1, 0, −1).
+	var actions: Array[String] = []
+	var right := inward.x - inward.z
+	var up := -inward.x - inward.z
+	if absf(right) > 0.3:
+		actions.append("move_right" if right > 0.0 else "move_left")
+	if absf(up) > 0.3:
+		actions.append("move_up" if up > 0.0 else "move_down")
+	for action in actions:
+		Input.action_press(action)
+	await frames(n)
+	for action in actions:
+		Input.action_release(action)
+	await frames(20)
+	return (player.global_position - gate).dot(inward)
+
+
 func _initialize() -> void:
 	_run.call_deferred()
 
@@ -75,15 +101,11 @@ func _run() -> void:
 	await wait(8.0)
 	hud.get_node("%Completion").visible = false
 
-	# 2. Площадь стоит через дорогу и повёрнута: заходим через калитку с улицы.
-	var gate: Vector3 = square.fence.get_gate_position()
-	check(gate.z > 13.5, "square gate is on the near side of the street")
-	player.global_position = Vector3(gate.x, 0, 11.4)
-	player.rotation = Vector3(0, PI, 0)
+	# 2. Площадь повёрнута калиткой к южной дороге: заходим через калитку.
 	gs.empty_bag()
-	await walk("south", 300)
-	print("in square: ", player.global_position, " progress=", square.get_progress())
-	check(player.global_position.z > 16.0, "player walks into the rotated plot")
+	var past_gate: float = await enter_gate(square, player, 300)
+	print("in square: ", player.global_position, " past gate ", past_gate, " progress=", square.get_progress())
+	check(past_gate > 2.5, "player walks into the rotated plot")
 	check(village.current_plot == square, "square becomes the current plot")
 	check(square.get_progress() > 0.003 and gs.bag_fill > 1.0, "mowing works on a rotated plot")
 	var behind: Vector3 = player.global_position - Vector3(0, 0, 2.0)

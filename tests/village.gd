@@ -34,6 +34,32 @@ func walk_north(n: int) -> void:
 	await frames(20)
 
 
+## Ставит игрока на дороге перед калиткой участка лицом к ней и ведёт внутрь
+## n кадров. Возвращает, насколько игрок прошёл за калитку, в метрах
+## (отрицательное — остался снаружи). Работает при любом повороте участка.
+func enter_gate(plot, player, n: int) -> float:
+	var gate: Vector3 = plot.fence.get_gate_position()
+	var outward: Vector3 = plot.fence.global_basis.z.normalized()
+	var inward := -outward
+	player.global_position = gate + outward * 2.6
+	player.look_at(player.global_position + inward, Vector3.UP)
+	# Ввод задаётся относительно камеры: «вправо» — (1, 0, −1), «вверх» — (−1, 0, −1).
+	var actions: Array[String] = []
+	var right := inward.x - inward.z
+	var up := -inward.x - inward.z
+	if absf(right) > 0.3:
+		actions.append("move_right" if right > 0.0 else "move_left")
+	if absf(up) > 0.3:
+		actions.append("move_up" if up > 0.0 else "move_down")
+	for action in actions:
+		Input.action_press(action)
+	await frames(n)
+	for action in actions:
+		Input.action_release(action)
+	await frames(20)
+	return (player.global_position - gate).dot(inward)
+
+
 func _initialize() -> void:
 	_run.call_deferred()
 
@@ -71,6 +97,24 @@ func _run() -> void:
 	check(hud.get_node("%ProgressLabel").text.begins_with("Двор"), "HUD shows the yard")
 	check(yard.is_unlocked() and not garden.is_unlocked(), "garden is locked until the yard is mowed")
 	check(garden.global_position.y > yard.global_position.y + 1.0, "each next plot sits higher")
+	# Карта — кольцо: от двора до сада можно дойти и по дороге, и через поляну.
+	var terrain = village.get_node("Terrain")
+	check(terrain.roads.size() >= 6, "the village is a road network, not one street")
+	var junctions := 0
+	for a in terrain.roads:
+		for b in terrain.roads:
+			if a != b and a["rect"].intersects(b["rect"]):
+				var overlap: Rect2 = a["rect"].intersection(b["rect"])
+				var center := overlap.get_center()
+				junctions += 1
+				if absf(terrain.road_height(a, center) - terrain.road_height(b, center)) > 0.02:
+					check(false, "roads %s and %s meet at different heights" % [a["name"], b["name"]])
+	check(junctions >= 14, "roads connect into a ring with a shortcut (%d junction pairs)" % junctions)
+	for plot in get_nodes_in_group("plot"):
+		var gate_at: Vector3 = plot.fence.get_gate_position()
+		var outside: Vector3 = gate_at + plot.fence.global_basis.z.normalized() * 1.6
+		check(terrain.road_depth(Vector2(outside.x, outside.z)) > 0.0, "%s gate opens onto a road" % plot.plot_name)
+		check(absf(terrain.height_at(Vector2(outside.x, outside.z)) - plot.global_position.y) < 0.02, "%s gate is level with its road" % plot.plot_name)
 	check(garden.fence.get("_sign_label").text.contains("закрыто"), "a locked plot's signpost says closed")
 	check(yard.get_walk_rects().size() == 2 and garden.get_walk_rects().size() == 1, "locked plot has no gate passage")
 	var yard_cells: int = yard.field.get("_mowable_cells")
@@ -81,12 +125,9 @@ func _run() -> void:
 	check(garden.get_stamps().size() == 6, "garden has six stamps (with wild flowers)")
 
 	# 2. Выход на улицу через калитку двора, закрытая калитка сада не пускает.
-	var gate: Vector3 = garden.fence.get_gate_position()
-	player.global_position = Vector3(gate.x, 0, 11.0)
-	player.rotation = Vector3(0, 0, 0)
-	await walk_north(300)
-	print("at locked gate: ", player.global_position)
-	check(player.global_position.z > 9.3, "locked gate keeps the player on the street")
+	var past_gate: float = await enter_gate(garden, player, 300)
+	print("at locked gate: ", player.global_position, " past gate ", past_gate)
+	check(past_gate < -0.8, "locked gate keeps the player on the road")
 	check(toasts.any(func(t): return t.begins_with("Сад бабушки пока закрыт")), "locked gate explains itself")
 	check(garden.get_progress() == 0.0, "nothing mowed behind the locked gate")
 
@@ -138,12 +179,10 @@ func _run() -> void:
 	hud.get_node("%Completion").visible = false
 
 	# 6. Заходим в сад через калитку и косим.
-	player.global_position = Vector3(gate.x, 0, 11.0)
-	player.rotation = Vector3(0, 0, 0)
 	gs.empty_bag()
-	await walk_north(260)
-	print("in garden: ", player.global_position, " progress=", garden.get_progress(), " bag=", gs.bag_fill)
-	check(player.global_position.z < 6.0, "player walks through the open gate")
+	past_gate = await enter_gate(garden, player, 260)
+	print("in garden: ", player.global_position, " past gate ", past_gate, " progress=", garden.get_progress(), " bag=", gs.bag_fill)
+	check(past_gate > 2.5, "player walks through the open gate")
 	check(absf(player.global_position.y - garden.global_position.y) < 0.05, "player stands on the garden terrace")
 	check(village.current_plot == garden, "garden becomes the current plot")
 	check(hud.get_node("%ProgressLabel").text.begins_with("Сад бабушки"), "HUD switches to the garden")

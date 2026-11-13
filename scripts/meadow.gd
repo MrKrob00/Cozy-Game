@@ -32,11 +32,13 @@ const MUSHROOM_STEM := Color(0.98, 0.94, 0.86)
 ## Шаг сетки земли, метры, и размер одного куска (кусок — отдельная модель,
 ## чтобы невидимые отсекались).
 const GRID_STEP := 2.0
+## Насколько нарисованная дорога шире той, по которой ходит игрок.
+const ROAD_GROW := 0.9
 const TILE := 30.0
 
 
 ## Земля луга: сетка с цветом в вершинах, кусками по TILE метров.
-static func build_ground(parent: Node3D, area: Rect2, road: Rect2, seed: int, terrain: Terrain) -> void:
+static func build_ground(parent: Node3D, area: Rect2, seed: int, terrain: Terrain) -> void:
 	var noise := _noise(seed, 0.06)
 	var patches := _noise(seed + 1, 0.13)
 	var spots := _noise(seed + 2, 0.2)
@@ -45,13 +47,13 @@ static func build_ground(parent: Node3D, area: Rect2, road: Rect2, seed: int, te
 		var z := area.position.y
 		while z < area.end.y:
 			var tile := Rect2(x, z, minf(TILE, area.end.x - x), minf(TILE, area.end.y - z))
-			_ground_tile(parent, tile, road, noise, patches, spots, terrain)
+			_ground_tile(parent, tile, noise, patches, spots, terrain)
 			z += TILE
 		x += TILE
 
 
 ## Цвет земли в точке: зоны травы, клевер, плешки земли, вытоптанное у дороги.
-static func ground_color(at: Vector2, road: Rect2, noise: FastNoiseLite,
+static func ground_color(at: Vector2, terrain: Terrain, noise: FastNoiseLite,
 		patches: FastNoiseLite, spots: FastNoiseLite) -> Color:
 	# Крупные пятна светлой и тёмной травы с чёткой, но мягкой границей.
 	var big := noise.get_noise_2dv(at)
@@ -59,47 +61,59 @@ static func ground_color(at: Vector2, road: Rect2, noise: FastNoiseLite,
 	color = color.lerp(DRY, smoothstep(0.35, 0.6, big) * 0.6)
 	color = color.lerp(CLOVER, smoothstep(0.25, 0.45, patches.get_noise_2dv(at)) * 0.75)
 	color = color.lerp(DIRT, smoothstep(0.42, 0.6, spots.get_noise_2dv(at)) * 0.85)
-	var to_road := at.distance_to(at.clamp(road.position, road.end))
+	var to_road := -terrain.road_depth(at, ROAD_GROW)
 	color = color.lerp(WORN, clampf(1.0 - to_road / 1.8, 0.0, 1.0) * 0.65)
 	return color
 
 
-## Дорога: колеи, крапины и рваные края, переходящие в траву.
-static func build_road(parent: Node3D, road: Rect2, seed: int, terrain: Terrain) -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed
+## Дороги: одна сетка на всю сеть дорог (на перекрёстках ничего не
+## накладывается), с колеями, крапинами и рваными краями.
+static func build_roads(parent: Node3D, seed: int, terrain: Terrain) -> void:
+	const STEP := 0.8
 	var noise := _noise(seed + 3, 0.6)
-	const COLUMNS := 10
-	const STEP := 0.75
-	var rows := int(road.size.x / STEP) + 1
+	var area := Rect2()
+	for rect in terrain.road_rects():
+		area = rect if area.size == Vector2.ZERO else area.merge(rect)
+	area = area.grow(ROAD_GROW + STEP)
+	var columns := int(area.size.x / STEP) + 1
+	var rows := int(area.size.y / STEP) + 1
 	var vertices := PackedVector3Array()
 	var colors := PackedColorArray()
 	var indices := PackedInt32Array()
+	# Вершина создаётся один раз на узел сетки: соседние клетки делят её.
+	var vertex_at: Dictionary = {}
+	var vertex := func(column: int, row: int) -> int:
+		var key := Vector2i(column, row)
+		if vertex_at.has(key):
+			return vertex_at[key]
+		var at := area.position + Vector2(column, row) * STEP
+		var depth := terrain.road_depth(at, ROAD_GROW)
+		var rng := RandomNumberGenerator.new()
+		rng.seed = hash(key) + seed
+		var height := terrain.height_at(at) + 0.03
+		# Края дороги неровные: крайние вершины гуляют в стороны.
+		if depth < STEP * 0.75:
+			at += Vector2(rng.randf_range(-0.3, 0.3), rng.randf_range(-0.3, 0.3))
+		# Две колеи идут на постоянном расстоянии от края.
+		var rut := _bump(depth, 1.7, 0.32)
+		var color := ROAD.lerp(ROAD_RUT, rut * 0.8)
+		color = color.lerp(ROAD_RUT, maxf(noise.get_noise_2dv(at), 0.0) * 0.5)
+		color = color.lerp(ROAD_EDGE, 1.0 - smoothstep(0.0, 0.7, depth))
+		vertices.append(Vector3(at.x, height, at.y))
+		colors.append(color)
+		vertex_at[key] = vertices.size() - 1
+		return vertices.size() - 1
 	for row in rows:
-		var x := road.position.x + row * STEP
-		for column in COLUMNS + 1:
-			var across := float(column) / COLUMNS
-			var z := road.position.y + across * road.size.y
-			# Края дороги неровные: крайние вершины гуляют наружу и внутрь.
-			var edge := column == 0 or column == COLUMNS
-			if edge:
-				z += (-1.0 if column == 0 else 1.0) * rng.randf_range(-0.25, 0.45)
-			# Дорога слегка петляет, чтобы не быть линейкой.
-			z += sin(x * 0.11) * 0.45 + sin(x * 0.037 + 1.3) * 0.35
-			var at := Vector2(x, z)
-			var rut := maxf(_bump(across, 0.3, 0.07), _bump(across, 0.7, 0.07))
-			var color := ROAD.lerp(ROAD_RUT, rut * 0.8)
-			color = color.lerp(ROAD_RUT, maxf(noise.get_noise_2dv(at), 0.0) * 0.5)
-			if edge:
-				color = ROAD_EDGE
-			vertices.append(Vector3(x, terrain.street_height(x) + 0.03, z))
-			colors.append(color)
-	for row in rows - 1:
-		for column in COLUMNS:
-			var a := row * (COLUMNS + 1) + column
-			var b := a + COLUMNS + 1
-			indices.append_array([a, b, a + 1, b, b + 1, a + 1])
-	_add_mesh(parent, "Road", vertices, colors, indices)
+		for column in columns:
+			var center := area.position + (Vector2(column, row) + Vector2(0.5, 0.5)) * STEP
+			if terrain.road_depth(center, ROAD_GROW) < 0.0:
+				continue
+			var a: int = vertex.call(column, row)
+			var b: int = vertex.call(column + 1, row)
+			var c: int = vertex.call(column, row + 1)
+			var d: int = vertex.call(column + 1, row + 1)
+			indices.append_array([a, b, c, c, b, d])
+	_add_mesh(parent, "Roads", vertices, colors, indices)
 
 
 ## Россыпи: кочки, цветы, камни, грибы. free_at(точка) говорит, можно ли там.
@@ -206,7 +220,7 @@ static func mushroom(parent: Node3D, at: Vector3, rng: RandomNumberGenerator) ->
 	cap.scale = Vector3(1.0, 0.6, 1.0)
 
 
-static func _ground_tile(parent: Node3D, tile: Rect2, road: Rect2, noise: FastNoiseLite,
+static func _ground_tile(parent: Node3D, tile: Rect2, noise: FastNoiseLite,
 		patches: FastNoiseLite, spots: FastNoiseLite, terrain: Terrain) -> void:
 	var columns := maxi(int(ceilf(tile.size.x / GRID_STEP)), 1)
 	var rows := maxi(int(ceilf(tile.size.y / GRID_STEP)), 1)
@@ -219,10 +233,10 @@ static func _ground_tile(parent: Node3D, tile: Rect2, road: Rect2, noise: FastNo
 			var at := tile.position + Vector2(column * tile.size.x / columns, row * tile.size.y / rows)
 			# Под дорогой земля чуть ниже: на подъёмах сетка земли редкая
 			# и иначе прорезала бы дорогу.
-			var sink := 0.22 if road.grow(1.6).has_point(at) else 0.03
+			var sink := 0.22 if terrain.road_depth(at, ROAD_GROW + GRID_STEP) > 0.0 else 0.03
 			vertices.append(Vector3(at.x, terrain.height_at(at) - sink, at.y))
 			normals.append(terrain.normal_at(at))
-			var color := ground_color(at, road, noise, patches, spots)
+			var color := ground_color(at, terrain, noise, patches, spots)
 			# Склоны чуть темнее и теплее: рельеф читается сверху.
 			var slope := 1.0 - normals[-1].y
 			color = color.lerp(SLOPE, clampf(slope * 4.0, 0.0, 0.45))
