@@ -10,10 +10,16 @@ const ORANGE := Color(0.95, 0.56, 0.20)
 const TOAST_TIME := 3.2
 ## Пауза перед окном завершения участка, секунд.
 const COMPLETION_DELAY := 5.0
+## Сколько летят значки награды до счётчика, секунд.
+const FLIGHT_TIME := 0.85
+## Секунд на букву в реплике жителя.
+const TYPE_SPEED := 0.028
 
 @onready var _root: Control = %Root
 @onready var _margin: MarginContainer = %Margin
 @onready var _progress_label: Label = %ProgressLabel
+@onready var _plot_bar: ProgressBar = %PlotBar
+@onready var _flyers: Control = %Flyers
 @onready var _bag_bar: ProgressBar = %BagBar
 @onready var _coins_label: Label = %CoinsLabel
 @onready var _compost_label: Label = %CompostLabel
@@ -64,8 +70,14 @@ var _hint_hidden := false
 var _bag_pulse: Tween
 var _reset_armed := false
 var _shown_percent := -1
+# Числа, которые сейчас показаны на счётчиках (они досчитываются плавно).
 var _shown_coins := 0
 var _shown_compost := 0
+var _counter_tweens: Dictionary = {}
+# Сколько значков награды ещё летит к каждому счётчику.
+var _in_flight: Dictionary = {"coins": 0, "compost": 0}
+var _bar_tween: Tween
+var _speech_tween: Tween
 var _action_pulse: Tween
 ## Кто сейчас говорит (чтобы чужой уход не закрывал реплику).
 var _speaker: Node
@@ -100,6 +112,7 @@ func _ready() -> void:
 
 	for plot: Plot in get_tree().get_nodes_in_group("plot"):
 		plot.completed.connect(_on_plot_completed.bind(plot))
+		plot.milestone.connect(_on_milestone.bind(plot))
 	var village := get_tree().get_first_node_in_group("village") as Village
 	if village:
 		# Деревня сообщит текущий участок, когда будет готова.
@@ -116,9 +129,10 @@ func _ready() -> void:
 	GameState.compost_changed.connect(_on_compost_changed)
 	GameState.bag_changed.connect(_on_bag_changed)
 	GameState.toast_requested.connect(show_toast)
+	GameState.reward_shown.connect(_on_reward_shown)
 	GameState.settings_changed.connect(_update_settings_buttons)
-	_on_coins_changed(GameState.coins)
-	_on_compost_changed(GameState.compost)
+	_coins_label.text = "Монеты: %d" % _shown_coins
+	_compost_label.text = "Компост: %d" % _shown_compost
 	_on_bag_changed(GameState.bag_fill, GameState.bag_capacity)
 
 	_action_button.pressed.connect(func() -> void: _player.try_interact())
@@ -248,7 +262,25 @@ func close_workshop() -> void:
 func show_speech(speaker: Node, speaker_name: String, text: String) -> void:
 	_speaker = speaker
 	_speech_label.text = "%s: %s" % [speaker_name, text]
+	_speech_label.visible_characters = speaker_name.length() + 2
 	Juice.pop_in(_speech, 0.22)
+	# У каждого жителя свой голос: высота «бипа» зависит от имени.
+	var pitch := 0.8 + float(hash(speaker_name) % 50) / 100.0
+	if _speech_tween:
+		_speech_tween.kill()
+	_speech_tween = create_tween()
+	var total := _speech_label.get_total_character_count()
+	_speech_tween.tween_method(_type_speech.bind(pitch), float(speaker_name.length() + 2), float(total),
+			(total - speaker_name.length()) * TYPE_SPEED)
+
+
+func _type_speech(characters: float, pitch: float) -> void:
+	var count := int(characters)
+	if count == _speech_label.visible_characters:
+		return
+	_speech_label.visible_characters = count
+	if count % 3 == 0 and count < _speech_label.get_total_character_count():
+		Sfx.play("blip", -16.0, pitch, 0.08)
 
 
 func hide_speech(speaker: Node) -> void:
@@ -283,6 +315,9 @@ func _show_plot(plot: Plot) -> void:
 	_plot.field.progress_changed.connect(_on_progress_changed)
 	_shown_percent = -1
 	_on_progress_changed(_plot.get_progress())
+	if _bar_tween:
+		_bar_tween.kill()
+	_plot_bar.value = _plot.get_progress()
 	if not first:
 		Juice.punch(_progress_label, 0.15)
 
@@ -295,21 +330,98 @@ func _on_progress_changed(ratio: float) -> void:
 	# Каждый новый процент слегка «подпрыгивает», круглые — сильнее.
 	if _shown_percent >= 0:
 		Juice.punch(_progress_label, 0.22 if percent % 10 == 0 else 0.08)
+		# Полоса догоняет плавно.
+		if _bar_tween:
+			_bar_tween.kill()
+		_bar_tween = create_tween()
+		_bar_tween.tween_property(_plot_bar, "value", ratio, 0.35) \
+				.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	_shown_percent = percent
 
 
-func _on_coins_changed(value: int) -> void:
-	_coins_label.text = "Монеты: %d" % value
-	if value != _shown_coins:
-		Juice.punch(_coins_label, 0.3)
-	_shown_coins = value
+func _on_milestone(percent: int, plot: Plot) -> void:
+	var words := {25: "четверть позади", 50: "половина!", 75: "осталось чуть-чуть"}
+	show_toast("%s: %s" % [plot.plot_name, words.get(percent, "%d %%" % percent)])
+	Sfx.play("chime", -4.0, 1.0 + (percent - 25) / 200.0, 0.0)
+	Sfx.buzz(20)
+	if plot == _plot:
+		Juice.punch(_plot_bar, 0.3, 0.4)
 
 
-func _on_compost_changed(value: int) -> void:
-	_compost_label.text = "Компост: %d" % value
-	if value != _shown_compost:
-		Juice.punch(_compost_label, 0.3)
-	_shown_compost = value
+# Счётчики меняются кадром позже: если в этом кадре награда вылетела из мира,
+# счётчик подождёт, пока значки долетят, и только потом досчитает.
+func _on_coins_changed(_value: int) -> void:
+	_update_counter.call_deferred("coins")
+
+
+func _on_compost_changed(_value: int) -> void:
+	_update_counter.call_deferred("compost")
+
+
+func _update_counter(kind: String) -> void:
+	var label := _coins_label if kind == "coins" else _compost_label
+	var target := GameState.coins if kind == "coins" else GameState.compost
+	var shown := _shown_coins if kind == "coins" else _shown_compost
+	if target == shown:
+		return
+	var delay := FLIGHT_TIME if _in_flight[kind] > 0 else 0.0
+	if _counter_tweens.has(kind):
+		_counter_tweens[kind].kill()
+	var tween := create_tween()
+	_counter_tweens[kind] = tween
+	tween.tween_interval(delay)
+	tween.tween_method(_show_counter.bind(kind), float(shown), float(target),
+			clampf(absf(target - shown) * 0.02, 0.25, 0.8)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if delay == 0.0:
+		Juice.punch(label, 0.3)
+
+
+func _show_counter(value: float, kind: String) -> void:
+	var number := roundi(value)
+	if kind == "coins":
+		_shown_coins = number
+		_coins_label.text = "Монеты: %d" % number
+	else:
+		_shown_compost = number
+		_compost_label.text = "Компост: %d" % number
+
+
+# Награда вылетает из точки мира и летит к своему счётчику горстью значков.
+func _on_reward_shown(kind: String, amount: int, world_position: Vector3) -> void:
+	var camera := get_viewport().get_camera_3d()
+	if camera == null or amount <= 0 or camera.is_position_behind(world_position):
+		return
+	var label := _coins_label if kind == "coins" else _compost_label
+	var start := camera.unproject_position(world_position)
+	var target := label.get_global_rect().get_center() - Vector2.ONE * RewardIcon.SIZE * 0.5
+	var count := clampi(int(sqrt(float(amount))) + 1, 2, 9)
+	_in_flight[kind] += count
+	for i in count:
+		var icon := RewardIcon.new()
+		icon.kind = RewardIcon.Kind.COIN if kind == "coins" else RewardIcon.Kind.LEAF
+		_flyers.add_child(icon)
+		var from := start - Vector2.ONE * RewardIcon.SIZE * 0.5
+		var burst := from + Vector2(randf_range(-90.0, 90.0), randf_range(-110.0, -30.0))
+		icon.position = from
+		icon.scale = Vector2.ONE * 0.3
+		var tween := icon.create_tween()
+		# Сначала разлетаются горстью, потом по очереди летят к счётчику.
+		tween.set_parallel(true)
+		tween.tween_property(icon, "position", burst, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tween.tween_property(icon, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tween.set_parallel(false)
+		tween.tween_interval(0.05 + 0.05 * i)
+		tween.tween_property(icon, "position", target, FLIGHT_TIME - 0.27 - 0.05 * i) \
+				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tween.parallel().tween_property(icon, "scale", Vector2.ONE * 0.6, FLIGHT_TIME - 0.27 - 0.05 * i)
+		tween.tween_callback(_on_icon_arrived.bind(icon, kind, label, i))
+
+
+func _on_icon_arrived(icon: RewardIcon, kind: String, label: Label, index: int) -> void:
+	icon.queue_free()
+	_in_flight[kind] = maxi(_in_flight[kind] - 1, 0)
+	Juice.punch(label, 0.18, 0.2)
+	Sfx.play("coin" if kind == "coins" else "pop", -14.0, 1.0 + index * 0.06, 0.02)
 
 
 func _on_bag_changed(fill: float, capacity: float) -> void:
@@ -371,7 +483,13 @@ func _on_plot_completed(plot: Plot) -> void:
 	_completion.visible = true
 	Juice.pop_in(_completion_panel, 0.4)
 	Sfx.play("pop")
-	# Штампы появляются по одному.
+	var title_tween := create_tween()
+	_stamp_tweens.append(title_tween)
+	title_tween.tween_interval(0.2)
+	title_tween.tween_callback(func() -> void:
+		Juice.slam(_completion_title, 1.6, 0.2)
+		Sfx.play("stamp", -2.0))
+	# Штампы падают по одному, как печати.
 	for i in stamps.size():
 		var stamp := stamps[i]
 		var shown_alpha := stamp.modulate.a
@@ -384,9 +502,12 @@ func _on_plot_completed(plot: Plot) -> void:
 			if not is_instance_valid(stamp):
 				return
 			stamp.modulate.a = shown_alpha
-			Juice.punch(stamp, 0.25)
 			if shown_alpha > 0.9:
-				Sfx.play("coin", -8.0, 0.9 + 0.08 * i, 0.0))
+				Juice.slam(stamp, 1.7, 0.18)
+				Sfx.play("stamp", -5.0, 0.95 + 0.05 * i, 0.0)
+				Sfx.buzz(10)
+			else:
+				Juice.punch(stamp, 0.1))
 
 
 func _kill_stamp_tweens() -> void:

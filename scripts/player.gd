@@ -58,6 +58,11 @@ var _mower: Node3D
 var _engine_cap: MeshInstance3D
 ## Сколько метров проехано с последнего «вжуха» срезаемой травы.
 var _swish_distance := 0.0
+var _was_moving := false
+var _idle_time := 0.0
+var _exhaust: CPUParticles3D
+var _bump_cooldown := 0.0
+var _in_contact := false
 # Состояние для анимации и звука.
 var _walk_phase := 0.0
 var _turn_speed := 0.0
@@ -141,7 +146,11 @@ func _physics_process(delta: float) -> void:
 	velocity = forward * _current_speed
 	var before := global_position
 	move_and_slide()
+	var wanted := global_position
 	global_position = _constrain(before, global_position)
+	# Граница участка — это забор: упор в неё тоже считается ударом.
+	var pushed_back := wanted - global_position
+	_check_bump(target_speed, pushed_back.dot(-global_basis.z) > 0.004)
 
 	var blade_position := get_blade_position()
 	var pusher := global_position + forward * BLADE_OFFSET * 0.6
@@ -171,6 +180,20 @@ func _process(delta: float) -> void:
 	_character.position.y = absf(sin(_walk_phase)) * 0.06 * pace
 	_character.rotation.z = sin(_walk_phase) * 0.07 * pace - _turn_speed * 0.035
 	_character.rotation.x = -0.1 * pace
+
+	# Тронулся или остановился — лёгкая пружинка.
+	var moving := pace > 0.25
+	if moving != _was_moving:
+		_was_moving = moving
+		Juice.squash(_character, 0.12 if moving else 0.08, 0.35, Vector3.ONE * CHARACTER_SCALE)
+	# Постоял — дышит и оглядывается по сторонам.
+	_idle_time = 0.0 if pace > 0.05 else _idle_time + delta
+	var idle := clampf((_idle_time - 1.2) / 0.8, 0.0, 1.0)
+	_character.position.y += sin(_time * 2.2) * 0.012 * idle
+	_character.rotation.y = lerp_angle(_character.rotation.y,
+			sin(_time * 0.6) * 0.45 * idle * signf(sin(_time * 0.21)), 1.0 - exp(-3.0 * delta))
+	_exhaust.emitting = pace > 0.2
+	_bump_cooldown -= delta
 
 	# Косилка мелко дрожит от мотора, сильнее на ходу и в густой траве.
 	_cut_amount = lerpf(_cut_amount, 1.0 if _cutting else 0.0, blend)
@@ -203,6 +226,26 @@ func get_blade_position() -> Vector3:
 ## Режет ли нож прямо сейчас: косилка едет и в мешке есть место.
 func is_blade_spinning() -> bool:
 	return _current_speed > 0.1 and not GameState.is_bag_full()
+
+
+# Косилка с разгона упёрлась во что-то твёрдое (забор, дерево, зверёк):
+# сплющивается, поднимается пыль, звучит мягкий «бум». Только в момент удара.
+func _check_bump(target_speed: float, at_border: bool) -> void:
+	var forward := -global_basis.z
+	var contact := at_border
+	var hit := get_blade_position() + forward * 0.4
+	for i in get_slide_collision_count():
+		var collision := get_slide_collision(i)
+		if forward.dot(-collision.get_normal()) > 0.55:
+			contact = true
+			hit = collision.get_position()
+	if contact and not _in_contact and target_speed > 0.8 and _bump_cooldown <= 0.0:
+		_bump_cooldown = 0.6
+		Juice.squash(_mower_root, 0.2, 0.4)
+		Juice.dust(get_parent(), Vector3(hit.x, 0.15, hit.z))
+		Sfx.play("bonk", -5.0, 1.0, 0.1)
+		Sfx.buzz(12)
+	_in_contact = contact
 
 
 ## Берёт ли нож бурьян (нужен второй уровень ножа).
@@ -419,4 +462,38 @@ func _build_mower() -> void:
 	_clippings.scale_amount_min = 0.7
 	_clippings.scale_amount_max = 1.3
 	_mower.add_child(_clippings)
+
+	# Маленькие облачка из мотора: косилку не слышно, зато видно, что она работает.
+	_exhaust = CPUParticles3D.new()
+	_exhaust.name = "Exhaust"
+	_exhaust.position = Vector3(0.0, 0.78, -0.06)
+	_exhaust.emitting = false
+	_exhaust.amount = 6
+	_exhaust.lifetime = 0.9
+	_exhaust.local_coords = false
+	var puff_mesh := SphereMesh.new()
+	puff_mesh.radius = 0.06
+	puff_mesh.height = 0.12
+	puff_mesh.radial_segments = 6
+	puff_mesh.rings = 3
+	_exhaust.mesh = puff_mesh
+	var puff := StandardMaterial3D.new()
+	puff.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	puff.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	puff.vertex_color_use_as_albedo = true
+	_exhaust.material_override = puff
+	var fade := Gradient.new()
+	fade.colors = PackedColorArray([Color(1.0, 1.0, 1.0, 0.7), Color(1.0, 1.0, 1.0, 0.0)])
+	_exhaust.color_ramp = fade
+	var grow := Curve.new()
+	grow.add_point(Vector2(0.0, 0.5))
+	grow.add_point(Vector2(1.0, 1.8))
+	_exhaust.scale_amount_curve = grow
+	_exhaust.direction = Vector3(0.0, 1.0, 0.3)
+	_exhaust.spread = 20.0
+	_exhaust.initial_velocity_min = 0.4
+	_exhaust.initial_velocity_max = 0.7
+	_exhaust.gravity = Vector3(0.0, 0.3, 0.0)
+	_exhaust.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_mower.add_child(_exhaust)
 	Placeholder.bake_tree(_mower_root)

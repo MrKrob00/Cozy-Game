@@ -130,12 +130,44 @@ def coin():
 
 
 def dump():
-    # Трава сыплется в ящик: шорох вниз и мягкий стук.
+    # Трава сыплется в ящик: шорох вниз и мягкий стук. Стук — выше 400 Гц,
+    # иначе динамик телефона его не воспроизводит.
     whoosh = band_noise(0.42, 500, 5000) * sweep(1.0, 0.2, 0.42) ** 2
     whoosh = envelope(whoosh, 0.02, 0.25)
     t = seconds(0.2)
-    thud = np.sin(2 * np.pi * 85 * t) * np.exp(-22 * t)
-    return mix([(0.0, whoosh * 0.7), (0.28, thud)], 0.55)
+    thud = (np.sin(2 * np.pi * 440 * t) + 0.5 * np.sin(2 * np.pi * 660 * t)) * np.exp(-30 * t)
+    return mix([(0.0, whoosh * 0.7), (0.28, thud * 0.8)], 0.55)
+
+
+def bonk():
+    """Мягкий деревянный «бум» при наезде косилки на препятствие."""
+    t = seconds(0.18)
+    knock = np.sin(2 * np.pi * sweep_freq(620, 480, t) * t) * np.exp(-26 * t)
+    click = band_noise(0.18, 1500, 4000) * np.exp(-90 * t) * 0.35
+    return knock + click
+
+
+def sweep_freq(f_from, f_to, t):
+    return f_from + (f_to - f_from) * (t / t[-1])
+
+
+def blip(freq):
+    """Короткий слог реплики жителя."""
+    t = seconds(0.05)
+    return np.sin(2 * np.pi * freq * t) * np.clip(t / 0.004, 0, 1) * np.exp(-40 * t)
+
+
+def chime():
+    """Отметка прогресса участка: два звонких тона."""
+    return mix([(0.0, bell(note("G6"), 0.7, 5)), (0.12, bell(note("D7"), 0.8, 4.5))], 1.0)
+
+
+def stamp():
+    """Штамп падает на бумагу: глухой хлопок средних частот и щелчок."""
+    t = seconds(0.16)
+    body = band_noise(0.16, 450, 1600) * np.exp(-38 * t)
+    tap = np.sin(2 * np.pi * 520 * t) * np.exp(-45 * t) * 0.6
+    return body + tap
 
 
 def bag_full():
@@ -186,6 +218,10 @@ def chirp(pattern):
 
 
 SOUNDS = {
+    "bonk": (bonk, 0.5),
+    "blip": (lambda: blip(880), 0.25),
+    "chime": (chime, 0.5),
+    "stamp": (stamp, 0.55),
     "swish_1": (lambda: swish(1), 0.35),
     "swish_2": (lambda: swish(2), 0.35),
     "swish_3": (lambda: swish(3), 0.35),

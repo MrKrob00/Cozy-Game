@@ -28,14 +28,62 @@ static func pop_in(control: Control, duration := 0.28) -> void:
 	control.set_meta("juice_tween", tween)
 
 
-## Объект сплющивается и пружинит обратно (исходный масштаб — единичный).
-static func squash(node: Node3D, amount := 0.25, duration := 0.45) -> void:
+## Объект сплющивается и пружинит обратно к масштабу base.
+static func squash(node: Node3D, amount := 0.25, duration := 0.45, base := Vector3.ONE) -> void:
 	_stop(node)
-	node.scale = Vector3(1.0 + amount * 0.6, 1.0 - amount, 1.0 + amount * 0.6)
+	node.scale = base * Vector3(1.0 + amount * 0.6, 1.0 - amount, 1.0 + amount * 0.6)
 	var tween := node.create_tween()
-	tween.tween_property(node, "scale", Vector3.ONE, duration) \
+	tween.tween_property(node, "scale", base, duration) \
 			.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 	node.set_meta("juice_tween", tween)
+
+
+## Элемент интерфейса «шлёпается» сверху, как печать: из крупного в обычный.
+static func slam(control: Control, from_scale := 1.8, duration := 0.22) -> void:
+	_stop(control)
+	control.pivot_offset = control.size * 0.5
+	control.scale = Vector2.ONE * from_scale
+	var target_alpha := control.modulate.a
+	control.modulate.a = 0.0
+	var tween := control.create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(control, "scale", Vector2.ONE, duration) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tween.tween_property(control, "modulate:a", target_alpha, duration * 0.6)
+	tween.set_parallel(false)
+	tween.tween_property(control, "scale", Vector2.ONE * 1.06, 0.06)
+	tween.tween_property(control, "scale", Vector2.ONE, 0.1)
+	control.set_meta("juice_tween", tween)
+
+
+## Облачко пыли у земли (косилка во что-то упёрлась).
+static func dust(host: Node, at: Vector3, amount := 10) -> void:
+	var particles := _burst(host, at, amount, 0.6)
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.08
+	mesh.height = 0.16
+	mesh.radial_segments = 6
+	mesh.rings = 3
+	particles.mesh = mesh
+	var puff := StandardMaterial3D.new()
+	puff.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	puff.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	puff.vertex_color_use_as_albedo = true
+	particles.material_override = puff
+	var fade := Gradient.new()
+	fade.colors = PackedColorArray([Color(0.92, 0.86, 0.72, 0.8), Color(0.92, 0.86, 0.72, 0.0)])
+	particles.color_ramp = fade
+	var grow := Curve.new()
+	grow.add_point(Vector2(0.0, 0.6))
+	grow.add_point(Vector2(1.0, 1.6))
+	particles.scale_amount_curve = grow
+	particles.spread = 80.0
+	particles.initial_velocity_min = 0.6
+	particles.initial_velocity_max = 1.4
+	particles.gravity = Vector3(0.0, 0.4, 0.0)
+	particles.damping_min = 1.5
+	particles.damping_max = 2.5
+	particles.emitting = true
 
 
 ## Текст всплывает над точкой в мире и растворяется.

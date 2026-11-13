@@ -24,6 +24,9 @@ var _distance := 17.0
 # Добавки на время облёта (см. play_flyover).
 var _yaw_offset := 0.0
 var _distance_offset := 0.0
+# Короткий наезд камеры (nudge).
+var _nudge := 0.0
+var _nudge_tween: Tween
 var _flyover: Tween
 
 
@@ -77,6 +80,17 @@ func play_flyover(duration := 6.0, swing_degrees := 70.0, pull_back := 7.0) -> v
 	_flyover.parallel().tween_property(self, "_distance_offset", 0.0, duration * 0.5)
 
 
+## Короткий наезд: камера на миг приближается на amount метров и возвращается.
+func nudge(amount := 1.2, duration := 0.8) -> void:
+	if _nudge_tween:
+		_nudge_tween.kill()
+	_nudge_tween = create_tween()
+	_nudge_tween.tween_property(self, "_nudge", -amount, duration * 0.3) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_nudge_tween.tween_property(self, "_nudge", 0.0, duration * 0.7) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
 func _apply() -> void:
 	rotation_degrees = Vector3(-pitch_degrees, yaw_degrees + _yaw_offset, 0.0)
-	global_position = _focus + global_basis.z * (_distance + _distance_offset)
+	global_position = _focus + global_basis.z * (_distance + _distance_offset + _nudge)

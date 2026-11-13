@@ -50,6 +50,9 @@ const PRESETS := [
 	},
 ]
 
+## Общая яркость света дня. Подобрана по снимкам: без неё в Compatibility
+## выкошенный газон светлее, чем был в Mobile, и упирается в белый.
+const EXPOSURE := 0.86
 ## Направление солнечных лучей (как у прежнего DirectionalLight3D).
 const SUN_DIRECTION := Vector3(0.353, -0.788, -0.504)
 
@@ -97,8 +100,8 @@ func track(material: ShaderMaterial, receives := false) -> ShaderMaterial:
 
 ## Свет дня: цвет солнца с яркостью, свет неба и насыщенность картинки.
 func set_day(sun: Color, sun_energy: float, ambient: Color, saturation: float) -> void:
-	_day["day_sun"] = Vector3(sun.r, sun.g, sun.b) * sun_energy
-	_day["day_ambient"] = Vector3(ambient.r, ambient.g, ambient.b)
+	_day["day_sun"] = Vector3(sun.r, sun.g, sun.b) * sun_energy * EXPOSURE
+	_day["day_ambient"] = Vector3(ambient.r, ambient.g, ambient.b) * EXPOSURE
 	_day["day_saturation"] = saturation
 	_push(_lit, _day)
 

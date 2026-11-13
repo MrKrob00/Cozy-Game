@@ -49,7 +49,7 @@ func can_interact(_player: Player) -> bool:
 func interact(_player: Player) -> void:
 	_removed = true
 	GameState.set_flag(_flag())
-	GameState.add_coins(coins_reward)
+	GameState.add_coins(coins_reward, global_position + Vector3.UP * 0.4)
 	_body.process_mode = Node.PROCESS_MODE_DISABLED
 	Sfx.play("pop", 0.0, 0.7)
 	Sfx.play("coin", -6.0)

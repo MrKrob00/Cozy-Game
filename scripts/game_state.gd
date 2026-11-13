@@ -10,6 +10,9 @@ signal bag_changed(fill: float, capacity: float)
 signal upgrades_changed
 ## Игрок проспал ночь: наступил новый день.
 signal day_started(day: int)
+## Награда появилась в мире: интерфейс покажет, как она летит к счётчику.
+## kind — «coins» или «compost».
+signal reward_shown(kind: String, amount: int, world_position: Vector3)
 ## Короткое сообщение игроку; показывает интерфейс.
 signal toast_requested(text: String)
 ## Перед записью файла: участки складывают своё состояние в plots.
@@ -120,9 +123,17 @@ func spend_compost(amount: int) -> bool:
 	return true
 
 
-func add_coins(amount: int) -> void:
+## Добавляет монеты. Если указано место в мире, монетки летят оттуда к счётчику.
+func add_coins(amount: int, from: Variant = null) -> void:
 	coins += amount
+	if from is Vector3:
+		reward_shown.emit("coins", amount, from)
 	coins_changed.emit(coins)
+
+
+## Показать, как награда летит из точки мира к счётчику (сама награда уже начислена).
+func show_reward(kind: String, amount: int, at: Vector3) -> void:
+	reward_shown.emit(kind, amount, at)
 
 
 ## Тратит монеты. Возвращает false и ничего не меняет, если их не хватает.

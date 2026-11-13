@@ -166,6 +166,36 @@ func _run() -> void:
 	await frames(3)
 	check(bed2.is_planted() and gs.compost == 2, "second finger on the action button works")
 
+	# 5b. Отклик: отметки прогресса, награды летят к счётчикам, удар косилки.
+	var milestones: Array[int] = []
+	plot.milestone.connect(func(p): milestones.append(p))
+	var rewards: Array = []
+	gs.reward_shown.connect(func(kind, amount, at): rewards.append([kind, amount, at]))
+	var coins_now: int = gs.coins
+	gs.add_coins(7, player.global_position)
+	check(rewards.size() == 1 and rewards[0][0] == "coins" and rewards[0][1] == 7, "coins with a place fly to the counter")
+	check(hud.get_node("%Flyers").get_child_count() >= 3, "reward icons are in the air")
+	await frames(5)
+	check(hud.get("_shown_coins") == coins_now, "counter waits for the icons")
+	for i in 120:
+		await process_frame
+	check(hud.get("_shown_coins") == coins_now + 7 and hud.get_node("%CoinsLabel").text == "Монеты: %d" % (coins_now + 7), "counter counts up once the icons arrive")
+	check(hud.get_node("%Flyers").get_child_count() == 0, "icons are gone after landing")
+	gs.coins -= 7
+	# Удар о забор: косилка с разгона упирается в левый край двора.
+	player.global_position = Vector3(-6.0, 0, 3.0)
+	player.rotation = Vector3(0, PI * 0.5, 0)
+	Input.action_press("move_left"); Input.action_press("move_down")
+	var bumped := false
+	for i in 200:
+		await physics_frame
+		if player.get("_bump_cooldown") > 0.3:
+			bumped = true
+			break
+	Input.action_release("move_left"); Input.action_release("move_down")
+	check(bumped, "mower bumps into the fence with feedback")
+	await frames(20)
+
 	# 6. Завершение участка.
 	var done := [0]
 	plot.completed.connect(func(): done[0] += 1)
@@ -196,6 +226,8 @@ func _run() -> void:
 	field.mow(Vector3(0, 0, 5.4), Vector3.FORWARD, 14.0, 0.5)
 	await frames(5)
 	check(done[0] == 1 and plot.is_completed(), "plot completes at 95 %")
+	print("milestones: ", milestones)
+	check(milestones == [25, 50, 75], "milestones at 25, 50 and 75 % fire once each")
 	check(gs.coins == coins_before + 50, "completion reward +50 coins")
 	field.mow(Vector3.ZERO, Vector3.FORWARD, 20.0, 20.0)
 	await frames(5)

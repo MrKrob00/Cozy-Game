@@ -45,6 +45,8 @@ func can_interact(_player: Player) -> bool:
 
 func interact(_player: Player) -> void:
 	var gained := GameState.empty_bag()
+	if gained > 0:
+		GameState.show_reward("compost", gained, global_position + Vector3.UP * 1.2)
 	_burst.restart()
 	_burst.emitting = true
 	Juice.squash(_model, 0.22)

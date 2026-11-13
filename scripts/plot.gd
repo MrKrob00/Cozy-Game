@@ -10,6 +10,8 @@ extends Node3D
 signal completed
 ## Калитка участка открылась.
 signal unlocked
+## Скошена очередная четверть участка (25, 50 или 75 %).
+signal milestone(percent: int)
 
 ## Идентификатор для сохранения.
 @export var plot_id := "yard"
@@ -30,6 +32,7 @@ signal unlocked
 
 ## Насколько игрок может выйти за край поля (чтобы докосить края и развернуться).
 const WALK_MARGIN := 1.1
+const MILESTONES := [25, 50, 75]
 const MAX_HINTS := 10
 const HINT_REFRESH := 0.6
 
@@ -185,10 +188,17 @@ func _add_count_stamp(stamps: Array[Dictionary], group: String, title: String, d
 
 
 func _on_progress_changed(ratio: float) -> void:
+	if not is_completed():
+		var reached: Array = _state.get("milestones", [])
+		for percent: int in MILESTONES:
+			if ratio * 100.0 >= percent and not percent in reached:
+				reached.append(percent)
+				_state["milestones"] = reached
+				milestone.emit(percent)
 	if ratio >= complete_at and not is_completed():
 		_state["completed"] = true
 		_state["tidy"] = true
-		GameState.add_coins(reward_coins)
+		GameState.add_coins(reward_coins, _player_position())
 		_celebrate()
 		completed.emit()
 		GameState.save_game()
@@ -196,7 +206,7 @@ func _on_progress_changed(ratio: float) -> void:
 		# Трава отросла, и её снова подстригли: небольшая благодарность.
 		_state["tidy"] = true
 		var thanks := maxi(reward_coins / 5, 5)
-		GameState.add_coins(thanks)
+		GameState.add_coins(thanks, _player_position())
 		GameState.toast("%s снова ухожен: +%d монет" % [plot_name, thanks])
 		Sfx.play("coin")
 		GameState.save_game()
@@ -211,6 +221,11 @@ func _on_day_started(_day: int) -> void:
 	if is_completed():
 		field.regrow()
 		_state["tidy"] = false
+
+
+func _player_position() -> Vector3:
+	var player := get_tree().get_first_node_in_group("player") as Node3D
+	return player.global_position + Vector3.UP * 1.4 if player else global_position
 
 
 func _on_required_plot_completed() -> void:
@@ -237,7 +252,7 @@ func _celebrate() -> void:
 		if flowers.is_alive():
 			bonus += flowers.bonus_coins
 	if bonus > 0:
-		GameState.add_coins(bonus)
+		GameState.add_coins(bonus, _player_position())
 		GameState.toast("Бережный садовник: +%d монет за сохранённые цветы" % bonus)
 
 

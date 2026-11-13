@@ -80,6 +80,9 @@ func _reveal() -> void:
 	_sparkles.emitting = true
 	Sfx.play("find")
 	Sfx.buzz(30)
+	var camera := get_viewport().get_camera_3d() as FollowCamera
+	if camera:
+		camera.nudge(1.0, 0.9)
 
 	# Выпрыгивает из травы, крутится, затем летит к игроку.
 	var tween := create_tween()
@@ -107,7 +110,7 @@ func _collect() -> void:
 	Sfx.play("pop")
 	var text := "Найдено: %s" % display_name
 	if coins_reward > 0:
-		GameState.add_coins(coins_reward)
+		GameState.add_coins(coins_reward, _model.global_position)
 		text += " (+%d монет)" % coins_reward
 		Sfx.play("coin")
 		Juice.floating_text(self, _model.global_position + Vector3.UP * 0.6, "+%d" % coins_reward,
