@@ -158,16 +158,19 @@ static func _collect(node: Node, into: Array[MeshInstance3D]) -> void:
 
 static func _bakeable(part_mesh: MeshInstance3D) -> bool:
 	return part_mesh.visible and part_mesh.mesh != null and not part_mesh.has_meta("no_bake") \
-			and _colors.has(part_mesh.material_override)
+			and (_colors.has(part_mesh.material_override) or part_mesh.has_meta("vertex_colors"))
 
 
 # Одна модель из деталей: вершины в координатах узла, цвет детали в вершинах
-# (линейный, как его видит шейдер), у цветов — основание стебля в UV2.
+# (в sRGB: движок переводит его в линейный сам), у цветов — основание стебля в UV2.
 static func _merge(items: Array, plant: bool) -> ArrayMesh:
 	var vertices := PackedVector3Array()
 	var normals := PackedVector3Array()
 	var colors := PackedColorArray()
 	var uv2 := PackedVector2Array()
+	# UV.y — низ детали (её «земля»): от него тень ложится на землю. Окружение
+	# склеено клетками, и детали в одной модели стоят на разной высоте.
+	var uv := PackedVector2Array()
 	var indices := PackedInt32Array()
 	for item: Array in items:
 		var mesh_part: MeshInstance3D = item[0]
@@ -178,16 +181,31 @@ static func _merge(items: Array, plant: bool) -> ArrayMesh:
 		var part_normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
 		var part_indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
 		var start := vertices.size()
-		vertices.append_array(local * part_vertices)
+		var placed := local * part_vertices
+		vertices.append_array(placed)
+		var bottom := INF
+		for vertex in placed:
+			bottom = minf(bottom, vertex.y)
+		var part_uv := PackedVector2Array()
+		part_uv.resize(placed.size())
+		part_uv.fill(Vector2(0.0, bottom))
+		uv.append_array(part_uv)
 		var normal_basis := Transform3D(local.basis.inverse().transposed(), Vector3.ZERO)
 		normals.append_array(normal_basis * part_normals)
-		var color: Color = _colors[mesh_part.material_override].srgb_to_linear()
-		# Альфа цвета вершины — сила качания на ветру (листва, кочки, цветы).
-		color.a = mesh_part.get_meta("sway", 0.0)
-		var part_colors := PackedColorArray()
-		part_colors.resize(part_vertices.size())
-		part_colors.fill(color)
-		colors.append_array(part_colors)
+		if mesh_part.has_meta("vertex_colors"):
+			# Готовая модель: цвета уже в вершинах, альфа — качание.
+			colors.append_array(arrays[Mesh.ARRAY_COLOR])
+		else:
+			# Цвет вершины пишется как есть, в sRGB: движок сам переводит цвета
+			# вершин в линейные (проверено замером: с переводом здесь модели
+			# получались вдвое темнее).
+			var color: Color = _colors[mesh_part.material_override]
+			# Альфа цвета вершины — сила качания на ветру (листва, кочки, цветы).
+			color.a = mesh_part.get_meta("sway", 0.0)
+			var part_colors := PackedColorArray()
+			part_colors.resize(part_vertices.size())
+			part_colors.fill(color)
+			colors.append_array(part_colors)
 		if plant:
 			var anchor: Vector3 = mesh_part.get_meta("anchor", local.origin)
 			var part_uv2 := PackedVector2Array()
@@ -205,6 +223,7 @@ static func _merge(items: Array, plant: bool) -> ArrayMesh:
 	surface[Mesh.ARRAY_VERTEX] = vertices
 	surface[Mesh.ARRAY_NORMAL] = normals
 	surface[Mesh.ARRAY_COLOR] = colors
+	surface[Mesh.ARRAY_TEX_UV] = uv
 	if plant:
 		surface[Mesh.ARRAY_TEX_UV2] = uv2
 	surface[Mesh.ARRAY_INDEX] = indices

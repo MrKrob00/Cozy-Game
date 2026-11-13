@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=16 format=3]
 
 [ext_resource type="Script" path="res://scripts/plot.gd" id="1_plot"]
 [ext_resource type="Script" path="res://scripts/mow_field.gd" id="2_field"]
@@ -13,6 +13,7 @@
 [ext_resource type="Script" path="res://scripts/villager.gd" id="11_villager"]
 [ext_resource type="Script" path="res://scripts/repairable.gd" id="12_repair"]
 [ext_resource type="Script" path="res://scripts/bureau.gd" id="13_bureau"]
+[ext_resource type="Script" path="res://scripts/props_cluster.gd" id="90_cluster"]
 
 [node name="Square" type="Node3D"]
 script = ExtResource("1_plot")
@@ -203,3 +204,15 @@ display_name = "Почтальон"
 appears_after_plot = "square"
 arrival_text = "В деревню вернулся почтальон — он у калитки площади"
 lines = PackedStringArray("Нашёл в траве чужую вещь? Неси в «Бюро находок» — верну хозяину.", "Фонтан бы починить… С водой площадь совсем другая.", "Фруктовый сад рядом. Говорят, в пруду там живут лягушки.")
+
+[node name="PropsMarketA" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.6, 0, -8.8)
+script = ExtResource("90_cluster")
+kind = 2
+random_seed = 1
+
+[node name="PropsMarketB" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11.4, 0, 8.6)
+script = ExtResource("90_cluster")
+kind = 2
+random_seed = 18

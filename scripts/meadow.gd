@@ -10,16 +10,16 @@ class_name Meadow
 ##   * густые кочки вдоль заборов, чтобы сломать длинные прямые линии.
 ## Всё временное, из примитивов; россыпи склеиваются по клеткам (Placeholder).
 
-const GRASS_LIGHT := Color(0.62, 0.82, 0.44)
-const GRASS_DARK := Color(0.42, 0.65, 0.38)
-const CLOVER := Color(0.74, 0.82, 0.40)
-const DRY := Color(0.80, 0.78, 0.46)
+const GRASS_LIGHT := Color(0.50, 0.73, 0.33)
+const GRASS_DARK := Color(0.30, 0.54, 0.29)
+const CLOVER := Color(0.62, 0.74, 0.30)
+const DRY := Color(0.74, 0.70, 0.38)
 const SLOPE := Color(0.50, 0.58, 0.32)
-const DIRT := Color(0.68, 0.57, 0.40)
-const WORN := Color(0.64, 0.66, 0.44)
-const ROAD := Color(0.88, 0.78, 0.57)
-const ROAD_RUT := Color(0.76, 0.64, 0.45)
-const ROAD_EDGE := Color(0.70, 0.66, 0.44)
+const DIRT := Color(0.60, 0.47, 0.32)
+const WORN := Color(0.56, 0.60, 0.36)
+const ROAD := Color(0.84, 0.70, 0.48)
+const ROAD_RUT := Color(0.68, 0.53, 0.36)
+const ROAD_EDGE := Color(0.60, 0.58, 0.36)
 const TUFTS := [Color(0.40, 0.66, 0.32), Color(0.52, 0.76, 0.36), Color(0.34, 0.58, 0.32),
 		Color(0.66, 0.76, 0.38)]
 const PETALS := [Color(1.0, 0.98, 0.94), Color(1.0, 0.86, 0.32), Color(1.0, 0.58, 0.68),
@@ -93,7 +93,7 @@ static func build_road(parent: Node3D, road: Rect2, seed: int, terrain: Terrain)
 			if edge:
 				color = ROAD_EDGE
 			vertices.append(Vector3(x, terrain.street_height(x) + 0.03, z))
-			colors.append(color.srgb_to_linear())
+			colors.append(color)
 	for row in rows - 1:
 		for column in COLUMNS:
 			var a := row * (COLUMNS + 1) + column
@@ -192,9 +192,9 @@ static func flower(parent: Node3D, at: Vector3, petal: Color, rng: RandomNumberG
 
 
 static func rock(parent: Node3D, at: Vector3, size: float, rng: RandomNumberGenerator) -> void:
-	var stone := Placeholder.part(parent, Placeholder.sphere(size, 6), ROCKS[rng.randi() % ROCKS.size()],
-			at + Vector3(0.0, size * 0.3, 0.0), Vector3(0.0, rng.randf() * 360.0, rng.randf_range(-12.0, 12.0)))
-	stone.scale = Vector3(1.0, rng.randf_range(0.5, 0.75), rng.randf_range(0.8, 1.1))
+	# Камни — модели KayKit (их пять видов); size — примерный радиус.
+	var model: String = ["rock_a", "rock_b", "rock_c", "rock_d", "rock_e"][rng.randi() % 5]
+	Models.place(parent, model, at, size * 9.0, rng.randf() * TAU)
 
 
 static func mushroom(parent: Node3D, at: Vector3, rng: RandomNumberGenerator) -> void:
@@ -226,7 +226,7 @@ static func _ground_tile(parent: Node3D, tile: Rect2, road: Rect2, noise: FastNo
 			# Склоны чуть темнее и теплее: рельеф читается сверху.
 			var slope := 1.0 - normals[-1].y
 			color = color.lerp(SLOPE, clampf(slope * 4.0, 0.0, 0.45))
-			colors.append(color.srgb_to_linear())
+			colors.append(color)
 	for row in rows:
 		for column in columns:
 			var a := row * (columns + 1) + column

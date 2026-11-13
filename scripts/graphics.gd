@@ -59,8 +59,10 @@ const PRESETS := [
 const EXPOSURE := 0.86
 const BOUNCE := Color(0.50, 0.44, 0.30)
 const GLOW := Color(0.36, 0.14, 0.03)
-## Направление солнечных лучей (как у прежнего DirectionalLight3D).
-const SUN_DIRECTION := Vector3(0.353, -0.788, -0.504)
+## Направление солнечных лучей. Солнце светит из-за плеча камеры, слева:
+## к игроку обращены освещённые стороны предметов, тени падают от камеры.
+## (Раньше свет шёл сбоку-сзади, и деревья с кустами были к нам теневой стороной.)
+const SUN_DIRECTION := Vector3(-0.28, -0.76, -0.58)
 
 var preset: Dictionary:
 	get:
@@ -113,10 +115,12 @@ func set_day(sun: Color, sun_energy: float, ambient: Color, saturation: float,
 		haze := Color(0.66, 0.88, 0.98)) -> void:
 	var haze_linear := haze.srgb_to_linear()
 	_day["haze_color"] = Vector3(haze_linear.r, haze_linear.g, haze_linear.b)
-	_day["day_sun"] = Vector3(sun.r, sun.g, sun.b) * sun_energy * EXPOSURE
-	_day["day_ambient"] = Vector3(ambient.r, ambient.g, ambient.b) * EXPOSURE
+	# Меньше заполняющего света и больше солнца: формы читаются, картинка
+	# не плоская.
+	_day["day_sun"] = Vector3(sun.r, sun.g, sun.b) * sun_energy * EXPOSURE * 1.3
+	_day["day_ambient"] = Vector3(ambient.r, ambient.g, ambient.b) * EXPOSURE * 0.72
 	# Отражённый от земли свет — тёплый, от него тени снизу не серые.
-	_day["day_bounce"] = Vector3(BOUNCE.r, BOUNCE.g, BOUNCE.b) * EXPOSURE
+	_day["day_bounce"] = Vector3(BOUNCE.r, BOUNCE.g, BOUNCE.b) * EXPOSURE * 0.72
 	_day["day_glow"] = Vector3(GLOW.r, GLOW.g, GLOW.b) * sun_energy
 	_day["day_saturation"] = saturation
 	_push(_lit, _day)

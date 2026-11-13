@@ -25,6 +25,8 @@ const DOOR_OPEN_ANGLE := -1.9
 const POND_RADIUS := 2.8
 ## Насколько растворяется крона, когда заслоняет игрока.
 const CROWN_FADE := 0.3
+## Масштаб модели дерева: крона около 2,5 м в поперечнике, высота около 5 м.
+const TREE_SCALE := 4.2
 
 var _windows: Array[MeshInstance3D] = []
 var _door: Node3D
@@ -172,25 +174,20 @@ func _build_bench() -> void:
 
 
 func _build_tree() -> void:
-	Placeholder.part(self, Placeholder.cylinder(0.32, 2.2, 0.22), WOOD_DARK, Vector3(0.0, 1.1, 0.0))
-	# Крона — отдельная модель: она растворяется, когда заслоняет игрока.
+	# Дерево — модель KayKit целиком в узле кроны: оно растворяется, когда
+	# заслоняет игрока.
 	_crown = Node3D.new()
 	_crown.name = "Crown"
 	add_child(_crown)
-	for leaves in [
-		Placeholder.part(_crown, Placeholder.sphere(1.5), LEAVES, Vector3(0.0, 3.1, 0.0)),
-		Placeholder.part(_crown, Placeholder.sphere(1.05), LEAVES_LIGHT, Vector3(0.7, 4.0, 0.3)),
-		Placeholder.part(_crown, Placeholder.sphere(0.9), LEAVES, Vector3(-0.8, 3.7, -0.4)),
-	]:
-		leaves.set_meta("sway", 0.35)
+	Models.place(_crown, "tree_round", Vector3.ZERO, TREE_SCALE, hash(name) % 628 / 100.0)
 	if fruit:
 		var rng := RandomNumberGenerator.new()
 		rng.seed = hash(name)
-		for i in 9:
-			var direction := Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-0.5, 0.6),
+		for i in 10:
+			var direction := Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-0.3, 0.7),
 					rng.randf_range(-1.0, 1.0)).normalized()
-			Placeholder.part(_crown, Placeholder.sphere(0.14, 6), Color(0.92, 0.26, 0.24),
-					Vector3(0.0, 3.1, 0.0) + direction * 1.5)
+			Placeholder.part(_crown, Placeholder.sphere(0.16, 6), Color(0.92, 0.26, 0.24),
+					Vector3(0.0, 3.0, 0.0) + direction * Vector3(1.25, 1.1, 1.25))
 	var shape := CollisionShape3D.new()
 	var cylinder := CylinderShape3D.new()
 	cylinder.radius = 0.4
@@ -292,7 +289,6 @@ func _build_fountain() -> void:
 
 func _build_pond() -> void:
 	const WATER := Color(0.4, 0.68, 0.86)
-	const LILY := Color(0.36, 0.66, 0.36)
 	var water := Placeholder.part(self, Placeholder.cylinder(POND_RADIUS, 0.06), WATER, Vector3(0.0, 0.03, 0.0))
 	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var rng := RandomNumberGenerator.new()
@@ -304,11 +300,13 @@ func _build_pond() -> void:
 		var pebble := Placeholder.part(self, Placeholder.sphere(rng.randf_range(0.2, 0.32)), STONE,
 				Vector3(cos(angle), 0.0, sin(angle)) * (POND_RADIUS + 0.05) + Vector3(0.0, 0.08, 0.0))
 		pebble.scale = Vector3(1.0, 0.6, 1.0)
+	# Кувшинки — модели KayKit.
 	for i in 6:
 		var angle := rng.randf() * TAU
 		var distance := rng.randf_range(0.5, POND_RADIUS - 0.6)
-		Placeholder.part(self, Placeholder.cylinder(rng.randf_range(0.22, 0.34), 0.03), LILY,
-				Vector3(cos(angle) * distance, 0.08, sin(angle) * distance))
+		Models.place(self, "waterlily_a" if i % 2 == 0 else "waterlily_b",
+				Vector3(cos(angle) * distance, 0.07, sin(angle) * distance), rng.randf_range(3.5, 5.0),
+				rng.randf() * TAU, false)
 	Placeholder.part(self, Placeholder.sphere(0.09), Color(1.0, 0.7, 0.8), Vector3(0.6, 0.16, -0.4))
 	var shape := CollisionShape3D.new()
 	var cylinder := CylinderShape3D.new()

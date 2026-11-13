@@ -13,6 +13,10 @@ const TRUNK := Color(0.50, 0.35, 0.25)
 const POST := Color(0.30, 0.30, 0.34)
 const LANTERN := Color(1.0, 0.9, 0.55)
 const BAKE_CELL := 24.0
+## Мельница: где стоит (x, z), масштаб модели и ось крыльев в координатах модели.
+const WINDMILL_AT := Vector2(-104.0, -16.0)
+const WINDMILL_SCALE := 6.0
+const WINDMILL_PIVOT := Vector3(0.0, 0.957, 0.332)
 ## Насколько луг выходит за участки и улицу, метры.
 const MEADOW_MARGIN := 28.0
 const FLAGS := [Color(1.0, 0.45, 0.45), Color(1.0, 0.82, 0.3), Color(0.45, 0.8, 1.0),
@@ -23,6 +27,8 @@ const LEAVES := [Color(0.30, 0.62, 0.32), Color(0.40, 0.70, 0.34), Color(0.24, 0
 var _terrain: Terrain
 var _lamps: Array[Vector3] = []
 var _trees: Array[Vector3] = []
+var _windmill_fan: MeshInstance3D
+var _obstacles_extra: Array = []
 ## Где россыпям не место: [центр (x, z), радиус].
 var _obstacles: Array = []
 var _bunting: Node3D
@@ -38,6 +44,7 @@ func get_walk_rects() -> Array[Rect2]:
 
 
 func _ready() -> void:
+	set_process(false)
 	# Окружение склеивается по клеткам: одна модель на клетку, но далёкие
 	# клетки за кадром всё равно отсекаются.
 	set_meta("bake_cell", BAKE_CELL)
@@ -59,6 +66,7 @@ func _ready() -> void:
 	_build_lamps(road_rect)
 	_build_near_bushes(road_rect, rng)
 	_build_trees(road_rect, rng)
+	_build_windmill()
 	_collect_obstacles()
 	var free_at := _is_free.bind(road_rect)
 	Meadow.scatter(self, area.grow(-6.0), free_at, _trees, random_seed + 5, _terrain)
@@ -152,20 +160,19 @@ func _build_trees(road: Rect2, rng: RandomNumberGenerator) -> void:
 			continue
 		at = _ground(at.x, at.z)
 		_trees.append(at)
-		var tree := Node3D.new()
-		tree.position = at
-		tree.scale = Vector3.ONE * rng.randf_range(0.8, 1.4)
-		tree.set_meta("merge_up", true)
-		add_child(tree)
-		var color: Color = LEAVES[rng.randi() % LEAVES.size()]
-		# Деревья вдали попроще: меньше граней.
-		Placeholder.part(tree, Placeholder.cylinder(0.28, 1.6, 0.2), TRUNK, Vector3(0.0, 0.8, 0.0))
-		for leaves in [
-			Placeholder.part(tree, Placeholder.sphere(1.3, 8), color, Vector3(0.0, 2.4, 0.0)),
-			Placeholder.part(tree, Placeholder.sphere(0.95, 8), color, Vector3(0.5, 3.3, 0.2)),
-			Placeholder.part(tree, Placeholder.sphere(0.8, 8), color, Vector3(-0.6, 3.0, -0.3)),
-		]:
-			leaves.set_meta("sway", 0.35)
+		# Деревья — модели KayKit: круглые и ели, по одному и рощицами.
+		var pick := rng.randf()
+		var model := "tree_round"
+		var size := rng.randf_range(3.4, 4.6)
+		if pick < 0.3:
+			model = "tree_pine"
+		elif pick < 0.45:
+			model = "trees_round_small"
+			size = rng.randf_range(3.2, 4.0)
+		elif pick < 0.55:
+			model = "trees_pine_small"
+			size = rng.randf_range(3.4, 4.2)
+		Models.place(self, model, at, size, rng.randf() * TAU)
 
 
 func _bush(at: Vector3, size: float, rng: RandomNumberGenerator) -> void:
@@ -187,6 +194,25 @@ func _inside_plot(at: Vector3, margin: float, gates_only: bool) -> bool:
 			if plot.get_inner_rect().grow(reach).has_point(Vector2(at.x, at.z)):
 				return true
 	return false
+
+
+# Мельница на холме за последним участком: её видно издалека, она зовёт вверх
+# по дороге. Крылья вращаются.
+func _build_windmill() -> void:
+	var at := _ground(WINDMILL_AT.x, WINDMILL_AT.y)
+	Models.place(self, "windmill", at, WINDMILL_SCALE, 0.6)
+	_obstacles_extra.append([WINDMILL_AT, 4.5])
+	_windmill_fan = Models.place(self, "windmill_fan",
+			at + Vector3(0.0, WINDMILL_PIVOT.y, 0.0) + Vector3(0.0, 0.0, WINDMILL_PIVOT.z).rotated(Vector3.UP, 0.6) * WINDMILL_SCALE,
+			WINDMILL_SCALE, 0.6, false)
+	_windmill_fan.set_meta("no_bake", true)
+	_windmill_fan.position.y = at.y + WINDMILL_PIVOT.y * WINDMILL_SCALE
+	set_process(true)
+
+
+func _process(delta: float) -> void:
+	if _windmill_fan:
+		_windmill_fan.rotate_object_local(Vector3.FORWARD, delta * 0.6)
 
 
 # Точка на земле с высотой рельефа.
@@ -221,6 +247,7 @@ func _collect_obstacles() -> void:
 		_obstacles.append([Vector2(tree.x, tree.z), 0.7])
 	for lamp in _lamps:
 		_obstacles.append([Vector2(lamp.x, lamp.z), 0.5])
+	_obstacles.append_array(_obstacles_extra)
 
 
 # Свободно ли место для россыпи: не на улице, не там, где ходят и косят, не в препятствии.

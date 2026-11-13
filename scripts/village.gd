@@ -65,7 +65,7 @@ func _ready() -> void:
 			_sun = child
 			_sun.visible = false
 			_sun.shadow_enabled = false
-			Graphics.sun_direction = -_sun.global_basis.z.normalized()
+			Graphics.sun_direction = Graphics.SUN_DIRECTION.normalized()
 	var shadows := Shadows.new()
 	shadows.name = "Shadows"
 	add_child(shadows)

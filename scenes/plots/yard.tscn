@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://scripts/plot.gd" id="1_plot"]
 [ext_resource type="Script" path="res://scripts/mow_field.gd" id="2_field"]
@@ -12,6 +12,7 @@
 [ext_resource type="Script" path="res://scripts/workshop.gd" id="10_workshop"]
 [ext_resource type="Script" path="res://scripts/villager.gd" id="11_villager"]
 [ext_resource type="Script" path="res://scripts/bedtime.gd" id="12_bedtime"]
+[ext_resource type="Script" path="res://scripts/props_cluster.gd" id="90_cluster"]
 
 [node name="Yard" type="Node3D"]
 script = ExtResource("1_plot")
@@ -122,3 +123,15 @@ find_id = "yard_coins"
 display_name = "старые монетки"
 kind = 2
 coins_reward = 10
+
+[node name="PropsShed" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.6, 0, -7.2)
+script = ExtResource("90_cluster")
+kind = 0
+random_seed = 93
+
+[node name="PropsHouse" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.6, 0, -7.4)
+script = ExtResource("90_cluster")
+kind = 1
+random_seed = 28
