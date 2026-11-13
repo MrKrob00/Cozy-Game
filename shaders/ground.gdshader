@@ -1,7 +1,10 @@
 // Земля под травой: на скошенных местах рисует газон с полосами.
+// Два чтения текстуры на пиксель: маска покоса и тени предметов.
 shader_type spatial;
+render_mode unshaded, cull_back, depth_draw_opaque;
 
-#include "res://shaders/toon.gdshaderinc"
+#include "res://shaders/day.gdshaderinc"
+#include "res://shaders/shade.gdshaderinc"
 #include "res://shaders/mow_mask.gdshaderinc"
 
 uniform vec3 overgrown_color : source_color = vec3(0.14, 0.38, 0.19);
@@ -17,11 +20,6 @@ void fragment() {
 	vec3 mask = texture(mow_mask, mow_uv(v_world_xz)).rgb;
 	float cut = 1.0 - smoothstep(0.0, 0.25, mask.r);
 	vec3 surface = mix(cut_color(mask.g), bare_color, mask.b);
-	ALBEDO = mix(overgrown_color, surface, cut);
-	ROUGHNESS = 1.0;
-	SPECULAR = 0.0;
-}
-
-void light() {
-	DIFFUSE_LIGHT += toon_diffuse(NORMAL, LIGHT, ATTENUATION, LIGHT_COLOR);
+	vec3 color = mix(overgrown_color, surface, cut);
+	ALBEDO = day_grade(color * day_light(vec3(0.0, 1.0, 0.0), shade_at(v_world_xz)));
 }

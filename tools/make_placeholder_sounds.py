@@ -2,7 +2,8 @@
 """Генерирует временные звуки игры в assets/audio/.
 
 Звуки синтезируются из синусов и шума, чтобы в игре был звук до появления
-настоящих записей. Чтобы заменить звук, положите свой .wav с тем же именем.
+настоящих записей. Чтобы заменить звук, положите свой .ogg или .wav с тем же
+именем (варианты одного звука — имя_1, имя_2, …: игра выбирает случайный).
 
 Запуск из папки проекта:  python3 tools/make_placeholder_sounds.py
 Нужен только numpy.
@@ -103,25 +104,20 @@ def save(name, signal, peak):
     print(f"{name}.wav  {len(signal) / RATE:.2f} с")
 
 
-def mower_loop():
-    # Мягкое «мурчание»: низкие гармоники с пульсацией. Частоты кратны
-    # длине отрезка, поэтому петля бесшовная без склейки.
-    duration = 2.0
-    t = seconds(duration)
-    base = 78.0
-    harmonics = [(1, 1.0, 0.0), (2, 0.6, 0.6), (3, 0.35, 1.3), (4, 0.2, 2.1), (5, 0.1, 0.4), (6, 0.06, 1.7)]
-    tone = sum(amp * np.sin(2 * np.pi * base * k * t + phase) for k, amp, phase in harmonics)
-    putt = 0.72 + 0.28 * np.sin(2 * np.pi * 15.5 * t) ** 2
-    rumble = make_loop(band_noise(duration + 0.25, 120, 650), 0.25)
-    return tone * putt + 0.22 * rumble * putt
-
-
-def cut_loop():
-    # Шелест срезаемой травы.
-    hiss = band_noise(1.3, 1800, 6500)
-    t = seconds(1.3)
-    flutter = 0.75 + 0.25 * np.sin(2 * np.pi * 9 * t + 0.4 * np.sin(2 * np.pi * 2 * t))
-    return make_loop(hiss * flutter, 0.3)
+def swish(seed):
+    """Мягкий короткий «вжух» срезаемой травы: шорох средних частот, быстро гаснет."""
+    local = np.random.default_rng(seed)
+    duration = 0.16
+    n = int(RATE * duration)
+    spectrum = np.fft.rfft(local.standard_normal(n))
+    freqs = np.fft.rfftfreq(n, 1 / RATE)
+    # Полоса 700–3500 Гц с мягкими краями: без резкого шипения верхов.
+    centre = 1500 + 300 * seed
+    gain = np.exp(-((np.log(freqs + 1) - np.log(centre)) ** 2) / 0.35)
+    noise = np.fft.irfft(spectrum * gain, n)
+    t = np.arange(n) / RATE
+    shape = np.clip(t / 0.02, 0, 1) * np.exp(-t / 0.045)
+    return noise * shape
 
 
 def find():
@@ -190,8 +186,9 @@ def chirp(pattern):
 
 
 SOUNDS = {
-    "mower_loop": (mower_loop, 0.5),
-    "cut_loop": (cut_loop, 0.4),
+    "swish_1": (lambda: swish(1), 0.35),
+    "swish_2": (lambda: swish(2), 0.35),
+    "swish_3": (lambda: swish(3), 0.35),
     "find": (find, 0.6),
     "coin": (coin, 0.5),
     "dump": (dump, 0.7),

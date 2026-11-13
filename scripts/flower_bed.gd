@@ -17,15 +17,10 @@ const PETALS := [
 	Color(1.0, 0.55, 0.65), Color(1.0, 0.86, 0.35), Color(0.98, 0.97, 0.94),
 	Color(0.72, 0.58, 1.0), Color(1.0, 0.62, 0.32),
 ]
-## На каком расстоянии от косилки цветы приминаются.
-const PRESS_RADIUS := 0.7
 
 var _field: MowField
 var _revealed := false
 var _planted := false
-var _time := 0.0
-## Внутренние узлы цветов: их качает ветер и приминает косилка.
-var _stems: Array[Node3D] = []
 
 
 func _enter_tree() -> void:
@@ -45,26 +40,11 @@ func _ready() -> void:
 		_plant(false)
 
 
-func _process(delta: float) -> void:
-	_time += delta
-	if not _revealed:
-		if _is_uncovered():
-			_reveal()
-		return
-	if not _planted:
-		return
-
-	var mower := Vector3(INF, 0.0, INF)
-	var player := get_tree().get_first_node_in_group("player") as Node3D
-	if player:
-		mower = player.global_position - player.global_basis.z * 0.95
-	for i in _stems.size():
-		var stem := _stems[i]
-		var offset := stem.global_position - mower
-		offset.y = 0.0
-		var press := clampf(1.0 - offset.length() / PRESS_RADIUS, 0.0, 1.0)
-		stem.scale.y = lerpf(stem.scale.y, 1.0 - 0.65 * press, 1.0 - exp(-14.0 * delta))
-		stem.rotation.z = sin(_time * 1.6 + i * 1.3) * 0.09
+func _process(_delta: float) -> void:
+	# Цветы качаются и приминаются косилкой в шейдере (toon_plant);
+	# здесь остаётся только ждать, пока клумбу выкосят.
+	if not _revealed and _is_uncovered():
+		_reveal()
 
 
 func is_planted() -> bool:
@@ -114,29 +94,24 @@ func _reveal() -> void:
 
 func _plant(animated: bool) -> void:
 	_planted = true
+	set_process(false)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(bed_id)
+	# Все цветы клумбы — одна модель (Placeholder.bake_tree).
+	var flowers := Node3D.new()
+	flowers.name = "Flowers"
+	flowers.set_meta("plant", true)
+	add_child(flowers)
 	var columns := maxi(int(bed_size.x / 0.38), 1)
 	var rows := maxi(int(bed_size.y / 0.36), 1)
-	var index := 0
 	for row in rows:
 		for column in columns:
 			var at := Vector3(
 					((column + 0.5) / columns - 0.5) * bed_size.x + rng.randf_range(-0.07, 0.07),
 					0.0,
 					((row + 0.5) / rows - 0.5) * bed_size.y + rng.randf_range(-0.07, 0.07))
-			var flower := _create_flower(rng)
-			flower.position = at
-			flower.rotation.y = rng.randf() * TAU
-			add_child(flower)
-			if animated:
-				# Цветы выскакивают один за другим.
-				flower.scale = Vector3.ONE * 0.01
-				var tween := flower.create_tween()
-				tween.tween_interval(0.07 * index)
-				tween.tween_property(flower, "scale", Vector3.ONE, 0.45) \
-						.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-			index += 1
+			_create_flower(flowers, at, rng)
+	Placeholder.bake_tree(flowers)
 
 	for i in 2:
 		var butterfly := Butterfly.new()
@@ -145,24 +120,33 @@ func _plant(animated: bool) -> void:
 		add_child(butterfly)
 
 	if animated:
+		# Клумба вырастает с пружинкой.
+		flowers.scale = Vector3(1.0, 0.01, 1.0)
+		var tween := flowers.create_tween()
+		tween.tween_property(flowers, "scale", Vector3.ONE, 0.6) \
+				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		Sfx.play("plant")
 		Sfx.buzz(25)
 		Juice.sparkle(self, global_position + Vector3.UP * 0.5, Color(1.0, 0.8, 0.9), 26)
 
 
-func _create_flower(rng: RandomNumberGenerator) -> Node3D:
+func _create_flower(flowers: Node3D, at: Vector3, rng: RandomNumberGenerator) -> void:
 	var flower := Node3D.new()
-	var stem := Node3D.new()
-	flower.add_child(stem)
-	_stems.append(stem)
+	flower.position = at
+	flower.rotation.y = rng.randf() * TAU
+	flower.set_meta("merge_up", true)
+	flowers.add_child(flower)
 	var height := rng.randf_range(0.32, 0.55)
 	var petal: Color = PETALS[rng.randi() % PETALS.size()]
-	Placeholder.part(stem, Placeholder.cylinder(0.025, height), STEM, Vector3(0.0, height * 0.5, 0.0))
-	Placeholder.part(stem, Placeholder.sphere(0.06), STEM, Vector3(0.06, height * 0.4, 0.0))
-	var head := Placeholder.part(stem, Placeholder.sphere(0.13), petal, Vector3(0.0, height, 0.0))
+	var head := Placeholder.part(flower, Placeholder.sphere(0.13, 8), petal, Vector3(0.0, height, 0.0))
 	head.scale = Vector3(1.0, 0.55, 1.0)
-	Placeholder.part(stem, Placeholder.sphere(0.06), CENTER, Vector3(0.0, height + 0.05, 0.0))
-	return flower
+	for flower_part in [
+		Placeholder.part(flower, Placeholder.cylinder(0.025, height), STEM, Vector3(0.0, height * 0.5, 0.0)),
+		Placeholder.part(flower, Placeholder.sphere(0.06, 6), STEM, Vector3(0.06, height * 0.4, 0.0)),
+		head,
+		Placeholder.part(flower, Placeholder.sphere(0.06, 6), CENTER, Vector3(0.0, height + 0.05, 0.0)),
+	]:
+		flower_part.set_meta("anchor", at)
 
 
 func _build_border() -> void:

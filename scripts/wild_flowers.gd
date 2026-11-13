@@ -16,9 +16,7 @@ const PETALS := [Color(0.95, 0.3, 0.28), Color(0.98, 0.97, 0.94), Color(0.42, 0.
 const NOTICE_DISTANCE := 3.0
 
 var _alive := true
-var _time := 0.0
 var _model: Node3D
-var _stems: Array[Node3D] = []
 
 
 func _enter_tree() -> void:
@@ -33,13 +31,9 @@ func _ready() -> void:
 		_model.visible = false
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if not _alive:
 		return
-	_time += delta
-	for i in _stems.size():
-		_stems[i].rotation.z = sin(_time * 1.5 + i * 1.1) * 0.1
-
 	var player := get_tree().get_first_node_in_group("player") as Player
 	if player == null:
 		return
@@ -74,6 +68,8 @@ func _cut() -> void:
 
 func _build_visuals() -> void:
 	_model = Node3D.new()
+	# Все стебли — одна модель; качаются и приминаются в шейдере (toon_plant).
+	_model.set_meta("plant", true)
 	add_child(_model)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(flowers_id)
@@ -83,14 +79,18 @@ func _build_visuals() -> void:
 		var distance := rng.randf_range(0.08, radius * 0.75) if i > 0 else 0.0
 		var stem := Node3D.new()
 		stem.position = Vector3(cos(angle) * distance, 0.0, sin(angle) * distance)
+		stem.set_meta("merge_up", true)
 		_model.add_child(stem)
-		_stems.append(stem)
 		# Высокие, чтобы головки торчали над травой.
 		var height := rng.randf_range(0.7, 0.95)
-		Placeholder.part(stem, Placeholder.cylinder(0.025, height), STEM, Vector3(0.0, height * 0.5, 0.0))
-		var head := Placeholder.part(stem, Placeholder.sphere(0.14), petal, Vector3(0.0, height, 0.0))
+		var head := Placeholder.part(stem, Placeholder.sphere(0.14, 8), petal, Vector3(0.0, height, 0.0))
 		head.scale = Vector3(1.0, 0.5, 1.0)
-		Placeholder.part(stem, Placeholder.sphere(0.06), CENTER, Vector3(0.0, height + 0.04, 0.0))
+		for flower_part in [
+			Placeholder.part(stem, Placeholder.cylinder(0.025, height), STEM, Vector3(0.0, height * 0.5, 0.0)),
+			head,
+			Placeholder.part(stem, Placeholder.sphere(0.06, 6), CENTER, Vector3(0.0, height + 0.04, 0.0)),
+		]:
+			flower_part.set_meta("anchor", stem.position)
 
 
 func _flag() -> String:

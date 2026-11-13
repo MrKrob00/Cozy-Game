@@ -25,6 +25,7 @@ var _last_hop := -1
 func _enter_tree() -> void:
 	super()
 	add_to_group("animal")
+	add_to_group("shadow_dynamic")
 
 
 func _ready() -> void:

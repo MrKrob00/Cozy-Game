@@ -87,6 +87,7 @@ func set_gate_open(open: bool, animated: bool) -> void:
 # Створка на петлях у левого столба; открывается внутрь участка.
 func _build_gate(gate_left: float) -> void:
 	_gate = Node3D.new()
+	_gate.add_to_group("shadow_dynamic")
 	_gate.position = Vector3(gate_left + 0.1, 0.0, _half.y)
 	add_child(_gate)
 	var width := gate_width - 0.25

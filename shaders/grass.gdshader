@@ -1,9 +1,11 @@
-// Трава: высота пучка берётся из маски покоса, плюс ветер
-// и раздвигание вокруг косилки.
+// Трава: высота пучка берётся из маски покоса, плюс ветер и раздвигание
+// вокруг косилки. Всё, включая цвет, свет и тень, считается на вершинах:
+// пиксельный шейдер только выводит цвет (на телефоне платят за пиксели).
 shader_type spatial;
-render_mode cull_disabled, world_vertex_coords;
+render_mode unshaded, cull_disabled, world_vertex_coords;
 
-#include "res://shaders/toon.gdshaderinc"
+#include "res://shaders/day.gdshaderinc"
+#include "res://shaders/shade.gdshaderinc"
 #include "res://shaders/mow_mask.gdshaderinc"
 
 uniform vec3 color_root : source_color = vec3(0.16, 0.45, 0.22);
@@ -12,19 +14,14 @@ uniform vec3 color_tall_tip : source_color = vec3(0.80, 0.86, 0.38);
 // Бурьян: тёмная зелень с лиловыми верхушками.
 uniform vec3 color_weed_root : source_color = vec3(0.16, 0.30, 0.24);
 uniform vec3 color_weed_tip : source_color = vec3(0.66, 0.42, 0.70);
-// Высота стерни относительно полной высоты пучка.
+// Высота стерни относительно полной высоты пучка (0 — скошенный пучок не рисуется).
 uniform float stubble = 0.1;
 uniform float wind_strength = 0.07;
 uniform float wind_speed = 1.6;
 uniform vec3 pusher_position;
 uniform float pusher_radius = 1.5;
 
-varying float v_height;
-varying float v_grown;
-varying float v_tone;
-varying float v_tall;
-varying float v_weed;
-varying float v_random;
+varying vec3 v_color;
 
 void vertex() {
 	vec3 root = MODEL_MATRIX[3].xyz;
@@ -36,6 +33,10 @@ void vertex() {
 
 	vec3 v = VERTEX;
 	v.y = root.y + (v.y - root.y) * scale;
+	if (scale < 0.001) {
+		// Скошенный пучок без стерни сворачивается в точку: ни одного пикселя.
+		v = root;
+	}
 
 	// Ветер: качается только нескошенная трава, сильнее у кончика.
 	float phase = TIME * wind_speed + root.x * 0.7 + root.z * 0.9;
@@ -47,28 +48,19 @@ void vertex() {
 	float push = (1.0 - smoothstep(pusher_radius * 0.35, pusher_radius, length(away))) * grown;
 	v.y = root.y + (v.y - root.y) * (1.0 - 0.55 * push);
 	v.xz += normalize(away + vec2(0.0001)) * push * along * 0.3;
-
 	VERTEX = v;
-	NORMAL = vec3(0.0, 1.0, 0.0);
 
-	v_height = along;
-	v_grown = grown;
-	v_tone = mask.g;
-	v_tall = smoothstep(0.66, 0.76, mask.r);
-	v_weed = smoothstep(0.86, 0.95, mask.r);
-	v_random = INSTANCE_CUSTOM.r;
+	float tall = smoothstep(0.66, 0.76, mask.r);
+	float weed = smoothstep(0.86, 0.95, mask.r);
+	float random = INSTANCE_CUSTOM.r;
+	vec3 tip = mix(mix(color_tip, color_tall_tip, tall), color_weed_tip, weed);
+	vec3 base = mix(color_root, color_weed_root, weed);
+	vec3 grown_color = mix(base, tip, along * mix(1.0, along, weed)) * (0.88 + 0.24 * random);
+	vec3 cut = cut_color(mask.g) * (0.96 + 0.08 * random);
+	vec3 color = mix(cut, grown_color, grown);
+	v_color = day_grade(color * day_light(vec3(0.0, 1.0, 0.0), shade_at(root.xz)));
 }
 
 void fragment() {
-	vec3 tip = mix(mix(color_tip, color_tall_tip, v_tall), color_weed_tip, v_weed);
-	vec3 root = mix(color_root, color_weed_root, v_weed);
-	vec3 tall = mix(root, tip, v_height * mix(1.0, v_height, v_weed)) * (0.88 + 0.24 * v_random);
-	vec3 cut = cut_color(v_tone) * (0.96 + 0.08 * v_random);
-	ALBEDO = mix(cut, tall, v_grown);
-	ROUGHNESS = 1.0;
-	SPECULAR = 0.0;
-}
-
-void light() {
-	DIFFUSE_LIGHT += toon_diffuse(NORMAL, LIGHT, ATTENUATION, LIGHT_COLOR);
+	ALBEDO = v_color;
 }

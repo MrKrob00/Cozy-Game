@@ -13,6 +13,7 @@ const ROAD_EDGE := Color(0.78, 0.67, 0.47)
 const TRUNK := Color(0.50, 0.35, 0.25)
 const POST := Color(0.30, 0.30, 0.34)
 const LANTERN := Color(1.0, 0.9, 0.55)
+const BAKE_CELL := 24.0
 const FLAGS := [Color(1.0, 0.45, 0.45), Color(1.0, 0.82, 0.3), Color(0.45, 0.8, 1.0),
 		Color(0.7, 0.55, 1.0), Color(0.55, 0.85, 0.5)]
 const LEAVES := [Color(0.30, 0.62, 0.32), Color(0.40, 0.70, 0.34), Color(0.24, 0.54, 0.36)]
@@ -31,6 +32,9 @@ func get_walk_rects() -> Array[Rect2]:
 
 
 func _ready() -> void:
+	# Окружение склеивается по клеткам: одна модель на клетку, но далёкие
+	# клетки за кадром всё равно отсекаются.
+	set_meta("bake_cell", BAKE_CELL)
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(400.0, 400.0)
 	var ground := Placeholder.part(self, plane, GROUND,
@@ -79,6 +83,7 @@ func _on_festival_started(_announce: bool) -> void:
 					Vector3(180.0, 0.0, 0.0))
 			pennant.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			index += 1
+	Placeholder.bake_tree(_bunting)
 
 
 # Кусты в торцах улицы показывают, что дальше дороги нет.
@@ -97,15 +102,12 @@ func _build_lamps(road: Rect2) -> void:
 		if not _inside_plot(Vector3(x, 0.0, road.position.y), 0.0, true):
 			var lamp := Node3D.new()
 			lamp.position = Vector3(x, 0.0, road.position.y + 0.3)
+			lamp.set_meta("merge_up", true)
 			add_child(lamp)
 			_lamps.append(lamp.position)
 			Placeholder.part(lamp, Placeholder.cylinder(0.06, 2.3), POST, Vector3(0.0, 1.15, 0.0))
 			Placeholder.part(lamp, Placeholder.box(Vector3(0.3, 0.06, 0.3)), POST, Vector3(0.0, 2.52, 0.0))
-			var glow := Placeholder.part(lamp, Placeholder.sphere(0.16), LANTERN, Vector3(0.0, 2.36, 0.0))
-			var light := StandardMaterial3D.new()
-			light.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-			light.albedo_color = LANTERN
-			glow.material_override = light
+			Placeholder.part(lamp, Placeholder.sphere(0.16, 8), LANTERN, Vector3(0.0, 2.36, 0.0))
 		x += 7.0
 
 
@@ -136,17 +138,19 @@ func _build_trees(road: Rect2, rng: RandomNumberGenerator) -> void:
 		var tree := Node3D.new()
 		tree.position = at
 		tree.scale = Vector3.ONE * rng.randf_range(0.8, 1.4)
+		tree.set_meta("merge_up", true)
 		add_child(tree)
 		var color: Color = LEAVES[rng.randi() % LEAVES.size()]
+		# Деревья вдали попроще: меньше граней.
 		Placeholder.part(tree, Placeholder.cylinder(0.28, 1.6, 0.2), TRUNK, Vector3(0.0, 0.8, 0.0))
-		Placeholder.part(tree, Placeholder.sphere(1.3), color, Vector3(0.0, 2.4, 0.0))
-		Placeholder.part(tree, Placeholder.sphere(0.95), color, Vector3(0.5, 3.3, 0.2))
-		Placeholder.part(tree, Placeholder.sphere(0.8), color, Vector3(-0.6, 3.0, -0.3))
+		Placeholder.part(tree, Placeholder.sphere(1.3, 8), color, Vector3(0.0, 2.4, 0.0))
+		Placeholder.part(tree, Placeholder.sphere(0.95, 8), color, Vector3(0.5, 3.3, 0.2))
+		Placeholder.part(tree, Placeholder.sphere(0.8, 8), color, Vector3(-0.6, 3.0, -0.3))
 
 
 func _bush(at: Vector3, size: float, rng: RandomNumberGenerator) -> void:
 	var color: Color = LEAVES[rng.randi() % LEAVES.size()]
-	var bush := Placeholder.part(self, Placeholder.sphere(size), color, at + Vector3(0.0, size * 0.55, 0.0))
+	var bush := Placeholder.part(self, Placeholder.sphere(size, 8), color, at + Vector3(0.0, size * 0.55, 0.0))
 	bush.scale = Vector3(1.0, 0.8, 1.0)
 
 

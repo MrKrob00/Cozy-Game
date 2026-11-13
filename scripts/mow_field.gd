@@ -12,8 +12,15 @@ extends Node3D
 
 signal progress_changed(ratio: float)
 
+const GRASS_SHADER := preload("res://shaders/grass.gdshader")
 const GROUND_SHADER := preload("res://shaders/ground.gdshader")
 
+## Детализация травы: ближе LOD_NEAR метров от игрока рисуются все пучки,
+## дальше LOD_FAR — только доля LOD_FAR_SHARE.
+const LOD_NEAR := 12.0
+const LOD_FAR := 30.0
+const LOD_FAR_SHARE := 0.35
+const LOD_INTERVAL := 0.25
 ## Байтов на ячейку: высота, тон полосы, «голая» ячейка.
 const CHANNELS := 3
 ## Высота травы в маске (0–255): отросшая короткая, обычная, высокая и бурьян.
@@ -55,6 +62,7 @@ var _cut_cells := 0
 var _grass_material: ShaderMaterial
 var _ground_material: ShaderMaterial
 var _grass_nodes: Array[MultiMeshInstance3D] = []
+var _lod_timer := 0.0
 
 
 func _enter_tree() -> void:
@@ -76,7 +84,11 @@ func _ready() -> void:
 	Graphics.quality_changed.connect(_rebuild_grass)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_lod_timer -= delta
+	if _lod_timer <= 0.0:
+		_lod_timer = LOD_INTERVAL
+		_update_lod()
 	if not _dirty:
 		return
 	_upload()
@@ -373,9 +385,11 @@ func _build_materials() -> void:
 	var axis_x := global_basis.x
 	var axis_z := global_basis.z
 	_grass_material = ShaderMaterial.new()
-	_grass_material.shader = Graphics.grass_shader()
+	_grass_material.shader = GRASS_SHADER
 	_ground_material = ShaderMaterial.new()
 	_ground_material.shader = GROUND_SHADER
+	Graphics.track(_grass_material, true)
+	Graphics.track(_ground_material, true)
 	for mat: ShaderMaterial in [_grass_material, _ground_material]:
 		mat.set_shader_parameter("mow_mask", _texture)
 		mat.set_shader_parameter("field_center", Vector2(global_position.x, global_position.z))
@@ -402,13 +416,13 @@ func _rebuild_grass() -> void:
 	for node in _grass_nodes:
 		node.free()
 	_grass_nodes.clear()
-	_grass_material.shader = Graphics.grass_shader()
 	_build_grass()
 
 
 func _build_grass() -> void:
 	var quality := Graphics.preset
-	var clump := _create_clump_mesh(quality["blade_width"])
+	_grass_material.set_shader_parameter("stubble", quality["stubble"])
+	var clump := _create_clump_mesh(quality["blade_width"], quality["blades"])
 	var rng := RandomNumberGenerator.new()
 	rng.seed = random_seed
 	var spacing := 1.0 / sqrt(density * quality["grass_density"])
@@ -438,6 +452,9 @@ func _build_grass() -> void:
 					transforms.append(Transform3D(turn, Vector3(px, 0.0, pz)))
 			if transforms.is_empty():
 				continue
+			# Пучки перемешаны: тогда первые N из них — равномерная выборка по куску,
+			# и вдали можно рисовать только часть (visible_instance_count).
+			_shuffle(transforms, rng)
 
 			var multimesh := MultiMesh.new()
 			multimesh.transform_format = MultiMesh.TRANSFORM_3D
@@ -461,19 +478,50 @@ func _build_grass() -> void:
 			_grass_nodes.append(instance)
 
 
+# Тасование Фишера — Йейтса своим генератором: одинаково при каждом запуске.
+func _shuffle(items: Array[Transform3D], rng: RandomNumberGenerator) -> void:
+	for i in range(items.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var swap := items[i]
+		items[i] = items[j]
+		items[j] = swap
+
+
+# Детализация травы: куски поля вдали от игрока рисуют часть пучков.
+# Камера смотрит сверху-сбоку, поэтому дальние куски на экране мелкие.
+func _update_lod() -> void:
+	var focus := get_viewport().get_camera_3d()
+	var player := get_tree().get_first_node_in_group("player") as Node3D
+	if focus == null or player == null:
+		return
+	var at := Vector2(player.global_position.x, player.global_position.z)
+	for instance in _grass_nodes:
+		var box := instance.get_aabb()
+		var corner := instance.global_position
+		var rect := Rect2(Vector2(corner.x, corner.z), Vector2.ZERO)
+		# Поле может быть повёрнуто: берём прямоугольник по углам куска.
+		for x: float in [box.position.x, box.end.x]:
+			for z: float in [box.position.z, box.end.z]:
+				var world := instance.global_transform * Vector3(x, 0.0, z)
+				rect = rect.expand(Vector2(world.x, world.z))
+		var distance := at.distance_to(at.clamp(rect.position, rect.end))
+		var share := lerpf(1.0, LOD_FAR_SHARE, clampf(inverse_lerp(LOD_NEAR, LOD_FAR, distance), 0.0, 1.0))
+		var count := instance.multimesh.instance_count
+		instance.multimesh.visible_instance_count = -1 if share >= 0.999 else maxi(int(count * share), 1)
+
+
 ## Пучок из трёх широких «мультяшных» травинок. UV.y — высота вдоль травинки.
 ## width_scale делает травинки шире, когда пучков меньше.
-func _create_clump_mesh(width_scale := 1.0) -> ArrayMesh:
+func _create_clump_mesh(width_scale := 1.0, blades := 3) -> ArrayMesh:
 	var vertices := PackedVector3Array()
 	var normals := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	var indices := PackedInt32Array()
-	const BLADES := 3
 	var blade_width := 0.11 * width_scale
 	var spread := 0.07 * width_scale
 
-	for b in BLADES:
-		var angle := TAU * b / BLADES + 0.4
+	for b in blades:
+		var angle := TAU * b / blades + 0.4
 		var turn := Basis(Vector3.UP, angle)
 		var lean := 0.12 + 0.05 * b
 		var height := blade_height * (1.0 - 0.12 * b)

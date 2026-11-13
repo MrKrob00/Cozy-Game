@@ -35,6 +35,8 @@ const REACH_OFFSET := 0.9
 ## Сколько секунд нужно пробыть рядом, чтобы простое действие выполнилось само.
 const AUTO_INTERACT_DELAY := 0.4
 const CHARACTER_SCALE := 1.15
+## Через сколько метров покоса звучит очередной «вжух».
+const SWISH_STEP := 0.55
 ## Положение правой ладони в координатах персонажа.
 const HAND := Vector3(0.26, 0.82, -0.36)
 
@@ -54,8 +56,8 @@ var _character: Node3D
 var _mower_root: Node3D
 var _mower: Node3D
 var _engine_cap: MeshInstance3D
-var _engine_sound: AudioStreamPlayer
-var _cut_sound: AudioStreamPlayer
+## Сколько метров проехано с последнего «вжуха» срезаемой травы.
+var _swish_distance := 0.0
 # Состояние для анимации и звука.
 var _walk_phase := 0.0
 var _turn_speed := 0.0
@@ -69,6 +71,10 @@ var _smoothed_direction := Vector3.ZERO
 var _target_time := 0.0
 
 
+func _enter_tree() -> void:
+	add_to_group("shadow_dynamic")
+
+
 func _ready() -> void:
 	for node in get_tree().get_nodes_in_group("mow_field"):
 		_fields.append(node as MowField)
@@ -76,8 +82,6 @@ func _ready() -> void:
 	_pinch_zoom = get_tree().get_first_node_in_group("pinch_zoom") as PinchZoom
 	_build_character()
 	_apply_upgrades(false)
-	_engine_sound = Sfx.create_loop("mower_loop", self)
-	_cut_sound = Sfx.create_loop("cut_loop", self)
 	GameState.bag_changed.connect(_on_bag_changed)
 	GameState.upgrades_changed.connect(_apply_upgrades.bind(true))
 	_on_bag_changed(GameState.bag_fill, GameState.bag_capacity)
@@ -143,6 +147,7 @@ func _physics_process(delta: float) -> void:
 	var pusher := global_position + forward * BLADE_OFFSET * 0.6
 	for field in _fields:
 		field.set_pusher_position(pusher)
+	Placeholder.set_pusher(pusher)
 	var units := 0.0
 	if is_blade_spinning():
 		var field := _field_at(blade_position)
@@ -182,10 +187,12 @@ func _process(delta: float) -> void:
 	_bag.scale = Vector3(1.0 + wobble, height - wobble, depth)
 	_bag.position = Vector3(0.0, 0.2 + 0.2 * height, 0.31 + 0.16 * depth)
 
-	# Мотор урчит тише на месте и бодрее на ходу; шелест слышен, пока трава режется.
-	_engine_sound.volume_db = linear_to_db(lerpf(0.07, 0.22, pace))
-	_engine_sound.pitch_scale = lerpf(0.82, 1.12, pace) - 0.08 * _cut_amount
-	_cut_sound.volume_db = linear_to_db(maxf(_cut_amount * 0.3, 0.0001))
+	# Мотора не слышно: только мягкий «вжух» травы, пока она режется.
+	if _cutting:
+		_swish_distance += _current_speed * delta
+		if _swish_distance >= SWISH_STEP:
+			_swish_distance = 0.0
+			Sfx.play("swish", -9.0, 1.0, 0.15)
 
 
 ## Центр ножа в мировых координатах.
@@ -341,6 +348,7 @@ func _build_character() -> void:
 	_character.scale = Vector3.ONE * CHARACTER_SCALE
 	Placeholder.part(_character, Placeholder.cylinder(0.42, 0.04), STRAW, Vector3(0.0, 1.33, 0.0))
 	Placeholder.part(_character, Placeholder.cylinder(0.24, 0.16, 0.19), STRAW, Vector3(0.0, 1.42, 0.0))
+	Placeholder.bake_tree(_character)
 
 
 # Временный вид косилки. Нарочно крупная и яркая, чтобы её было видно в высокой траве.
@@ -370,7 +378,9 @@ func _build_mower() -> void:
 	Placeholder.part(_mower, Placeholder.box(Vector3(deck_width + 0.06, 0.08, 0.08)), CREAM, Vector3(0.0, 0.2, -0.37))
 	Placeholder.part(_mower, Placeholder.box(Vector3(0.4 * engine, 0.26, 0.36 * engine)), DARK, Vector3(0.0, 0.53, -0.06))
 	_engine_cap = Placeholder.part(_mower, Placeholder.cylinder(0.09 * engine, 0.08), STRAW, Vector3(0.0, 0.7, -0.06))
+	_engine_cap.set_meta("no_bake", true)
 	_bag = Placeholder.part(_mower, Placeholder.box(Vector3(deck_width * 0.85, 0.4, 0.32)), CANVAS)
+	_bag.set_meta("no_bake", true)
 	for side: float in [-1.0, 1.0]:
 		for z: float in [-0.24, 0.26]:
 			Placeholder.part(_mower, Placeholder.cylinder(0.15, 0.1), DARK,
@@ -409,3 +419,4 @@ func _build_mower() -> void:
 	_clippings.scale_amount_min = 0.7
 	_clippings.scale_amount_max = 1.3
 	_mower.add_child(_clippings)
+	Placeholder.bake_tree(_mower_root)

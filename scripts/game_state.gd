@@ -70,6 +70,7 @@ var bag_capacity: float:
 
 # Настройки, а не прогресс: переживают «Начать заново».
 var sound_enabled := true
+var music_enabled := true
 ## Качество графики: 0 — низкое, 1 — среднее, 2 — высокое, -1 — выбрать по устройству.
 var graphics_quality := -1
 var show_fps := false
@@ -197,6 +198,12 @@ func toast(text: String) -> void:
 	toast_requested.emit(text)
 
 
+func set_music_enabled(enabled: bool) -> void:
+	music_enabled = enabled
+	settings_changed.emit()
+	save_game()
+
+
 func set_sound_enabled(enabled: bool) -> void:
 	sound_enabled = enabled
 	settings_changed.emit()
@@ -235,6 +242,7 @@ func save_game() -> void:
 		"grass_banked": grass_banked,
 		"compost_spent": compost_spent,
 		"sound_enabled": sound_enabled,
+		"music_enabled": music_enabled,
 		"graphics_quality": graphics_quality,
 		"show_fps": show_fps,
 		"bag_fill": bag_fill,
@@ -259,6 +267,7 @@ func load_game() -> void:
 	grass_banked = data.get("grass_banked", 0.0)
 	compost_spent = data.get("compost_spent", 0)
 	sound_enabled = data.get("sound_enabled", true)
+	music_enabled = data.get("music_enabled", true)
 	graphics_quality = data.get("graphics_quality", -1)
 	show_fps = data.get("show_fps", false)
 	bag_fill = data.get("bag_fill", 0.0)

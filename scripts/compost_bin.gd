@@ -82,12 +82,18 @@ func _build_visuals() -> void:
 			Placeholder.part(_model, Placeholder.box(Vector3(0.12, SIZE.y + 0.1, 0.12)), WOOD_DARK,
 					Vector3(half.x * side, (SIZE.y + 0.1) * 0.5, half.z * z_side))
 	_pile = Placeholder.part(_model, Placeholder.sphere(0.52), PILE, Vector3(0.0, 0.25, 0.0))
+	_pile.set_meta("no_bake", true)
+	_model.add_to_group("shadow_dynamic")
 
 	_arrow = Node3D.new()
 	_arrow.position = Vector3(0.0, ARROW_HEIGHT, 0.0)
 	add_child(_arrow)
-	Placeholder.part(_arrow, Placeholder.cylinder(0.0, 0.6, 0.4), ARROW, Vector3(0.0, 0.0, 0.0))
-	Placeholder.part(_arrow, Placeholder.cylinder(0.15, 0.5), ARROW, Vector3(0.0, 0.52, 0.0))
+	# Стрелка вертится и качается: тени не отбрасывает, чтобы не перерисовывать тени.
+	for arrow_part in [
+		Placeholder.part(_arrow, Placeholder.cylinder(0.0, 0.6, 0.4), ARROW, Vector3(0.0, 0.0, 0.0)),
+		Placeholder.part(_arrow, Placeholder.cylinder(0.15, 0.5), ARROW, Vector3(0.0, 0.52, 0.0)),
+	]:
+		arrow_part.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	_burst = CPUParticles3D.new()
 	_burst.position = Vector3(0.0, 1.0, 0.0)

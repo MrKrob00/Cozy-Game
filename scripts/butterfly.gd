@@ -33,8 +33,9 @@ func _ready() -> void:
 		wing.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
 		pivot.add_child(wing)
 		_wings.append(pivot)
-	Placeholder.part(self, Placeholder.capsule(0.018, 0.16), Color(0.25, 0.2, 0.2),
+	var body := Placeholder.part(self, Placeholder.capsule(0.018, 0.16), Color(0.25, 0.2, 0.2),
 			Vector3.ZERO, Vector3(90.0, 0.0, 0.0))
+	body.set_meta("no_bake", true)
 
 
 func _process(delta: float) -> void:

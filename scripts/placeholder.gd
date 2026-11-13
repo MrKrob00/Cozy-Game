@@ -1,20 +1,84 @@
 class_name Placeholder
 ## Временные модели из примитивов с мультяшным материалом.
 ## Заменяются настоящими моделями, когда они появятся.
+##
+## Детали создаются по одной (part), а потом склеиваются: bake_tree собирает
+## неподвижные детали каждого узла в одну модель с цветом в вершинах. Вместо
+## десятков вызовов отрисовки на объект остаётся один.
+##
+## Отметки (meta) на узлах:
+##   no_bake    — деталь не склеивать: её двигают или меняют отдельно;
+##   merge_up   — узел-контейнер: его детали склеиваются вместе с родителем;
+##   bake_cell  — у узла: склеивать по клеткам такого размера (метры), чтобы
+##                не терять отсечение невидимого на больших площадях;
+##   plant      — у узла: склеенные детали — цветы (качаются, приминаются);
+##   anchor     — у детали цветка: основание стебля в координатах узла.
 
 const TOON_SHADER := preload("res://shaders/toon.gdshader")
+const RECEIVE_SHADER := preload("res://shaders/toon_receive.gdshader")
+const FADE_SHADER := preload("res://shaders/toon_fade.gdshader")
+const PLANT_SHADER := preload("res://shaders/toon_plant.gdshader")
 
 static var _materials: Dictionary = {}
+static var _receive_materials: Dictionary = {}
+## Цвет детали по её материалу (для склейки).
+static var _colors: Dictionary = {}
+static var _vertex_material: ShaderMaterial
+static var _vertex_receive_material: ShaderMaterial
+static var _plant_material: ShaderMaterial
 
 
 static func material(color: Color) -> ShaderMaterial:
 	if _materials.has(color):
 		return _materials[color]
-	var mat := ShaderMaterial.new()
-	mat.shader = TOON_SHADER
-	mat.set_shader_parameter("albedo", color)
+	var mat := _make(TOON_SHADER, color)
 	_materials[color] = mat
+	_colors[mat] = color
 	return mat
+
+
+## Материал плоской поверхности, которая принимает тени предметов.
+static func ground_material(color: Color) -> ShaderMaterial:
+	if _receive_materials.has(color):
+		return _receive_materials[color]
+	var mat := _make(RECEIVE_SHADER, color, true)
+	_receive_materials[color] = mat
+	_colors[mat] = color
+	return mat
+
+
+## Общий материал склеенных моделей: цвет берётся из вершин.
+static func vertex_material(receives := false) -> ShaderMaterial:
+	if receives:
+		if _vertex_receive_material == null:
+			_vertex_receive_material = _make(RECEIVE_SHADER, Color.WHITE, true)
+		return _vertex_receive_material
+	if _vertex_material == null:
+		_vertex_material = _make(TOON_SHADER, Color.WHITE)
+	return _vertex_material
+
+
+## Общий материал цветов; косилку для него ставит игрок (set_pusher).
+static func plant_material() -> ShaderMaterial:
+	if _plant_material == null:
+		_plant_material = _make(PLANT_SHADER, Color.WHITE)
+	return _plant_material
+
+
+## Новый материал растворения для одной модели (крона дерева).
+static func fade_material() -> ShaderMaterial:
+	return _make(FADE_SHADER, Color.WHITE)
+
+
+static func set_pusher(world_position: Vector3) -> void:
+	plant_material().set_shader_parameter("pusher_position", world_position)
+
+
+static func _make(shader: Shader, color: Color, receives := false) -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	mat.set_shader_parameter("albedo", color)
+	return Graphics.track(mat, receives)
 
 
 static func part(parent: Node3D, mesh: Mesh, color: Color, position := Vector3.ZERO,
@@ -26,6 +90,121 @@ static func part(parent: Node3D, mesh: Mesh, color: Color, position := Vector3.Z
 	instance.rotation_degrees = rotation_degrees
 	parent.add_child(instance)
 	return instance
+
+
+## Склеивает детали во всём поддереве root (включая сам root).
+static func bake_tree(root: Node) -> void:
+	var nodes: Array[Node] = [root]
+	nodes.append_array(root.find_children("*", "Node3D", true, false))
+	var baked := false
+	for node in nodes:
+		if node is Node3D and is_instance_valid(node) and not node.has_meta("merge_up"):
+			baked = _bake_node(node) or baked
+	if baked:
+		Graphics.casters_changed.emit()
+
+
+# Склеивает детали одного узла: прямых потомков и потомков контейнеров merge_up.
+static func _bake_node(node: Node3D) -> bool:
+	var parts: Array[MeshInstance3D] = []
+	_collect(node, parts)
+	if parts.is_empty():
+		return false
+	var cell: float = node.get_meta("bake_cell", 0.0)
+	var plant: bool = node.has_meta("plant")
+	# Группы: по клетке и по тому, отбрасывает ли деталь тень.
+	var groups: Dictionary = {}
+	var to_node := node.global_transform.affine_inverse()
+	for mesh_part in parts:
+		var local := to_node * mesh_part.global_transform
+		var casts := mesh_part.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var key := [casts, Vector2i.ZERO]
+		if cell > 0.0:
+			key[1] = Vector2i((Vector2(local.origin.x, local.origin.z) / cell).floor())
+		if not groups.has(key):
+			groups[key] = []
+		groups[key].append([mesh_part, local])
+	for key: Array in groups:
+		var mesh := _merge(groups[key], plant)
+		var instance := MeshInstance3D.new()
+		instance.name = "Baked"
+		instance.mesh = mesh
+		instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		if plant:
+			instance.material_override = plant_material()
+		else:
+			# Плоские детали (дорожки, земля клумбы) принимают тени, объёмные их отбрасывают.
+			instance.material_override = vertex_material(not key[0])
+		node.add_child(instance)
+		if key[0]:
+			instance.add_to_group("shadow_caster")
+	for mesh_part in parts:
+		mesh_part.get_parent().remove_child(mesh_part)
+		mesh_part.queue_free()
+	return true
+
+
+static func _collect(node: Node, into: Array[MeshInstance3D]) -> void:
+	for child in node.get_children():
+		if child is MeshInstance3D and _bakeable(child):
+			into.append(child)
+		elif child is Node3D and child.has_meta("merge_up"):
+			_collect(child, into)
+
+
+static func _bakeable(part_mesh: MeshInstance3D) -> bool:
+	return part_mesh.visible and part_mesh.mesh != null and not part_mesh.has_meta("no_bake") \
+			and _colors.has(part_mesh.material_override)
+
+
+# Одна модель из деталей: вершины в координатах узла, цвет детали в вершинах
+# (линейный, как его видит шейдер), у цветов — основание стебля в UV2.
+static func _merge(items: Array, plant: bool) -> ArrayMesh:
+	var vertices := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var colors := PackedColorArray()
+	var uv2 := PackedVector2Array()
+	var indices := PackedInt32Array()
+	for item: Array in items:
+		var mesh_part: MeshInstance3D = item[0]
+		var local: Transform3D = item[1]
+		var arrays: Array = mesh_part.mesh.get_mesh_arrays() if mesh_part.mesh is PrimitiveMesh \
+				else mesh_part.mesh.surface_get_arrays(0)
+		var part_vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var part_normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+		var part_indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+		var start := vertices.size()
+		vertices.append_array(local * part_vertices)
+		var normal_basis := Transform3D(local.basis.inverse().transposed(), Vector3.ZERO)
+		normals.append_array(normal_basis * part_normals)
+		var color: Color = _colors[mesh_part.material_override].srgb_to_linear()
+		var part_colors := PackedColorArray()
+		part_colors.resize(part_vertices.size())
+		part_colors.fill(color)
+		colors.append_array(part_colors)
+		if plant:
+			var anchor: Vector3 = mesh_part.get_meta("anchor", local.origin)
+			var part_uv2 := PackedVector2Array()
+			part_uv2.resize(part_vertices.size())
+			part_uv2.fill(Vector2(anchor.x, anchor.z))
+			uv2.append_array(part_uv2)
+		if part_indices.is_empty():
+			for i in part_vertices.size():
+				indices.append(start + i)
+		else:
+			for index in part_indices:
+				indices.append(start + index)
+	var surface := []
+	surface.resize(Mesh.ARRAY_MAX)
+	surface[Mesh.ARRAY_VERTEX] = vertices
+	surface[Mesh.ARRAY_NORMAL] = normals
+	surface[Mesh.ARRAY_COLOR] = colors
+	if plant:
+		surface[Mesh.ARRAY_TEX_UV2] = uv2
+	surface[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, surface)
+	return mesh
 
 
 ## Фигурка человека лицом к −Z: комбинезон, рубашка, голова с глазами,
@@ -50,12 +229,12 @@ static func box(size: Vector3) -> BoxMesh:
 	return mesh
 
 
-static func sphere(radius: float) -> SphereMesh:
+static func sphere(radius: float, segments := 12) -> SphereMesh:
 	var mesh := SphereMesh.new()
 	mesh.radius = radius
 	mesh.height = radius * 2.0
-	mesh.radial_segments = 12
-	mesh.rings = 6
+	mesh.radial_segments = segments
+	mesh.rings = segments / 2
 	return mesh
 
 

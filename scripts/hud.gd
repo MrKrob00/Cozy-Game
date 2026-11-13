@@ -34,6 +34,7 @@ const COMPLETION_DELAY := 5.0
 @onready var _pause_stamps: VBoxContainer = %PauseStamps
 @onready var _resume_button: Button = %ResumeButton
 @onready var _sound_button: Button = %SoundButton
+@onready var _music_button: Button = %MusicButton
 @onready var _graphics_button: Button = %GraphicsButton
 @onready var _fps_button: Button = %FpsButton
 @onready var _diag_label: Label = %DiagLabel
@@ -126,6 +127,9 @@ func _ready() -> void:
 	_sound_button.pressed.connect(func() -> void:
 		GameState.set_sound_enabled(not GameState.sound_enabled)
 		_update_settings_buttons())
+	_music_button.pressed.connect(func() -> void:
+		GameState.set_music_enabled(not GameState.music_enabled)
+		_update_settings_buttons())
 	_graphics_button.pressed.connect(func() -> void:
 		GameState.set_graphics_quality((GameState.get_quality() + 1) % Graphics.PRESETS.size())
 		_update_settings_buttons())
@@ -144,7 +148,7 @@ func _ready() -> void:
 	_quit_button.visible = not (OS.has_feature("mobile") or OS.has_feature("web"))
 	_update_settings_buttons()
 	for button: Button in [_action_button, _pause_button, _resume_button, _sound_button,
-			_graphics_button, _fps_button, _reset_button, _quit_button, _continue_button,
+			_music_button, _graphics_button, _fps_button, _reset_button, _quit_button, _continue_button,
 			_workshop_close]:
 		button.pressed.connect(_on_any_button_pressed.bind(button))
 
@@ -423,7 +427,8 @@ func _on_screen_tapped() -> void:
 
 
 func _update_settings_buttons() -> void:
-	_sound_button.text = "Звук: включён" if GameState.sound_enabled else "Звук: выключен"
+	_sound_button.text = "Звуки: включены" if GameState.sound_enabled else "Звуки: выключены"
+	_music_button.text = "Музыка: включена" if GameState.music_enabled else "Музыка: выключена"
 	_graphics_button.text = "Графика: %s" % Graphics.preset["title"]
 	_fps_button.text = "Счётчик FPS: включён" if GameState.show_fps else "Счётчик FPS: выключен"
 	_fps_label.visible = GameState.show_fps

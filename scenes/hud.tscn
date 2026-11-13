@@ -295,6 +295,12 @@ layout_mode = 2
 focus_mode = 0
 text = "Звук: включён"
 
+[node name="MusicButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Музыка: включена"
+
 [node name="GraphicsButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -318,6 +324,12 @@ unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 text = "Выйти из игры"
+
+[node name="CreditsLabel" type="Label" parent="Root/PausePanel/Center/PauseWindow/Rows"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Музыка: Kevin MacLeod (incompetech.com), лицензия CC BY 4.0"
+horizontal_alignment = 1
 
 [node name="DiagLabel" type="Label" parent="Root/PausePanel/Center/PauseWindow/Rows"]
 unique_name_in_owner = true

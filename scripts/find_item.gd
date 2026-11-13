@@ -124,6 +124,7 @@ func _build_visuals() -> void:
 
 	_model = Node3D.new()
 	_model.position = Vector3(0.0, 0.15, 0.0)
+	_model.add_to_group("shadow_dynamic")
 	add_child(_model)
 	match kind:
 		Kind.KEY:

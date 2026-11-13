@@ -28,6 +28,7 @@ var _flyover: Tween
 
 
 func _ready() -> void:
+	cull_mask &= ~Shadows.LAYER
 	_target = get_node_or_null(target_path) as Node3D
 	zoom_index = clampi(zoom_index, 0, zoom_distances.size() - 1)
 	# На телефоне экран меньше — по умолчанию ближе.

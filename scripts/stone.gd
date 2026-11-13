@@ -65,6 +65,7 @@ func interact(_player: Player) -> void:
 
 func _build_visuals() -> void:
 	_model = Node3D.new()
+	_model.add_to_group("shadow_dynamic")
 	add_child(_model)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(stone_id)

@@ -24,6 +24,8 @@ const CHIRPS := ["chirp_1", "chirp_2", "chirp_3"]
 ## Насколько ближе должен быть другой участок, чтобы стать текущим.
 const SWITCH_MARGIN := 0.5
 const FESTIVAL_FLAG := "festival"
+## Свет неба (как прежний окружающий свет сцены).
+const AMBIENT := Color(0.546, 0.588, 0.665)
 ## Пауза между покосом последнего участка и праздником, секунд.
 const FESTIVAL_DELAY := 11.0
 
@@ -48,14 +50,23 @@ func _ready() -> void:
 	_player = get_tree().get_first_node_in_group("player") as Node3D
 	for child in get_children():
 		if child is WorldEnvironment:
-			# Копия, чтобы не менять общий ресурс сцены.
+			# Копия, чтобы не менять общий ресурс сцены. Постобработки нет:
+			# насыщенность считают сами материалы (Graphics.set_day).
 			_environment = child.environment.duplicate()
-			_environment.adjustment_enabled = true
+			_environment.adjustment_enabled = false
 			child.environment = _environment
 		elif child is DirectionalLight3D:
+			# Солнце задаёт только направление: свет считают материалы,
+			# тени рисует Shadows. Сам источник света не нужен.
 			_sun = child
-	Graphics.quality_changed.connect(_apply_quality)
-	_apply_quality()
+			_sun.visible = false
+			_sun.shadow_enabled = false
+			Graphics.sun_direction = -_sun.global_basis.z.normalized()
+	var shadows := Shadows.new()
+	shadows.name = "Shadows"
+	add_child(shadows)
+	# Склейка деталей — когда все объекты построили свои модели.
+	_bake_world.call_deferred()
 	_update_current_plot()
 	_mood = current_plot.get_mood() if current_plot else 1.0
 	_apply_mood()
@@ -140,15 +151,13 @@ func _update_current_plot() -> void:
 	current_plot_changed.emit(current_plot)
 
 
-func _apply_quality() -> void:
-	if _sun:
-		_sun.directional_shadow_max_distance = Graphics.preset["shadow_distance"]
+func _bake_world() -> void:
+	Placeholder.bake_tree(self)
 
 
 func _apply_mood() -> void:
 	if _environment:
-		_environment.adjustment_saturation = lerpf(saturation_range.x, saturation_range.y, _mood)
 		_environment.background_color = sky_color_overgrown.lerp(sky_color_mowed, _mood)
-	if _sun:
-		_sun.light_energy = lerpf(sun_energy_range.x, sun_energy_range.y, _mood)
-		_sun.light_color = sun_color_overgrown.lerp(sun_color_mowed, _mood)
+	Graphics.set_day(sun_color_overgrown.lerp(sun_color_mowed, _mood),
+			lerpf(sun_energy_range.x, sun_energy_range.y, _mood), AMBIENT,
+			lerpf(saturation_range.x, saturation_range.y, _mood))

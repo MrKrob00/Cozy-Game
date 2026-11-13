@@ -29,9 +29,8 @@ const CROWN_FADE := 0.3
 var _windows: Array[MeshInstance3D] = []
 var _door: Node3D
 var _padlock: MeshInstance3D
-var _crown_material: ShaderMaterial
-var _crown_light_material: ShaderMaterial
-var _apple_material: ShaderMaterial
+var _crown: Node3D
+var _fade_material: ShaderMaterial
 var _crown_fade := 1.0
 # Части фонтана, которые меняются после починки.
 var _fountain_broken: Node3D
@@ -107,10 +106,12 @@ func _build_house() -> void:
 	for side: float in [-1.0, 1.0]:
 		_windows.append(Placeholder.part(self, Placeholder.box(Vector3(1.1, 1.0, 0.1)), GLASS,
 				Vector3(1.9 * side, 1.7, 2.26)))
+		_windows[-1].set_meta("no_bake", true)
 		Placeholder.part(self, Placeholder.box(Vector3(1.3, 0.12, 0.2)), WOOD, Vector3(1.9 * side, 1.12, 2.3))
 	# Окно на боковой стене, обращённой к камере.
 	_windows.append(Placeholder.part(self, Placeholder.box(Vector3(0.1, 1.0, 1.2)), GLASS,
 			Vector3(3.01, 1.7, 0.0)))
+	_windows[-1].set_meta("no_bake", true)
 	_add_box_collision(Vector3(6.2, 3.0, 4.7), Vector3(0.0, 1.5, 0.0))
 
 
@@ -121,10 +122,12 @@ func _build_shed() -> void:
 	Placeholder.part(self, Placeholder.box(Vector3(0.9, 1.6, 0.04)), Color(0.2, 0.16, 0.14), Vector3(0.0, 0.8, 1.09))
 	_door = Node3D.new()
 	_door.position = Vector3(-0.45, 0.0, 1.12)
+	_door.add_to_group("shadow_dynamic")
 	add_child(_door)
 	Placeholder.part(_door, Placeholder.box(Vector3(0.9, 1.6, 0.08)), WOOD_DARK, Vector3(0.45, 0.8, 0.0))
 	# Замок: сарай пока заперт.
 	_padlock = Placeholder.part(_door, Placeholder.box(Vector3(0.2, 0.2, 0.1)), GOLD, Vector3(0.75, 0.9, 0.08))
+	_padlock.set_meta("no_bake", true)
 	_add_box_collision(Vector3(2.6, 2.0, 2.4), Vector3(0.0, 1.0, 0.0))
 
 
@@ -170,28 +173,21 @@ func _build_bench() -> void:
 
 func _build_tree() -> void:
 	Placeholder.part(self, Placeholder.cylinder(0.32, 2.2, 0.22), WOOD_DARK, Vector3(0.0, 1.1, 0.0))
-	# У кроны свои материалы: она растворяется, когда заслоняет игрока.
-	_crown_material = Placeholder.material(LEAVES).duplicate()
-	_crown_light_material = Placeholder.material(LEAVES_LIGHT).duplicate()
-	var crown: Array[MeshInstance3D] = [
-		Placeholder.part(self, Placeholder.sphere(1.5), LEAVES, Vector3(0.0, 3.1, 0.0)),
-		Placeholder.part(self, Placeholder.sphere(1.05), LEAVES_LIGHT, Vector3(0.7, 4.0, 0.3)),
-		Placeholder.part(self, Placeholder.sphere(0.9), LEAVES, Vector3(-0.8, 3.7, -0.4)),
-	]
-	crown[0].material_override = _crown_material
-	crown[1].material_override = _crown_light_material
-	crown[2].material_override = _crown_material
+	# Крона — отдельная модель: она растворяется, когда заслоняет игрока.
+	_crown = Node3D.new()
+	_crown.name = "Crown"
+	add_child(_crown)
+	Placeholder.part(_crown, Placeholder.sphere(1.5), LEAVES, Vector3(0.0, 3.1, 0.0))
+	Placeholder.part(_crown, Placeholder.sphere(1.05), LEAVES_LIGHT, Vector3(0.7, 4.0, 0.3))
+	Placeholder.part(_crown, Placeholder.sphere(0.9), LEAVES, Vector3(-0.8, 3.7, -0.4))
 	if fruit:
-		var apple_material: ShaderMaterial = Placeholder.material(Color(0.92, 0.26, 0.24)).duplicate()
 		var rng := RandomNumberGenerator.new()
 		rng.seed = hash(name)
 		for i in 9:
 			var direction := Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-0.5, 0.6),
 					rng.randf_range(-1.0, 1.0)).normalized()
-			var apple := Placeholder.part(self, Placeholder.sphere(0.14), Color.WHITE,
+			Placeholder.part(_crown, Placeholder.sphere(0.14, 6), Color(0.92, 0.26, 0.24),
 					Vector3(0.0, 3.1, 0.0) + direction * 1.5)
-			apple.material_override = apple_material
-		_apple_material = apple_material
 	var shape := CollisionShape3D.new()
 	var cylinder := CylinderShape3D.new()
 	cylinder.radius = 0.4
@@ -201,11 +197,13 @@ func _build_tree() -> void:
 	add_child(shape)
 
 
-# Крона заслоняет игрока, если стоит между ним и камерой: тогда она растворяется точками.
+# Крона заслоняет игрока, если стоит между ним и камерой: тогда она растворяется
+# точками. Материал с растворением (в нём discard, а он на телефоне выключает
+# раннее отсечение скрытых пикселей) ставится только на время растворения.
 func _update_crown_fade(delta: float) -> void:
 	var camera := get_viewport().get_camera_3d()
 	var player := get_tree().get_first_node_in_group("player") as Node3D
-	if camera == null or player == null or _crown_material == null:
+	if camera == null or player == null or _crown == null:
 		return
 	var view := -camera.global_basis.z
 	view.y = 0.0
@@ -220,9 +218,13 @@ func _update_crown_fade(delta: float) -> void:
 	if is_equal_approx(_crown_fade, target):
 		return
 	_crown_fade = move_toward(_crown_fade, target, delta * 3.0)
-	for crown_material: ShaderMaterial in [_crown_material, _crown_light_material, _apple_material]:
-		if crown_material:
-			crown_material.set_shader_parameter("fade", _crown_fade)
+	if _fade_material == null:
+		_fade_material = Placeholder.fade_material()
+	_fade_material.set_shader_parameter("fade", _crown_fade)
+	var solid := is_equal_approx(_crown_fade, 1.0)
+	for child in _crown.get_children():
+		if child is MeshInstance3D and child.material_override in [_fade_material, Placeholder.vertex_material()]:
+			child.material_override = Placeholder.vertex_material() if solid else _fade_material
 
 
 ## Чинит фонтан: чаша светлеет, появляется вода и струя.

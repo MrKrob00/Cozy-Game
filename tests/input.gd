@@ -158,7 +158,7 @@ func _run() -> void:
 	var low_grass: int = count_grass.call()
 	print("grass clumps in the yard: high=%d low=%d" % [high_grass, low_grass])
 	check(low_grass < high_grass * 0.5 and low_grass > high_grass * 0.3, "low quality draws about 40 % of the grass")
-	check(is_equal_approx(root.scaling_3d_scale, 0.7) and root.msaa_3d == Viewport.MSAA_DISABLED, "low quality lowers 3D resolution and turns MSAA off")
+	check(is_equal_approx(root.scaling_3d_scale, 0.75) and root.msaa_3d == Viewport.MSAA_DISABLED, "low quality lowers 3D resolution and turns MSAA off")
 	check(field.get_progress() > 0.001, "mowing progress survives the grass rebuild")
 	game_state.set_graphics_quality(2)
 	await frames(3)
@@ -166,6 +166,40 @@ func _run() -> void:
 	game_state.set_show_fps(true)
 	check(hud.get_node("%FpsLabel").visible, "FPS counter can be turned on")
 	game_state.set_show_fps(false)
+
+	# 9. Рендер: детали склеены, тени — двойники, трава вдали реже.
+	var shadows = current_scene.get_node("Shadows")
+	# Трава перестраивалась при смене качества: ждём обновления детализации.
+	await frames(30)
+	var loose := 0
+	for mesh in current_scene.find_children("*", "MeshInstance3D", true, false):
+		if mesh.material_override is ShaderMaterial and mesh.material_override.shader.resource_path.contains("toon") \
+				and mesh.material_override.get_shader_parameter("albedo") != Color.WHITE \
+				and not mesh.has_meta("no_bake") and mesh.mesh is PrimitiveMesh:
+			loose += 1
+	print("unbaked parts: %d, casters: %d, moving casters: %d" % [loose, shadows.caster_count(), shadows.dynamic_count()])
+	check(loose == 0, "every static part is baked into a merged model")
+	check(shadows.caster_count() > 60 and shadows.dynamic_count() >= 10, "baked models cast shadows through proxies")
+	check(not current_scene.get_node("Sun").visible, "the engine light is off: materials light themselves")
+	var far_chunk = null
+	var near_chunk = null
+	for chunk in current_scene.get_node("Garden/MowField").find_children("Grass_*", "MultiMeshInstance3D", false, false):
+		far_chunk = chunk
+	for chunk in field.find_children("Grass_*", "MultiMeshInstance3D", false, false):
+		if chunk.multimesh.visible_instance_count == -1:
+			near_chunk = chunk
+	check(near_chunk != null, "grass next to the player is drawn in full")
+	check(far_chunk != null and far_chunk.multimesh.visible_instance_count > 0 \
+			and far_chunk.multimesh.visible_instance_count < far_chunk.multimesh.instance_count * 0.5,
+			"far grass draws only part of its clumps")
+
+	# 10. Звук: мотора нет, музыка играет.
+	var sfx = root.get_node("Sfx")
+	check(sfx.call("_variants", "mower_loop").is_empty() and sfx.call("_variants", "swish").size() == 3, "no motor loop, three grass swishes")
+	check(sfx.get("_playlist").size() == 4 and sfx.current_track() != "", "music playlist is playing")
+	game_state.set_music_enabled(false)
+	check(AudioServer.is_bus_mute(AudioServer.get_bus_index("Music")) and not AudioServer.is_bus_mute(AudioServer.get_bus_index("SFX")), "music can be muted on its own")
+	game_state.set_music_enabled(true)
 
 	# 8. Безопасная область: обычный вырез учитывается, неправдоподобные значения — нет.
 	var notch: Array = hud.safe_insets(Vector2(2400, 1080), Rect2(90, 0, 2310, 1080), Vector2(2400, 1080))

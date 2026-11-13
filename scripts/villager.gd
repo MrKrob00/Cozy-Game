@@ -34,6 +34,7 @@ var _body: StaticBody3D
 
 
 func _ready() -> void:
+	add_to_group("shadow_dynamic")
 	_build_visuals()
 	global_rotation.y = deg_to_rad(facing_degrees)
 	_present = appears_after_plot == "" or GameState.is_plot_completed(appears_after_plot)
