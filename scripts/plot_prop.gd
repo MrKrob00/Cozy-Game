@@ -1,14 +1,16 @@
 class_name PlotProp
 extends StaticBody3D
-## Крупный объект участка: дом, сарай, скамейка, дерево.
-## Сам строит временную модель, коллизию и убирает траву под собой.
+## Крупный объект участка: дом, мастерская, скамейка, дерево, колодец.
+## Ставит модель (готовую из assets/models или собранную из примитивов),
+## коллизию и убирает траву под собой.
 
 enum Kind { HOUSE, SHED, BENCH, TREE, WELL, FOUNTAIN, POND }
 
 @export var kind := Kind.TREE
-## Цвета стен и крыши дома.
-@export var wall_color := Color(0.98, 0.92, 0.78)
-@export var roof_color := Color(0.80, 0.36, 0.30)
+## Модель дома (assets/models): house_a … house_d.
+@export var house_model := "house_a"
+## Колодец с синей крышей (иначе с жёлтой).
+@export var blue_roof := false
 ## Дерево с яблоками.
 @export var fruit := false
 
@@ -21,15 +23,24 @@ const LEAVES := Color(0.34, 0.66, 0.34)
 const LEAVES_LIGHT := Color(0.44, 0.74, 0.36)
 
 
-const DOOR_OPEN_ANGLE := -1.9
+## Масштаб готовых моделей: дом около 4,5 м в ширину и 5,5 м в высоту.
+const MODEL_SCALE := {"house_a": 5.8, "house_c": 5.8, "house_b": 4.6, "house_d": 4.6,
+		"blacksmith": 2.5, "well": 2.7, "well_blue": 2.7}
 const POND_RADIUS := 2.8
 ## Насколько растворяется крона, когда заслоняет игрока.
 const CROWN_FADE := 0.3
 ## Масштаб модели дерева: крона около 2,5 м в поперечнике, высота около 5 м.
 const TREE_SCALE := 4.2
 
-var _windows: Array[MeshInstance3D] = []
-var _door: Node3D
+## Размер модели по земле (X, Z) и её высота, метры.
+var _footprint := Vector2.ZERO
+var _height := 0.0
+## Дым из трубы и фонарь у двери: появляются, когда участок выкошен.
+var _smoke: CPUParticles3D
+var _lantern: MeshInstance3D
+var _lit := false
+## Засов с замком перед мастерской, пока она заперта.
+var _barrier: Node3D
 var _padlock: MeshInstance3D
 var _crown: Node3D
 var _fade_material: ShaderMaterial
@@ -44,15 +55,16 @@ func _enter_tree() -> void:
 	add_to_group("plot_light")
 
 
-## Зажигает окна (вызывается, когда участок выкошен).
+## Дом оживает (вызывается, когда участок выкошен): из трубы идёт дым,
+## у двери загорается фонарь.
 func light_up() -> void:
-	if _windows.is_empty():
+	if _lit or kind != Kind.HOUSE:
 		return
-	var glow := StandardMaterial3D.new()
-	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	glow.albedo_color = Color(1.0, 0.9, 0.55)
-	for window in _windows:
-		window.material_override = glow
+	_lit = true
+	if _smoke:
+		_smoke.emitting = true
+	if _lantern:
+		_lantern.visible = true
 
 
 func _ready() -> void:
@@ -80,84 +92,163 @@ func _process(delta: float) -> void:
 
 func shape_grass(field: MowField) -> void:
 	match kind:
-		Kind.HOUSE:
-			field.block_rect(global_position, Vector2(6.2, 4.7), global_rotation.y)
-		Kind.SHED:
-			field.block_rect(global_position, Vector2(2.6, 2.4), global_rotation.y)
+		Kind.HOUSE, Kind.SHED:
+			field.block_rect(global_position, _model_footprint(), global_rotation.y)
 		Kind.BENCH:
 			field.block_rect(global_position, Vector2(1.6, 0.7), global_rotation.y)
 		Kind.TREE:
 			field.block_circle(global_position, 0.45)
 		Kind.WELL:
-			field.block_circle(global_position, 0.9)
+			field.block_circle(global_position, 1.0)
 		Kind.FOUNTAIN:
 			field.block_circle(global_position, 2.0)
 		Kind.POND:
 			field.block_circle(global_position, POND_RADIUS + 0.25)
 
 
+## Ширина постройки (вдоль её X), метры.
+func get_width() -> float:
+	return _model_footprint().x
+
+
+# Имя готовой модели для этого объекта.
+func _model_name() -> String:
+	match kind:
+		Kind.HOUSE:
+			return house_model
+		Kind.SHED:
+			return "blacksmith"
+		Kind.WELL:
+			return "well_blue" if blue_roof else "well"
+	return ""
+
+
+# Размер готовой модели по земле (нужен траве раньше, чем модель поставлена).
+func _model_footprint() -> Vector2:
+	if _footprint == Vector2.ZERO:
+		var model := _model_name()
+		var box := Models.mesh(model).get_aabb()
+		var scale_factor: float = MODEL_SCALE[model]
+		_footprint = Vector2(box.size.x, box.size.z) * scale_factor
+		_height = box.size.y * scale_factor
+	return _footprint
+
+
+# Ставит готовую модель и коллизию-коробку по её размеру.
+func _place_model() -> MeshInstance3D:
+	var model := _model_name()
+	var footprint := _model_footprint()
+	var instance := Models.place(self, model, Vector3.ZERO, MODEL_SCALE[model])
+	var center: Vector3 = instance.mesh.get_aabb().get_center() * (MODEL_SCALE[model] as float)
+	_add_box_collision(Vector3(footprint.x, _height, footprint.y), Vector3(center.x, _height * 0.5, center.z))
+	return instance
+
+
+# Дом — модель KayKit. Фасад смотрит на +Z.
 func _build_house() -> void:
-	Placeholder.part(self, Placeholder.box(Vector3(6.0, 3.0, 4.5)), wall_color, Vector3(0.0, 1.5, 0.0))
-	Placeholder.part(self, Placeholder.box(Vector3(6.2, 0.4, 4.7)), STONE, Vector3(0.0, 0.2, 0.0))
-	Placeholder.part(self, Placeholder.prism(Vector3(6.8, 2.0, 5.2)), roof_color, Vector3(0.0, 4.0, 0.0))
-	Placeholder.part(self, Placeholder.box(Vector3(0.6, 1.4, 0.6)), STONE, Vector3(1.7, 4.2, -0.8))
-	# Фасад смотрит на +Z: дверь, крыльцо, окна.
-	Placeholder.part(self, Placeholder.box(Vector3(1.0, 1.9, 0.12)), WOOD_DARK, Vector3(0.0, 1.15, 2.26))
-	Placeholder.part(self, Placeholder.sphere(0.07), GOLD, Vector3(0.32, 1.1, 2.36))
-	Placeholder.part(self, Placeholder.box(Vector3(1.6, 0.2, 0.8)), STONE, Vector3(0.0, 0.1, 2.6))
-	for side: float in [-1.0, 1.0]:
-		_windows.append(Placeholder.part(self, Placeholder.box(Vector3(1.1, 1.0, 0.1)), GLASS,
-				Vector3(1.9 * side, 1.7, 2.26)))
-		_windows[-1].set_meta("no_bake", true)
-		Placeholder.part(self, Placeholder.box(Vector3(1.3, 0.12, 0.2)), WOOD, Vector3(1.9 * side, 1.12, 2.3))
-	# Окно на боковой стене, обращённой к камере.
-	_windows.append(Placeholder.part(self, Placeholder.box(Vector3(0.1, 1.0, 1.2)), GLASS,
-			Vector3(3.01, 1.7, 0.0)))
-	_windows[-1].set_meta("no_bake", true)
-	_add_box_collision(Vector3(6.2, 3.0, 4.7), Vector3(0.0, 1.5, 0.0))
+	var instance := _place_model()
+	var top: Vector3 = _highest_point(instance.mesh) * (MODEL_SCALE[house_model] as float)
+	_smoke = _make_smoke(top + Vector3(0.0, 0.1, 0.0))
+	_lantern = Models.place(self, "lantern", Vector3(_footprint.x * 0.5 - 0.3, 0.0, _footprint.y * 0.5 + 0.35),
+			0.75, 0.0)
+	_lantern.set_meta("no_bake", true)
+	_lantern.visible = false
 
 
+# Мастерская — кузница KayKit. Пока она заперта, перед входом засов с замком.
 func _build_shed() -> void:
-	Placeholder.part(self, Placeholder.box(Vector3(2.4, 2.0, 2.2)), WOOD, Vector3(0.0, 1.0, 0.0))
-	Placeholder.part(self, Placeholder.prism(Vector3(2.9, 0.9, 2.7)), WOOD_DARK, Vector3(0.0, 2.45, 0.0))
-	# Дверь на петлях у левого края; тёмный проём за ней виден, когда она открыта.
-	Placeholder.part(self, Placeholder.box(Vector3(0.9, 1.6, 0.04)), Color(0.2, 0.16, 0.14), Vector3(0.0, 0.8, 1.09))
-	_door = Node3D.new()
-	_door.position = Vector3(-0.45, 0.0, 1.12)
-	_door.add_to_group("shadow_dynamic")
-	add_child(_door)
-	Placeholder.part(_door, Placeholder.box(Vector3(0.9, 1.6, 0.08)), WOOD_DARK, Vector3(0.45, 0.8, 0.0))
-	# Замок: сарай пока заперт.
-	_padlock = Placeholder.part(_door, Placeholder.box(Vector3(0.2, 0.2, 0.1)), GOLD, Vector3(0.75, 0.9, 0.08))
+	var instance := _place_model()
+	var top: Vector3 = _highest_point(instance.mesh) * (MODEL_SCALE["blacksmith"] as float)
+	_smoke = _make_smoke(top + Vector3(0.0, 0.1, 0.0))
+	_barrier = Node3D.new()
+	_barrier.position = Vector3(0.0, 0.0, _footprint.y * 0.5 + 0.25)
+	_barrier.add_to_group("shadow_dynamic")
+	add_child(_barrier)
+	for side: float in [-1.0, 1.0]:
+		Placeholder.part(_barrier, Placeholder.box(Vector3(0.14, 1.0, 0.14)), WOOD_DARK, Vector3(0.9 * side, 0.5, 0.0))
+	for height: float in [0.45, 0.8]:
+		Placeholder.part(_barrier, Placeholder.box(Vector3(1.9, 0.12, 0.08)), WOOD, Vector3(0.0, height, 0.0))
+	_padlock = Placeholder.part(_barrier, Placeholder.box(Vector3(0.26, 0.26, 0.12)), GOLD, Vector3(0.0, 0.62, 0.08))
 	_padlock.set_meta("no_bake", true)
-	_add_box_collision(Vector3(2.6, 2.0, 2.4), Vector3(0.0, 1.0, 0.0))
 
 
-## Отпирает сарай: замок пропадает, дверь распахивается.
+## Отпирает мастерскую: засов с замком пропадает, из горна идёт дым.
 func set_unlocked(animated: bool) -> void:
-	if _door == null:
+	if _barrier == null or not _barrier.visible:
 		return
-	_padlock.visible = false
+	_smoke.emitting = true
 	if not animated:
-		_door.rotation.y = DOOR_OPEN_ANGLE
+		_barrier.visible = false
 		return
 	Juice.sparkle(self, _padlock.global_position)
+	_padlock.visible = false
 	var tween := create_tween()
-	tween.tween_property(_door, "rotation:y", DOOR_OPEN_ANGLE, 0.8) \
-			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(_barrier, "scale", Vector3.ONE * 0.01, 0.35) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	tween.tween_callback(func() -> void: _barrier.visible = false)
 
 
+# Самая высокая точка модели (труба): середина её верхних вершин.
+func _highest_point(mesh: Mesh) -> Vector3:
+	var vertices: PackedVector3Array = mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var top := -INF
+	for vertex in vertices:
+		top = maxf(top, vertex.y)
+	var sum := Vector3.ZERO
+	var count := 0
+	for vertex in vertices:
+		if vertex.y > top - 0.01:
+			sum += vertex
+			count += 1
+	return sum / maxi(count, 1)
+
+
+# Редкие облачка дыма из трубы.
+func _make_smoke(at: Vector3) -> CPUParticles3D:
+	var smoke := CPUParticles3D.new()
+	smoke.name = "Smoke"
+	smoke.position = at
+	smoke.emitting = false
+	smoke.amount = 7
+	smoke.lifetime = 3.2
+	smoke.local_coords = false
+	var puff_mesh := SphereMesh.new()
+	puff_mesh.radius = 0.22
+	puff_mesh.height = 0.44
+	puff_mesh.radial_segments = 6
+	puff_mesh.rings = 3
+	smoke.mesh = puff_mesh
+	var puff := StandardMaterial3D.new()
+	puff.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	puff.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	puff.vertex_color_use_as_albedo = true
+	smoke.material_override = puff
+	var fade := Gradient.new()
+	fade.offsets = PackedFloat32Array([0.0, 0.15, 1.0])
+	fade.colors = PackedColorArray([Color(1.0, 0.98, 0.94, 0.0), Color(1.0, 0.98, 0.94, 0.75),
+			Color(1.0, 0.98, 0.94, 0.0)])
+	smoke.color_ramp = fade
+	var grow := Curve.new()
+	grow.add_point(Vector2(0.0, 0.5))
+	grow.add_point(Vector2(1.0, 1.7))
+	smoke.scale_amount_curve = grow
+	smoke.direction = Vector3(0.25, 1.0, -0.1)
+	smoke.spread = 12.0
+	smoke.initial_velocity_min = 0.5
+	smoke.initial_velocity_max = 0.8
+	smoke.gravity = Vector3(0.0, 0.15, 0.0)
+	smoke.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(smoke)
+	return smoke
+
+
+# Колодец — модель KayKit.
 func _build_well() -> void:
-	Placeholder.part(self, Placeholder.cylinder(0.75, 0.7), STONE, Vector3(0.0, 0.35, 0.0))
-	Placeholder.part(self, Placeholder.cylinder(0.58, 0.04), Color(0.25, 0.45, 0.6), Vector3(0.0, 0.7, 0.0))
-	for side: float in [-1.0, 1.0]:
-		Placeholder.part(self, Placeholder.box(Vector3(0.12, 1.5, 0.12)), WOOD_DARK, Vector3(0.68 * side, 1.2, 0.0))
-	Placeholder.part(self, Placeholder.cylinder(0.06, 1.4), WOOD, Vector3(0.0, 1.6, 0.0), Vector3(0.0, 0.0, 90.0))
-	Placeholder.part(self, Placeholder.prism(Vector3(1.9, 0.6, 1.3)), roof_color, Vector3(0.0, 2.2, 0.0))
-	Placeholder.part(self, Placeholder.cylinder(0.14, 0.24, 0.17), WOOD, Vector3(0.2, 1.15, 0.0))
+	var model := _model_name()
+	Models.place(self, model, Vector3.ZERO, MODEL_SCALE[model])
 	var shape := CollisionShape3D.new()
 	var cylinder := CylinderShape3D.new()
-	cylinder.radius = 0.8
+	cylinder.radius = 0.95
 	cylinder.height = 1.4
 	shape.shape = cylinder
 	shape.position = Vector3(0.0, 0.7, 0.0)

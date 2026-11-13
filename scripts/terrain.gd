@@ -1,20 +1,20 @@
 class_name Terrain
 extends Node
-## Карта деревни: сеть дорог и высота земли в любой точке.
+## Карта деревни: дороги и высота земли в любой точке.
 ##
-## Деревня — не улица, а кольцо вокруг центральной поляны:
+## Деревня — «звезда»: в середине поляна с дубом, от неё к каждому участку
+## идёт своя короткая дорога. С поляны видны все четыре калитки, от любой
+## калитки до следующей — не больше трёх десятков шагов, заблудиться негде:
 ##
-##                    [Двор, 0 м]
-##        ┌──────── северная дорога ────────┐
-##        │                                 │
-##   [Сад │   поляна: площадка у дуба,      │ спуск ── [Фруктовый
-##  бабушки,  пруд, тропа напрямик          │ домой     сад, 4,5 м]
-##   1,5 м]                                 │
-##        └───────── южная дорога ──────────┘
-##                  [Площадь, 3 м]
+##                     [Двор, 0 м]
+##                          │
+##   [Сад бабушки, 2 м] ─ ПОЛЯНА, 1 м ─ [Фруктовый сад, 3 м]
+##                          │
+##                    [Площадь, 1,6 м]
 ##
-## Дорога поднимается по кругу от двора к фруктовому саду и оттуда крутым
-## спуском возвращается домой. Тропа через поляну — короткий путь.
+## Участки открываются по кругу против часовой стрелки: двор → сад бабушки →
+## площадь → фруктовый сад. Каждый стоит на своей террасе: от двора вся
+## деревня поднимается к фруктовому саду, за ним на холме — мельница.
 ##
 ## Участки стоят на ровных террасах (высота — y узла участка), дороги — по
 ## профилям высоты, между ними земля плавно переходит от одного к другому,
@@ -22,36 +22,41 @@ extends Node
 
 ## Ширина дороги, по которой ходит игрок, метры.
 const WIDTH := 3.8
+## Середина поляны (x, z) и её высота.
+const GREEN_CENTER := Vector2(0.0, 26.0)
+const GREEN_LEVEL := 1.0
 
-## Дороги: прямоугольник (мировые X, Z), ось («x» или «z») и профиль высоты
-## вдоль оси — точки [координата, высота]; между точками плавный подъём.
-## На перекрёстках профили совпадают.
+## Дороги начинаются в 0,9 м за калиткой: сам проход — у участка (PlotFence).
+## Где ходит игрок вне участков: прямоугольник (мировые X, Z), ось («x» или
+## «z») и профиль высоты вдоль оси — точки [координата, высота]; между
+## точками плавный подъём. Там, где области сходятся, профили совпадают.
+## «green» — не дорога, а вытоптанная трава поляны (грунт на ней не рисуется).
 var roads: Array[Dictionary] = [
-	{"name": "north", "rect": Rect2(-46.0, 9.4, 60.0, WIDTH), "axis": "x",
-		"profile": [Vector2(-46.0, 1.5), Vector2(-40.0, 1.5), Vector2(-22.0, 0.0), Vector2(14.0, 0.0)]},
-	{"name": "west", "rect": Rect2(-46.0, 9.4, WIDTH, 40.4), "axis": "z",
-		"profile": [Vector2(9.4, 1.5), Vector2(36.0, 1.5), Vector2(45.0, 3.0), Vector2(49.8, 3.0)]},
-	{"name": "south", "rect": Rect2(-46.0, 46.0, 60.0, WIDTH), "axis": "x",
-		"profile": [Vector2(-46.0, 3.0), Vector2(-1.0, 3.0), Vector2(9.0, 4.5), Vector2(14.0, 4.5)]},
-	{"name": "east", "rect": Rect2(10.2, 9.4, WIDTH, 40.4), "axis": "z",
-		"profile": [Vector2(9.4, 0.0), Vector2(13.4, 0.0), Vector2(31.0, 4.5), Vector2(49.8, 4.5)]},
-	# Короткий подъезд от восточной дороги к калитке фруктового сада: сад стоит
-	# в стороне от спуска, иначе его терраса обрывалась бы прямо в дорогу.
-	{"name": "spur", "rect": Rect2(13.0, 32.1, 9.1, WIDTH), "axis": "x",
-		"profile": [Vector2(13.0, 4.5), Vector2(22.1, 4.5)]},
-	# Тропа через поляну и площадка у дуба.
-	{"name": "path", "rect": Rect2(-17.9, 11.0, WIDTH, 37.0), "axis": "z",
-		"profile": [Vector2(11.0, 0.0), Vector2(16.0, 0.0), Vector2(26.0, 1.5), Vector2(33.0, 1.5),
-			Vector2(43.0, 3.0), Vector2(48.0, 3.0)]},
-	{"name": "glade", "rect": Rect2(-25.0, 26.0, 16.0, 7.0), "axis": "z",
-		"profile": [Vector2(26.0, 1.5), Vector2(33.0, 1.5)]},
+	{"name": "green", "rect": Rect2(-8.0, 19.0, 16.0, 14.0), "axis": "x", "green": true,
+		"profile": [Vector2(-8.0, GREEN_LEVEL), Vector2(8.0, GREEN_LEVEL)]},
+	{"name": "yard", "rect": Rect2(-WIDTH * 0.5, 9.4, WIDTH, 9.8), "axis": "z",
+		"profile": [Vector2(9.4, 0.0), Vector2(11.5, 0.0), Vector2(17.0, GREEN_LEVEL), Vector2(19.2, GREEN_LEVEL)]},
+	{"name": "garden", "rect": Rect2(-16.1, 26.0 - WIDTH * 0.5, 8.3, WIDTH), "axis": "x",
+		"profile": [Vector2(-16.1, 2.0), Vector2(-15.0, 2.0), Vector2(-10.0, GREEN_LEVEL), Vector2(-7.8, GREEN_LEVEL)]},
+	{"name": "square", "rect": Rect2(-WIDTH * 0.5, 32.8, WIDTH, 7.3), "axis": "z",
+		"profile": [Vector2(32.8, GREEN_LEVEL), Vector2(35.0, GREEN_LEVEL), Vector2(39.0, 1.6), Vector2(40.1, 1.6)]},
+	{"name": "orchard", "rect": Rect2(7.8, 26.0 - WIDTH * 0.5, 11.3, WIDTH), "axis": "x",
+		"profile": [Vector2(7.8, GREEN_LEVEL), Vector2(9.5, GREEN_LEVEL), Vector2(17.4, 3.0), Vector2(19.1, 3.0)]},
 ]
 
+## Грунт на поляне: дороги сходятся крестом к утоптанному кругу в середине.
+var dirt_rects: Array[Rect2] = [
+	Rect2(-WIDTH * 0.5, 19.0, WIDTH, 14.0),
+	Rect2(-8.0, 26.0 - WIDTH * 0.5, 16.0, WIDTH),
+]
+## Утоптанные круги: [центр (x, z), радиус].
+var dirt_spots: Array = [[GREEN_CENTER, 3.7]]
+
 ## Ровные круглые площадки вне дорог: [центр (x, z), радиус, высота].
-## Пруд на поляне и холм с мельницей.
+## Пруд у поляны и холм с мельницей.
 var flats: Array = [
-	[Vector2(-3.0, 30.0), 4.6, 1.2],
-	[Vector2(-58.0, -6.0), 5.0, 6.0],
+	[Vector2(12.0, 36.0), 3.6, 1.3],
+	[Vector2(-27.0, -9.0), 5.0, 5.5],
 ]
 
 ## Высота холмов вдали от деревни и уровень земли за краем карты.
@@ -83,6 +88,20 @@ func road_rects() -> Array[Rect2]:
 	return rects
 
 
+## Насколько точка внутри нарисованного грунта (дороги, крест и круг на
+## поляне), метры; отрицательное — снаружи. margin расширяет грунт.
+func dirt_depth(at: Vector2, margin := 0.0) -> float:
+	var depth := -INF
+	for road in roads:
+		if not road.get("green", false):
+			depth = maxf(depth, _rect_depth(road["rect"], at, margin))
+	for rect in dirt_rects:
+		depth = maxf(depth, _rect_depth(rect, at, margin))
+	for spot: Array in dirt_spots:
+		depth = maxf(depth, spot[1] + margin - at.distance_to(spot[0]))
+	return depth
+
+
 ## Высота дороги в точке (точка должна лежать на дороге или рядом с ней).
 func road_height(road: Dictionary, at: Vector2) -> float:
 	var along := at.x if road["axis"] == "x" else at.y
@@ -101,13 +120,17 @@ func road_height(road: Dictionary, at: Vector2) -> float:
 func road_depth(at: Vector2, margin := 0.0) -> float:
 	var depth := -INF
 	for road in roads:
-		var rect: Rect2 = (road["rect"] as Rect2).grow(margin)
-		var inside := minf(minf(at.x - rect.position.x, rect.end.x - at.x),
-				minf(at.y - rect.position.y, rect.end.y - at.y))
-		if inside < 0.0:
-			inside = -at.distance_to(at.clamp(rect.position, rect.end))
-		depth = maxf(depth, inside)
+		depth = maxf(depth, _rect_depth(road["rect"], at, margin))
 	return depth
+
+
+func _rect_depth(area: Rect2, at: Vector2, margin: float) -> float:
+	var rect := area.grow(margin)
+	var inside := minf(minf(at.x - rect.position.x, rect.end.x - at.x),
+			minf(at.y - rect.position.y, rect.end.y - at.y))
+	if inside < 0.0:
+		inside = -at.distance_to(at.clamp(rect.position, rect.end))
+	return inside
 
 
 ## Высота земли в точке (x, z) — для игрока, земли и россыпей.

@@ -79,6 +79,10 @@ var music_enabled := true
 ## Качество графики: 0 — низкое, 1 — среднее, 2 — высокое, -1 — выбрать по устройству.
 var graphics_quality := -1
 var show_fps := false
+## Сенсорное управление: 0 — джойстик появляется под пальцем и идёт за ним,
+## 1 — джойстик закреплён слева внизу, 2 — косилка едет к пальцу.
+var touch_controls := 0
+const TOUCH_CONTROLS := ["джойстик под пальцем", "джойстик слева", "вести пальцем"]
 
 
 func _ready() -> void:
@@ -253,6 +257,12 @@ func set_show_fps(enabled: bool) -> void:
 	save_game()
 
 
+func set_touch_controls(scheme: int) -> void:
+	touch_controls = posmod(scheme, TOUCH_CONTROLS.size())
+	settings_changed.emit()
+	save_game()
+
+
 func save_game() -> void:
 	saving.emit()
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -269,6 +279,7 @@ func save_game() -> void:
 		"music_enabled": music_enabled,
 		"graphics_quality": graphics_quality,
 		"show_fps": show_fps,
+		"touch_controls": touch_controls,
 		"bag_fill": bag_fill,
 		"upgrade_levels": upgrade_levels,
 		"flags": flags,
@@ -294,6 +305,7 @@ func load_game() -> void:
 	music_enabled = data.get("music_enabled", true)
 	graphics_quality = data.get("graphics_quality", -1)
 	show_fps = data.get("show_fps", false)
+	touch_controls = clampi(data.get("touch_controls", 0), 0, TOUCH_CONTROLS.size() - 1)
 	bag_fill = data.get("bag_fill", 0.0)
 	upgrade_levels = data.get("upgrade_levels", {})
 	flags = data.get("flags", {})

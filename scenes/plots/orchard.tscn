@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://scripts/plot.gd" id="1_plot"]
 [ext_resource type="Script" path="res://scripts/mow_field.gd" id="2_field"]
@@ -9,7 +9,6 @@
 [ext_resource type="Script" path="res://scripts/stone.gd" id="7_stone"]
 [ext_resource type="Script" path="res://scripts/find_item.gd" id="8_find"]
 [ext_resource type="Script" path="res://scripts/flower_bed.gd" id="9_bed"]
-[ext_resource type="Script" path="res://scripts/wild_flowers.gd" id="10_wild"]
 [ext_resource type="Script" path="res://scripts/animal.gd" id="11_animal"]
 [ext_resource type="Script" path="res://scripts/stepping_stones.gd" id="12_stones"]
 [ext_resource type="Script" path="res://scripts/props_cluster.gd" id="90_cluster"]
@@ -21,7 +20,7 @@ plot_name = "Фруктовый сад"
 completed_title = "Фруктовый сад выкошен!"
 reward_coins = 400
 requires_plot = "square"
-unlock_text = "Калитка во фруктовый сад открыта — он рядом с площадью"
+unlock_text = "Калитка во фруктовый сад открыта — он на горке за поляной"
 locked_text = "Фруктовый сад пока закрыт. Сначала выкосите площадь"
 
 [node name="MowField" type="Node3D" parent="."]
@@ -186,31 +185,6 @@ kind = 4
 owner_name = "Мастер"
 return_reward = 20
 thanks = "Второй! Теперь у них будет компания."
-
-[node name="Wild1" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0, 7.6)
-script = ExtResource("10_wild")
-flowers_id = "orchard_1"
-
-[node name="Wild2" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.4, 0, 7.9)
-script = ExtResource("10_wild")
-flowers_id = "orchard_2"
-
-[node name="Wild3" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.6, 0, 0.6)
-script = ExtResource("10_wild")
-flowers_id = "orchard_3"
-
-[node name="Wild4" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, -5.4)
-script = ExtResource("10_wild")
-flowers_id = "orchard_4"
-
-[node name="Wild5" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 1.6)
-script = ExtResource("10_wild")
-flowers_id = "orchard_5"
 
 [node name="BedLeft" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.6, 0, 8.4)

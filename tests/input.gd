@@ -109,6 +109,52 @@ func _run() -> void:
 	await frames(20)
 	check(move_vector() == Vector2.ZERO, "joystick released")
 
+	# 3b. Сенсорные схемы: джойстик идёт за пальцем, закреплён слева или «вести пальцем».
+	var hud_node = current_scene.get_node("HUD")
+	var stick = hud_node.get_node("VirtualJoystick")
+	var pad = hud_node.get_node("TouchPad")
+	check(stick.joystick_mode == 2 and stick.visible and not pad.visible, "by default the joystick follows the finger")
+	game_state.set_touch_controls(1)
+	check(stick.joystick_mode == 0 and stick.visibility_mode == 0 and stick.visible, "second scheme: a fixed joystick that is always shown")
+	game_state.set_touch_controls(2)
+	check(not stick.visible and pad.visible and player.touch_pad == pad, "third scheme: lead with a finger")
+	player.global_position = Vector3(0, 0, 3.0)
+	player.rotation = Vector3.ZERO
+	await frames(40)
+	var finger_goal: Vector3 = player.global_position + Vector3(4.0, 0, 0)
+	var finger: Vector2 = camera.unproject_position(finger_goal)
+	touch(0, finger, true)
+	await frames(2)
+	check(pad.held, "the touch pad holds the finger")
+	await frames(100)
+	print("finger: player at ", player.global_position)
+	check(player.global_position.x > 1.2 and absf(player.global_position.z - 3.0) < 1.6, "the mower drives toward the finger")
+	touch(0, finger, false)
+	await frames(30)
+	check(not pad.held and player.velocity.length() < 0.05, "lifting the finger stops the mower")
+	game_state.set_touch_controls(0)
+	check(stick.joystick_mode == 2 and stick.visible and not pad.visible and player.touch_pad == null, "back to the following joystick")
+
+	# 3c. Разворот: направление за спиной — косилка доворачивает в одну сторону.
+	player.global_position = Vector3(0, 0, 3.0)
+	player.rotation = Vector3.ZERO
+	await frames(30)
+	Input.action_press("move_down"); Input.action_press("move_left")
+	var turned := 0.0
+	var reversals := 0
+	var last_yaw: float = player.rotation.y
+	for i in 80:
+		await physics_frame
+		var step: float = angle_difference(last_yaw, player.rotation.y)
+		if absf(step) > 0.0001 and turned != 0.0 and signf(step) != signf(turned):
+			reversals += 1
+		turned += step
+		last_yaw = player.rotation.y
+	Input.action_release("move_down"); Input.action_release("move_left")
+	await frames(20)
+	print("u-turn: turned %.2f rad, reversals %d" % [turned, reversals])
+	check(absf(absf(turned) - PI) < 0.25 and reversals == 0, "a U-turn goes one way and finishes in about a second")
+
 	# 4. Колесо мыши.
 	var wheel := InputEventMouseButton.new()
 	wheel.button_index = MOUSE_BUTTON_WHEEL_DOWN
@@ -156,13 +202,14 @@ func _run() -> void:
 	print("turn: blade moved %.2f, body moved %.2f" % [blade_shift, body_shift])
 	check(blade_shift < body_shift, "turning pivots around the mower, not the character")
 	check(is_equal_approx(player.get_cut_width(), player.blade_width + 0.18), "cut reaches the middle of the wheels")
-	player.global_position = Vector3(-24.0, 0, 11.3)
-	player.rotation = Vector3(0, PI * 0.5, 0)
+	# Дорога от калитки двора к поляне идёт на +Z и поднимается.
+	player.global_position = Vector3(0, 0, 10.5)
+	player.rotation = Vector3(0, PI, 0)
 	await frames(5)
-	Input.action_press("move_up"); Input.action_press("move_left")
+	Input.action_press("move_down"); Input.action_press("move_left")
 	await frames(90)
 	var road_speed: float = player.velocity.length()
-	Input.action_release("move_up"); Input.action_release("move_left")
+	Input.action_release("move_down"); Input.action_release("move_left")
 	print("road speed %.2f" % road_speed)
 	check(road_speed > player.speed * 1.3, "the mower rolls faster on the street")
 	check(player.global_position.y > 0.2, "the road climbs toward the next plots")

@@ -239,8 +239,7 @@ func _build_hedge() -> void:
 	while x <= _half.x:
 		var blocked := false
 		for building in buildings:
-			var width := 3.6 if building.kind == PlotProp.Kind.HOUSE else 1.9
-			if absf(to_local(building.global_position).x - x) < width:
+			if absf(to_local(building.global_position).x - x) < building.get_width() * 0.5 + 0.7:
 				blocked = true
 		if not blocked:
 			var size := rng.randf_range(0.6, 0.85)

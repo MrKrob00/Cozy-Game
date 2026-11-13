@@ -40,7 +40,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.2, 0, -7.5)
 script = ExtResource("12_bedtime")
 
 [node name="Shed" type="StaticBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.2, 0, -8.8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.2, 0, -9.3)
 script = ExtResource("4_prop")
 kind = 1
 
@@ -55,7 +55,7 @@ script = ExtResource("11_villager")
 display_name = "Мастер"
 appears_after_plot = "yard"
 arrival_text = "В деревню вернулся Мастер — он ждёт у сарая"
-lines = PackedStringArray("Хорошая работа! Загляни в сарай — подкрутим твою косилку.", "Сад бабушки дальше по улице, направо. Он совсем зарос.", "Шире нож — меньше проходов. А с большим мешком реже ездить к ящику.")
+lines = PackedStringArray("Хорошая работа! Загляни в сарай — подкрутим твою косилку.", "Сад бабушки — за поляной с колодцем, по дороге налево. Он совсем зарос.", "Шире нож — меньше проходов. А с большим мешком реже ездить к ящику.")
 needs_flag = "find_shed_key"
 needs_flag_line = "Сарай заперт. Ключ где-то в траве — поищи там, где ещё не кошено."
 

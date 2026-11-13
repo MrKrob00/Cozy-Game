@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/plot.gd" id="1_plot"]
 [ext_resource type="Script" path="res://scripts/mow_field.gd" id="2_field"]
@@ -9,7 +9,6 @@
 [ext_resource type="Script" path="res://scripts/animal.gd" id="7_animal"]
 [ext_resource type="Script" path="res://scripts/find_item.gd" id="8_find"]
 [ext_resource type="Script" path="res://scripts/flower_bed.gd" id="9_bed"]
-[ext_resource type="Script" path="res://scripts/wild_flowers.gd" id="10_wild"]
 [ext_resource type="Script" path="res://scripts/villager.gd" id="11_villager"]
 [ext_resource type="Script" path="res://scripts/props_cluster.gd" id="90_cluster"]
 
@@ -20,7 +19,7 @@ plot_name = "Сад бабушки"
 completed_title = "Сад бабушки выкошен!"
 reward_coins = 120
 requires_plot = "yard"
-unlock_text = "Калитка в сад бабушки открыта — он дальше по улице"
+unlock_text = "Калитка в сад бабушки открыта — идите по стрелкам на земле"
 locked_text = "Сад бабушки пока закрыт. Сначала выкосите свой двор"
 
 [node name="MowField" type="Node3D" parent="."]
@@ -39,8 +38,7 @@ random_seed = 9
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, -10.9)
 script = ExtResource("4_prop")
 kind = 0
-wall_color = Color(0.97, 0.88, 0.9, 1)
-roof_color = Color(0.42, 0.58, 0.76, 1)
+house_model = "house_b"
 
 [node name="Grandma" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.6, 0, -8.3)
@@ -57,7 +55,7 @@ needs_flag_line = "Спасибо за сад! Только очки мои гд
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.5, 0, -3)
 script = ExtResource("4_prop")
 kind = 4
-roof_color = Color(0.42, 0.58, 0.76, 1)
+blue_roof = true
 
 [node name="AppleTree" type="StaticBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.8, 0, 3.6)
@@ -96,26 +94,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.3, 0, -6.1)
 script = ExtResource("9_bed")
 bed_id = "garden_right"
 bed_size = Vector2(2, 0.9)
-
-[node name="Poppies" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, -1.5)
-script = ExtResource("10_wild")
-flowers_id = "garden_poppies"
-
-[node name="Daisies" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.6, 0, 2.2)
-script = ExtResource("10_wild")
-flowers_id = "garden_daisies"
-
-[node name="Cornflowers" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0, 0.4)
-script = ExtResource("10_wild")
-flowers_id = "garden_cornflowers"
-
-[node name="Meadowsweet" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.6, 0, 4.6)
-script = ExtResource("10_wild")
-flowers_id = "garden_meadowsweet"
 
 [node name="CompostBin" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.4, 0, 8.4)

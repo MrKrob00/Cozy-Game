@@ -1,7 +1,8 @@
 class_name GoalPointer
 extends Control
-## Стрелка у края экрана: куда идти дальше. Указывает на калитку первого
-## открытого, но ещё не выкошенного участка, пока она за кадром.
+## Стрелка у края экрана: куда идти дальше. Ведёт по той же дорожке, что и
+## стрелки на земле (GuideTrail): показывает на первый её поворот, который
+## не виден на экране, а в конце — на калитку следующего участка.
 
 const MARGIN := 70.0
 const SIZE := 34.0
@@ -17,7 +18,7 @@ var _angle := 0.0
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 
 func _process(delta: float) -> void:
@@ -27,13 +28,27 @@ func _process(delta: float) -> void:
 	var camera := get_viewport().get_camera_3d()
 	if target == null or camera == null or target.fence == null:
 		return
-	var gate := target.fence.get_gate_position() + Vector3.UP * 1.0
 	var screen := get_viewport_rect().size
-	var on_screen := camera.unproject_position(gate)
-	var behind := camera.is_position_behind(gate)
 	var inner := Rect2(Vector2.ZERO, screen).grow(-MARGIN)
-	if not behind and inner.has_point(on_screen):
+	# Первая точка дорожки за кадром; если дорожки нет — сама калитка.
+	var points := PackedVector3Array()
+	var trail := get_tree().get_first_node_in_group("guide_trail") as GuideTrail
+	if trail:
+		points = trail.get_points()
+	if points.is_empty():
+		points.append(target.fence.get_gate_position())
+	var aim := Vector3.ZERO
+	var found := false
+	for i in range(mini(1, points.size() - 1), points.size()):
+		var point := points[i] + Vector3.UP * 1.0
+		if camera.is_position_behind(point) or not inner.has_point(camera.unproject_position(point)):
+			aim = point
+			found = true
+			break
+	if not found:
 		return
+	var on_screen := camera.unproject_position(aim)
+	var behind := camera.is_position_behind(aim)
 	# Переводим из пикселей окна в координаты интерфейса.
 	var scale := size / screen
 	var center := size * 0.5
@@ -62,15 +77,6 @@ func _draw() -> void:
 	draw_polyline(points, OUTLINE, 4.0, true)
 
 
-# Цель — первый по цепочке участок, который открыт и не выкошен, и игрок не на нём.
 func _next_goal() -> Plot:
 	var village := get_tree().get_first_node_in_group("village") as Village
-	for node in get_tree().get_nodes_in_group("plot"):
-		var plot := node as Plot
-		if plot.is_unlocked() and not plot.is_completed():
-			if village and village.current_plot == plot and plot.get_progress() > 0.0:
-				return null
-			if plot.plot_id == "yard":
-				return null
-			return plot
-	return null
+	return village.next_goal() if village else null

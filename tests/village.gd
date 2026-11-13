@@ -1,6 +1,6 @@
 extends SceneTree
 # Проверка деревни: закрытая калитка, апгрейды и мастерская, открытие сада
-# после двора, жители, полевые цветы, сохранение апгрейдов.
+# после двора (показ калитки и дорожка стрелок), жители, сохранение апгрейдов.
 #
 # Запуск из папки проекта:
 #   godot --headless --path . --fixed-fps 60 --script tests/village.gd
@@ -97,9 +97,9 @@ func _run() -> void:
 	check(hud.get_node("%ProgressLabel").text.begins_with("Двор"), "HUD shows the yard")
 	check(yard.is_unlocked() and not garden.is_unlocked(), "garden is locked until the yard is mowed")
 	check(garden.global_position.y > yard.global_position.y + 1.0, "each next plot sits higher")
-	# Карта — кольцо: от двора до сада можно дойти и по дороге, и через поляну.
+	# Карта — «звезда»: поляна в середине, от неё к каждой калитке своя дорога.
 	var terrain = village.get_node("Terrain")
-	check(terrain.roads.size() >= 6, "the village is a road network, not one street")
+	check(terrain.roads.size() == 5 and terrain.roads[0].get("green", false), "the village is a green with a road to each plot")
 	var junctions := 0
 	for a in terrain.roads:
 		for b in terrain.roads:
@@ -109,7 +109,10 @@ func _run() -> void:
 				junctions += 1
 				if absf(terrain.road_height(a, center) - terrain.road_height(b, center)) > 0.02:
 					check(false, "roads %s and %s meet at different heights" % [a["name"], b["name"]])
-	check(junctions >= 14, "roads connect into a ring with a shortcut (%d junction pairs)" % junctions)
+	check(junctions == 8, "every road meets the green and nothing else (%d junction pairs)" % junctions)
+	for plot in get_nodes_in_group("plot"):
+		var to_green: float = Vector2(plot.fence.get_gate_position().x, plot.fence.get_gate_position().z).distance_to(terrain.GREEN_CENTER)
+		check(to_green < 22.0, "%s gate is a short walk from the green (%.0f m)" % [plot.plot_name, to_green])
 	for plot in get_nodes_in_group("plot"):
 		var gate_at: Vector3 = plot.fence.get_gate_position()
 		var outside: Vector3 = gate_at + plot.fence.global_basis.z.normalized() * 1.6
@@ -122,7 +125,7 @@ func _run() -> void:
 	print("yard %.0f m2, garden %.0f m2" % [yard_cells / 64.0, garden_cells / 64.0])
 	check(garden_cells > yard_cells * 1.3, "garden is bigger than the yard")
 	check(yard.members("find").size() == 3 and garden.members("find").size() == 3, "finds belong to their plots")
-	check(garden.get_stamps().size() == 6, "garden has six stamps (with wild flowers)")
+	check(garden.get_stamps().size() == 5, "garden has five stamps")
 
 	# 2. Выход на улицу через калитку двора, закрытая калитка сада не пускает.
 	var past_gate: float = await enter_gate(garden, player, 300)
@@ -162,21 +165,55 @@ func _run() -> void:
 	# 5. Двор выкошен — сад открывается, возвращается Мастер.
 	var master = yard.get_node("Master")
 	check(not master.is_present() and not master.visible, "master is away at first")
+	player.global_position = Vector3(0, 0, 3.0)
+	await frames(3)
 	yard.field.mow(yard.global_position, Vector3.FORWARD, 30.0, 30.0)
 	await frames(5)
 	check(yard.is_completed() and garden.is_unlocked(), "mowing the yard unlocks the garden")
-	check(garden.get_walk_rects().size() == 2, "garden gate passage appears")
-	check(toasts.any(func(t): return t.begins_with("Калитка в сад бабушки открыта")), "unlock toast")
-	check(garden.fence.has_guide_arrow(), "an arrow over the garden gate shows the way")
-	check(garden.fence.get("_sign_label").text.contains("Сад бабушки") and not garden.fence.get("_sign_label").text.contains("закрыто"), "the garden signpost no longer says closed")
-	var pointer = hud.get_node("Root/GoalPointer")
-	await frames(3)
-	check(pointer.target == garden, "the screen-edge pointer leads to the garden")
+	check(garden.reveal_pending and garden.get_walk_rects().size() == 1, "the gate stays shut until the player is shown it")
+	var trail = village.get_node("GuideTrail")
+	check(village.next_goal() == null and trail.mark_count() == 0, "no trail before the gate is shown")
 	check(garden.get_progress() == 0.0, "mowing the yard does not touch the garden")
 	for i in 460:
 		await process_frame
 	check(master.is_present() and master.visible, "master returns after the yard is mowed")
+	# Окно завершения закрыто: камера едет к калитке сада, и она открывается.
+	var camera = village.get_node("Camera")
 	hud.get_node("%Completion").visible = false
+	await frames(2)
+	check(camera.is_revealing() and not player.controls_enabled, "the camera goes to show the new gate, the player waits")
+	await frames(110)
+	var gate_at: Vector3 = garden.fence.get_gate_position()
+	check(not garden.reveal_pending and garden.get_walk_rects().size() == 2, "garden gate passage appears")
+	check(camera.global_position.distance_to(gate_at) < camera.global_position.distance_to(player.global_position), "the camera is at the garden gate while it opens")
+	check(toasts.any(func(t): return t.begins_with("Калитка в сад бабушки открыта")), "unlock toast")
+	check(garden.fence.has_guide_arrow(), "an arrow over the garden gate shows the way")
+	check(garden.fence.get("_sign_label").text.contains("Сад бабушки") and not garden.fence.get("_sign_label").text.contains("закрыто"), "the garden signpost no longer says closed")
+	await frames(220)
+	check(not camera.is_revealing() and player.controls_enabled, "the camera comes back and the player moves again")
+	var pointer = hud.get_node("Root/GoalPointer")
+	check(pointer.target == garden and village.next_goal() == garden, "the screen-edge pointer leads to the garden")
+	check(pointer.visible and pointer.size.x > 100.0, "the pointer is drawn at the screen edge while the gate is out of view")
+	# Дорожка стрелок на земле: от игрока до калитки, только по проходимым местам.
+	var path: PackedVector2Array = trail.get_path_to_goal()
+	check(trail.mark_count() > 8, "arrows on the ground lead to the garden (%d)" % trail.mark_count())
+	check(path.size() >= 3 and path[-1].distance_to(Vector2(gate_at.x, gate_at.z)) < 0.1, "the trail ends at the garden gate")
+	var walkable := true
+	for i in path.size() - 1:
+		for k in 11:
+			var point: Vector2 = path[i].lerp(path[i + 1], k / 10.0)
+			var inside := false
+			for area in get_nodes_in_group("walk_area"):
+				for rect: Rect2 in area.get_walk_rects():
+					if rect.grow(0.45).has_point(point):
+						inside = true
+			if not inside or point.distance_to(terrain.GREEN_CENTER) < 1.2:
+				walkable = false
+	check(walkable, "the trail stays where the player can walk and goes round the well")
+	var length := 0.0
+	for i in path.size() - 1:
+		length += path[i].distance_to(path[i + 1])
+	check(length < 45.0, "the way to the next plot is short (%.0f m)" % length)
 
 	# 6. Заходим в сад через калитку и косим.
 	gs.empty_bag()
@@ -189,30 +226,20 @@ func _run() -> void:
 	check(garden.get_progress() > 0.005 and gs.bag_fill > 2.0, "mowing works on the second plot")
 	check(not garden.fence.has_guide_arrow(), "the guide arrow goes once the player mows the garden")
 
-	# 7. Полевые цветы: наехали — скошены, объехали — остались.
-	var poppies = garden.get_node("Poppies")
-	check(poppies.is_alive(), "wild flowers start alive")
-	player.global_position = poppies.global_position + Vector3(0, 0, 3.0)
-	player.rotation = Vector3(0, 0, 0)
-	await walk_north(120)
-	check(not poppies.is_alive(), "driving over wild flowers cuts them")
-	check(toasts.any(func(t): return t.begins_with("Полевые цветы!")), "wild flowers hint")
-	check(garden.get_node("Daisies").is_alive(), "other wild flowers are untouched")
+	check(trail.mark_count() == 0 and village.next_goal() == null, "the trail goes once the player mows the garden")
 
-	# 8. Сад выкошен: награда и бонус за три сохранённые куртины, приходит бабушка.
+	# 7. Сад выкошен: награда, приходит бабушка.
 	var coins_before: int = gs.coins
 	garden.field.mow(garden.global_position, Vector3.FORWARD, 40.0, 40.0)
 	await frames(5)
 	check(garden.is_completed(), "garden completes")
-	check(gs.coins == coins_before + 120 + 15, "garden reward plus bonus for 3 saved flower patches")
+	check(gs.coins == coins_before + 120, "garden reward")
 	var grandma = garden.get_node("Grandma")
 	for i in 460:
 		await process_frame
 	check(grandma.is_present(), "grandma returns to her garden")
-	var stamps: Array = garden.get_stamps()
-	check(not stamps[5].earned and stamps[5].title.contains("3 из 4"), "wild flowers stamp counts saved patches")
 
-	# 9. Сохранение: апгрейды и срезанные цветы переживают перезагрузку.
+	# 8. Сохранение: апгрейды переживают перезагрузку.
 	gs.save_game()
 	var saved_coins: int = gs.coins
 	gs.clear()
@@ -224,7 +251,7 @@ func _run() -> void:
 	check(gs.coins == saved_coins and gs.upgrade_level("blade") == 2, "coins and upgrades restored")
 	check(is_equal_approx(player.blade_width, 1.0) and is_equal_approx(player.speed, 3.5), "player uses restored upgrades")
 	check(village.get_node("Garden").is_unlocked() and village.get_node("Garden").is_completed(), "garden state restored")
-	check(not village.get_node("Garden/Poppies").is_alive() and village.get_node("Garden/Daisies").is_alive(), "wild flowers state restored")
+	check(not village.get_node("Garden").reveal_pending and village.get_node("Garden").get_walk_rects().size() == 2, "an unlocked gate is open after reload")
 	check(village.get_node("Yard/Master").is_present() and village.get_node("Garden/Grandma").is_present(), "villagers stay after reload")
 	check(village.get_node("Yard/Workshop").can_interact(player), "workshop stays open after reload")
 

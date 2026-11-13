@@ -46,6 +46,7 @@ const TYPE_SPEED := 0.028
 @onready var _diag_label: Label = %DiagLabel
 @onready var _fps_label: Label = %FpsLabel
 @onready var _joystick: VirtualJoystick = $VirtualJoystick
+@onready var _controls_button: Button = %ControlsButton
 @onready var _reset_button: Button = %ResetButton
 @onready var _quit_button: Button = %QuitButton
 @onready var _workshop_panel: Control = %WorkshopPanel
@@ -90,6 +91,9 @@ var _stamp_tweens: Array[Tween] = []
 var _fps_timer := 0.0
 var _new_game_armed := false
 var _title_bob: Tween
+var _touch_pad: TouchPad
+## Игра идёт (не титульный экран): сенсорное управление включено.
+var _controls_live := true
 
 
 func _enter_tree() -> void:
@@ -103,6 +107,15 @@ func _ready() -> void:
 	get_tree().root.size_changed.connect(_apply_safe_area)
 	# Короткий тап по экрану — то же, что кнопка действия.
 	_joystick.tapped.connect(_on_screen_tapped)
+	# Схема «вести пальцем»: свой слой касаний на месте джойстика.
+	_touch_pad = TouchPad.new()
+	_touch_pad.name = "TouchPad"
+	_touch_pad.process_mode = Node.PROCESS_MODE_PAUSABLE
+	add_child(_touch_pad)
+	move_child(_touch_pad, _joystick.get_index())
+	_touch_pad.tapped.connect(_on_screen_tapped)
+	GameState.settings_changed.connect(_apply_touch_controls)
+	_apply_touch_controls()
 
 	_player = get_tree().get_first_node_in_group("player") as Player
 	var camera := get_viewport().get_camera_3d() as FollowCamera
@@ -157,6 +170,11 @@ func _ready() -> void:
 	_fps_button.pressed.connect(func() -> void:
 		GameState.set_show_fps(not GameState.show_fps)
 		_update_settings_buttons())
+	_controls_button.pressed.connect(func() -> void:
+		GameState.set_touch_controls(GameState.touch_controls + 1)
+		_update_settings_buttons())
+	# Выбор сенсорной схемы нужен только там, где есть сенсорный экран.
+	_controls_button.visible = _touch
 	_reset_button.pressed.connect(_on_reset_pressed)
 	_quit_button.pressed.connect(func() -> void:
 		GameState.save_game()
@@ -164,12 +182,16 @@ func _ready() -> void:
 	_continue_button.pressed.connect(func() -> void:
 		_completion.visible = false
 		_continue_button.text = "Косить дальше")
+	# Окно завершения закрыто — показываем, какая калитка открылась.
+	_completion.visibility_changed.connect(func() -> void:
+		if not _completion.visible:
+			_reveal_next_plot())
 	_workshop_close.pressed.connect(close_workshop)
 	# На телефоне и в браузере приложение закрывает система.
 	_quit_button.visible = not (OS.has_feature("mobile") or OS.has_feature("web"))
 	_update_settings_buttons()
 	for button: Button in [_action_button, _pause_button, _resume_button, _sound_button,
-			_music_button, _graphics_button, _fps_button, _reset_button, _quit_button, _continue_button,
+			_music_button, _graphics_button, _fps_button, _controls_button, _reset_button, _quit_button, _continue_button,
 			_workshop_close]:
 		button.pressed.connect(_on_any_button_pressed.bind(button))
 
@@ -216,8 +238,8 @@ func is_title_shown() -> bool:
 func _show_title() -> void:
 	_title_panel.visible = true
 	_margin.visible = false
-	_joystick.visible = false
-	_joystick.process_mode = Node.PROCESS_MODE_DISABLED
+	_controls_live = false
+	_apply_touch_controls()
 	if _player:
 		_player.controls_enabled = false
 	var camera := get_viewport().get_camera_3d() as FollowCamera
@@ -260,8 +282,8 @@ func _on_play_pressed() -> void:
 		camera.set_menu(false)
 	if _player:
 		_player.controls_enabled = true
-	_joystick.visible = true
-	_joystick.process_mode = Node.PROCESS_MODE_INHERIT
+	_controls_live = true
+	_apply_touch_controls()
 	_margin.visible = true
 	Juice.pop_in(_margin, 0.35)
 	Sfx.play("chime", -8.0)
@@ -604,6 +626,24 @@ func _on_plot_completed(plot: Plot) -> void:
 				Juice.punch(stamp, 0.1))
 
 
+# Камера едет к калитке участка, который только что открылся, калитка
+# распахивается, и камера возвращается. Игрок в это время стоит.
+func _reveal_next_plot() -> void:
+	for plot: Plot in get_tree().get_nodes_in_group("plot"):
+		if not plot.reveal_pending:
+			continue
+		var camera := get_viewport().get_camera_3d() as FollowCamera
+		if camera == null or plot.fence == null:
+			plot.reveal()
+			continue
+		if _player:
+			_player.controls_enabled = false
+		camera.show_point(plot.fence.get_gate_position() + Vector3.UP * 0.8, plot.reveal)
+		await camera.reveal_finished
+		if _player and not _title_panel.visible:
+			_player.controls_enabled = true
+
+
 func _kill_stamp_tweens() -> void:
 	for tween in _stamp_tweens:
 		if tween.is_valid():
@@ -641,7 +681,29 @@ func _on_screen_tapped() -> void:
 		_action_button.pressed.emit()
 
 
+# Включает выбранную сенсорную схему: один из видов джойстика или «вести пальцем».
+func _apply_touch_controls() -> void:
+	var scheme := GameState.touch_controls
+	var stick := _controls_live and scheme != 2
+	_joystick.visible = stick
+	_joystick.process_mode = Node.PROCESS_MODE_PAUSABLE if stick else Node.PROCESS_MODE_DISABLED
+	if scheme == 1:
+		# Закреплённый джойстик виден всегда и стоит слева внизу.
+		_joystick.joystick_mode = VirtualJoystick.JOYSTICK_FIXED
+		_joystick.visibility_mode = VirtualJoystick.VISIBILITY_ALWAYS
+		_joystick.initial_offset_ratio = Vector2(0.14, 0.74)
+	else:
+		# Джойстик появляется под пальцем и идёт за ним: палец не «уезжает»
+		# с джойстика, а сменить направление можно коротким движением.
+		_joystick.joystick_mode = VirtualJoystick.JOYSTICK_FOLLOWING
+		_joystick.visibility_mode = VirtualJoystick.VISIBILITY_WHEN_TOUCHED
+	_touch_pad.visible = _controls_live and scheme == 2
+	if _player:
+		_player.touch_pad = _touch_pad if scheme == 2 else null
+
+
 func _update_settings_buttons() -> void:
+	_controls_button.text = "Управление: %s" % GameState.TOUCH_CONTROLS[GameState.touch_controls]
 	_sound_button.text = "Звуки: включены" if GameState.sound_enabled else "Звуки: выключены"
 	_music_button.text = "Музыка: включена" if GameState.music_enabled else "Музыка: выключена"
 	_graphics_button.text = "Графика: %s" % Graphics.preset["title"]

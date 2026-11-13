@@ -7,9 +7,12 @@ KayKit раскрашивает модели одной текстурой-па�
 В альфе цвета — сила качания на ветру (кроны деревьев), её читает шейдер.
 
 Запуск из папки проекта (нужны numpy и Pillow):
-  python3 tools/convert_kaykit.py <папка KayKit-Medieval-Hexagon-Pack>
+  python3 tools/convert_kaykit.py <папка, в которой лежат скачанные наборы>
 
-Источник: https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0
+Наборы (все CC0), каждый — своей папкой с именем как у репозитория:
+  https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0
+  https://github.com/KayKit-Game-Assets/KayKit-City-Builder-Bits-1.0
+  https://github.com/KayKit-Game-Assets/KayKit-Halloween-Bits-1.0
 """
 
 import base64
@@ -23,7 +26,15 @@ from PIL import Image
 
 OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "models")
 
-# (файл в паке, имя у нас, качание: None — нет, число — высота, выше которой качается крона)
+# Наборы: имя папки (регистр не важен) и путь к моделям внутри неё.
+PACKS = {
+    "hex": ("kaykit-medieval-hexagon-pack-1.0", "addons/kaykit_medieval_hexagon_pack/Assets/gltf"),
+    "city": ("kaykit-city-builder-bits-1.0", "addons/kaykit_city_builder_bits/Assets/gltf"),
+    "halloween": ("kaykit-halloween-bits-1.0", "addons/kaykit_halloween_bits/Assets/gltf"),
+}
+
+# (файл в наборе hex или «набор:файл», имя у нас, качание: None — нет, число —
+# высота, выше которой качается крона; необязательно — какую часть модели взять)
 MODELS = [
     ("decoration/nature/tree_single_A.gltf", "tree_pine", 0.35),
     ("decoration/nature/tree_single_B.gltf", "tree_round", 0.45),
@@ -47,6 +58,30 @@ MODELS = [
     ("buildings/yellow/building_windmill_yellow.gltf", "windmill", None, "-fan"),
     # Крылья мельницы — отдельно, с центром на оси: их вращает игра.
     ("buildings/yellow/building_windmill_yellow.gltf", "windmill_fan", None, "+fan"),
+    # Постройки. У набора четыре расцветки крыш: берём разные, чтобы дома отличались.
+    ("buildings/red/building_home_A_red.gltf", "house_a", None),
+    ("buildings/blue/building_home_B_blue.gltf", "house_b", None),
+    ("buildings/green/building_home_A_green.gltf", "house_c", None),
+    ("buildings/yellow/building_home_B_yellow.gltf", "house_d", None),
+    ("buildings/yellow/building_tavern_yellow.gltf", "tavern", None),
+    ("buildings/yellow/building_blacksmith_yellow.gltf", "blacksmith", None),
+    ("buildings/red/building_market_red.gltf", "market", None),
+    ("buildings/yellow/building_well_yellow.gltf", "well", None),
+    ("buildings/blue/building_well_blue.gltf", "well_blue", None),
+    ("buildings/blue/building_church_blue.gltf", "church", None),
+    ("buildings/green/building_lumbermill_green.gltf", "lumbermill", None),
+    ("decoration/props/resource_stone.gltf", "stone_pile", None),
+    ("decoration/props/crate_long_A.gltf", "crate_long", None),
+    ("decoration/nature/waterplant_A.gltf", "waterplant_a", None),
+    ("decoration/nature/waterplant_B.gltf", "waterplant_b", None),
+    ("decoration/nature/tree_single_A_cut.gltf", "stump_a", None),
+    ("decoration/nature/tree_single_B_cut.gltf", "stump_b", None),
+    # Фонарь на столбе, напольный фонарь и тыквы — из набора Halloween Bits
+    # (он в натуральную величину, остальные наборы мельче).
+    ("halloween:post_lantern.gltf", "post_lantern", None),
+    ("halloween:lantern_standing.gltf", "lantern", None),
+    ("halloween:pumpkin_orange.gltf", "pumpkin", None),
+    ("halloween:pumpkin_orange_small.gltf", "pumpkin_small", None),
 ]
 
 COMPONENT = {5120: "b", 5121: "B", 5122: "h", 5123: "H", 5125: "I", 5126: "f"}
@@ -117,8 +152,18 @@ def srgb_to_linear(c):
     return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
 
 
-def convert(pack, source, name, sway_from, part=""):
-    path = os.path.join(pack, "addons/kaykit_medieval_hexagon_pack/Assets/gltf", source)
+def pack_path(root, source):
+    """Путь к файлу модели: «набор:файл» или просто файл из набора hex."""
+    pack, _, file = source.rpartition(":")
+    folder, inner = PACKS[pack or "hex"]
+    for entry in os.listdir(root):
+        if entry.lower() == folder:
+            return os.path.join(root, entry, inner, file)
+    sys.exit(f"Нет набора {folder} в {root}")
+
+
+def convert(root, source, name, sway_from, part=""):
+    path = pack_path(root, source)
     folder = os.path.dirname(path)
     gltf = json.load(open(path))
     buffers = [open(os.path.join(folder, b["uri"]), "rb").read() for b in gltf["buffers"]]

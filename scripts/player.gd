@@ -22,7 +22,8 @@ signal interaction_target_changed(target: Interactable)
 ## Множитель скорости в высокой траве (с лучшим мотором замедление меньше).
 @export_range(0.1, 1.0) var tall_grass_speed := 0.6
 @export_range(0.1, 1.0) var tall_grass_speed_best_motor := 0.8
-## Множитель скорости в бурьяне (когда нож его берёт).
+## Множитель скорости в бурьяне. Слабый нож его не режет, но косилка
+## всё равно продирается сквозь заросли, только медленно.
 @export_range(0.1, 1.0) var weed_speed := 0.45
 
 ## Расстояние от персонажа до центра ножа.
@@ -34,6 +35,12 @@ const ROAD_SPEED_BOOST := 1.6
 const BLADE_LENGTH := 0.4
 ## Курсор ближе этого расстояния не двигает персонажа.
 const MOUSE_DEADZONE := 1.3
+## Отклонение джойстика, с которого косилка едет в полную силу: вести
+## скорость пальцем неудобно, поэтому полный ход включается рано.
+const FULL_SPEED_INPUT := 0.55
+## Разворот: если нужное направление почти за спиной (дальше этого угла),
+## косилка не меняет сторону, в которую уже поворачивает.
+const TURN_COMMIT_ANGLE := 2.3
 ## Точка впереди персонажа, от которой меряется расстояние до объектов.
 const REACH_OFFSET := 0.9
 ## Сколько секунд нужно пробыть рядом, чтобы простое действие выполнилось само.
@@ -45,6 +52,8 @@ const SWISH_STEP := 0.55
 const HAND := Vector3(0.26, 0.82, -0.36)
 
 var interaction_target: Interactable
+## Сенсорная схема «вести пальцем» (ставит интерфейс; null — джойстик).
+var touch_pad: TouchPad
 ## Пока выключено (титульный экран), игрок не слушается ввода.
 var controls_enabled := true
 ## Текущие параметры косилки (из апгрейдов).
@@ -82,6 +91,8 @@ var _smoothed_direction := Vector3.ZERO
 var _road_boost := 0.0
 var _terrain: Terrain
 var _target_time := 0.0
+## Сторона начатого разворота: −1, 0 или 1.
+var _turn_side := 0.0
 
 
 func _enter_tree() -> void:
@@ -133,6 +144,14 @@ func _physics_process(delta: float) -> void:
 
 	if strength > 0.05:
 		var angle := forward.signed_angle_to(desired.normalized(), Vector3.UP)
+		# Цель почти за спиной: знак угла там скачет от дрожи пальца, и
+		# косилка рыскала бы влево-вправо. Доворачиваем в начатую сторону.
+		if absf(angle) < 0.15:
+			_turn_side = 0.0
+		elif _turn_side == 0.0 or absf(angle) < TURN_COMMIT_ANGLE:
+			_turn_side = signf(angle)
+		elif signf(angle) != _turn_side:
+			angle = _turn_side * (TAU - absf(angle))
 		var turn := clampf(angle * minf(turn_response * delta, 1.0),
 				-turn_rate * delta, turn_rate * delta)
 		# Поворот вокруг косилки, а не вокруг персонажа: нож почти не уходит
@@ -150,17 +169,16 @@ func _physics_process(delta: float) -> void:
 		target_speed *= 1.0 + (ROAD_SPEED_BOOST - 1.0) * _road_boost
 		var ahead := _grass_height_at(get_blade_position() + forward * 0.25)
 		if ahead > 0.9:
-			# Бурьян: слабый нож в него упирается, хороший идёт медленно.
-			if can_cut_weeds():
-				target_speed *= weed_speed
-			else:
-				target_speed = 0.0
-				_stuck_in_weeds()
+			# Бурьян: ехать можно, но медленно; срезает его только нож получше.
+			target_speed *= weed_speed
+			if not can_cut_weeds():
+				_weeds_hint()
 		elif ahead > 0.7:
 			target_speed *= tall_grass_speed_best_motor if GameState.is_upgrade_maxed("motor") \
 					else tall_grass_speed
 	else:
 		_turn_speed = lerpf(_turn_speed, 0.0, 0.2)
+		_turn_side = 0.0
 
 	_current_speed = move_toward(_current_speed, target_speed, acceleration * delta)
 	forward = -global_basis.z
@@ -282,14 +300,15 @@ func can_cut_weeds() -> bool:
 	return GameState.upgrade_level("blade") >= 1
 
 
-# Косилка упёрлась в бурьян: трясётся и время от времени напоминает, что нужен нож получше.
-func _stuck_in_weeds() -> void:
+# Косилка продирается сквозь бурьян, не срезая его: трясётся и время от
+# времени напоминает, что нужен нож получше.
+func _weeds_hint() -> void:
 	_cut_amount = 1.0
 	if _time < _weed_hint_time:
 		return
-	_weed_hint_time = _time + 9.0
-	Sfx.play("deny", -4.0)
-	GameState.toast("Бурьян не поддаётся. Нужен нож второго уровня — он есть в мастерской")
+	_weed_hint_time = _time + 12.0
+	Sfx.play("deny", -8.0)
+	GameState.toast("Бурьян этот нож не берёт. Нужен нож второго уровня — он есть в мастерской")
 
 
 ## Взаимодействует с ближайшим доступным объектом, если он есть.
@@ -380,10 +399,13 @@ func _desired_direction() -> Vector3:
 		var ahead := -camera.global_basis.z
 		right.y = 0.0
 		ahead.y = 0.0
-		return (right.normalized() * input.x - ahead.normalized() * input.y).limit_length(1.0)
+		var direction := right.normalized() * input.x - ahead.normalized() * input.y
+		return direction.normalized() * minf(direction.length() / FULL_SPEED_INPUT, 1.0)
 
-	if _mouse_held:
-		var mouse := get_viewport().get_mouse_position()
+	# Мышь на компьютере или палец в схеме «вести пальцем»: едем к этой точке.
+	var finger := touch_pad != null and touch_pad.held
+	if _mouse_held or finger:
+		var mouse := touch_pad.finger if finger else get_viewport().get_mouse_position()
 		var hit: Variant = Plane(Vector3.UP, global_position.y).intersects_ray(
 				camera.project_ray_origin(mouse), camera.project_ray_normal(mouse))
 		if hit != null:

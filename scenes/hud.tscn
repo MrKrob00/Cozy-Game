@@ -14,10 +14,10 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-joystick_mode = 1
-joystick_size = 340.0
-tip_size = 140.0
-deadzone_ratio = 0.18
+joystick_mode = 2
+joystick_size = 260.0
+tip_size = 120.0
+deadzone_ratio = 0.14
 action_left = &"move_left"
 action_right = &"move_right"
 action_up = &"move_up"
@@ -331,6 +331,12 @@ unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 text = "Счётчик FPS: выключен"
+
+[node name="ControlsButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Управление: джойстик под пальцем"
 
 [node name="ResetButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
 unique_name_in_owner = true

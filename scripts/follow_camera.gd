@@ -3,6 +3,9 @@ extends Camera3D
 ## Камера сверху-сбоку: фиксированный наклон и поворот, плавно следует
 ## за целью с небольшим опережением, три ступени масштаба.
 
+## Камера вернулась к игроку после показа точки (show_point).
+signal reveal_finished
+
 @export var target_path: NodePath
 @export var pitch_degrees := 50.0
 @export var yaw_degrees := 45.0
@@ -32,6 +35,12 @@ const MENU_PULL_BACK := 9.0
 const MENU_SPIN := 4.0
 var _nudge_tween: Tween
 var _flyover: Tween
+# Показ точки (show_point): куда смотреть и насколько камера уже там, 0–1.
+var _reveal_point := Vector3.ZERO
+var _reveal_weight := 0.0
+var _reveal: Tween
+## Насколько камера отъезжает, пока показывает точку, метры.
+const REVEAL_PULL_BACK := 3.0
 
 
 func _ready() -> void:
@@ -100,6 +109,30 @@ func set_menu(on: bool) -> void:
 	_flyover.tween_property(self, "_yaw_offset", 0.0, 1.6)
 
 
+## Показывает точку вдали от игрока (калитку нового участка): камера едет
+## к ней, задерживается и возвращается. on_arrive вызывается, когда камера
+## на месте; в конце — сигнал reveal_finished.
+func show_point(point: Vector3, on_arrive := Callable(), hold := 1.9) -> void:
+	if _reveal:
+		_reveal.kill()
+	_reveal_point = point
+	var travel := clampf(_focus.distance_to(point) / 16.0, 0.8, 1.6)
+	_reveal = create_tween()
+	_reveal.tween_property(self, "_reveal_weight", 1.0, travel) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	if on_arrive.is_valid():
+		_reveal.tween_callback(on_arrive)
+	_reveal.tween_interval(hold)
+	_reveal.tween_property(self, "_reveal_weight", 0.0, travel * 0.8) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_reveal.tween_callback(func() -> void: reveal_finished.emit())
+
+
+## Идёт ли сейчас показ точки.
+func is_revealing() -> bool:
+	return _reveal != null and _reveal.is_running()
+
+
 ## Короткий наезд: камера на миг приближается на amount метров и возвращается.
 func nudge(amount := 1.2, duration := 0.8) -> void:
 	if _nudge_tween:
@@ -113,4 +146,6 @@ func nudge(amount := 1.2, duration := 0.8) -> void:
 
 func _apply() -> void:
 	rotation_degrees = Vector3(-pitch_degrees, yaw_degrees + _yaw_offset, 0.0)
-	global_position = _focus + global_basis.z * (_distance + _distance_offset + _nudge)
+	var focus := _focus.lerp(_reveal_point, _reveal_weight)
+	global_position = focus + global_basis.z * (_distance + _distance_offset + _nudge
+			+ REVEAL_PULL_BACK * _reveal_weight)

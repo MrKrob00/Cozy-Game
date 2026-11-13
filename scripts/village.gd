@@ -69,6 +69,9 @@ func _ready() -> void:
 	var shadows := Shadows.new()
 	shadows.name = "Shadows"
 	add_child(shadows)
+	var trail := GuideTrail.new()
+	trail.name = "GuideTrail"
+	add_child(trail)
 	# Склейка деталей — когда все объекты построили свои модели.
 	_bake_world.call_deferred()
 	_build_fluff()
@@ -96,6 +99,20 @@ func _process(delta: float) -> void:
 		_chirp_timer = lerpf(14.0, 3.5, progress) * randf_range(0.6, 1.4)
 		if progress > 0.05:
 			Sfx.play(CHIRPS.pick_random(), randf_range(-16.0, -10.0), 1.0, 0.12)
+
+
+## Куда идти дальше: первый по цепочке участок, калитка которого открыта,
+## а трава не выкошена. null — пока игрок занят своим участком (двор в начале
+## игры, или новый участок, на котором он уже косит) и когда выкошено всё.
+func next_goal() -> Plot:
+	for plot in _plots:
+		if plot.is_unlocked() and not plot.reveal_pending and not plot.is_completed():
+			if plot.requires_plot == "":
+				return null
+			if current_plot == plot and plot.get_progress() > 0.0:
+				return null
+			return plot
+	return null
 
 
 func is_festival() -> bool:

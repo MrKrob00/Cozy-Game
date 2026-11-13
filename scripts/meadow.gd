@@ -74,6 +74,10 @@ static func build_roads(parent: Node3D, seed: int, terrain: Terrain) -> void:
 	var area := Rect2()
 	for rect in terrain.road_rects():
 		area = rect if area.size == Vector2.ZERO else area.merge(rect)
+	for rect in terrain.dirt_rects:
+		area = area.merge(rect)
+	for spot: Array in terrain.dirt_spots:
+		area = area.merge(Rect2(spot[0] - Vector2.ONE * spot[1], Vector2.ONE * spot[1] * 2.0))
 	area = area.grow(ROAD_GROW + STEP)
 	var columns := int(area.size.x / STEP) + 1
 	var rows := int(area.size.y / STEP) + 1
@@ -87,7 +91,7 @@ static func build_roads(parent: Node3D, seed: int, terrain: Terrain) -> void:
 		if vertex_at.has(key):
 			return vertex_at[key]
 		var at := area.position + Vector2(column, row) * STEP
-		var depth := terrain.road_depth(at, ROAD_GROW)
+		var depth := terrain.dirt_depth(at, ROAD_GROW)
 		var rng := RandomNumberGenerator.new()
 		rng.seed = hash(key) + seed
 		var height := terrain.height_at(at) + 0.03
@@ -106,7 +110,7 @@ static func build_roads(parent: Node3D, seed: int, terrain: Terrain) -> void:
 	for row in rows:
 		for column in columns:
 			var center := area.position + (Vector2(column, row) + Vector2(0.5, 0.5)) * STEP
-			if terrain.road_depth(center, ROAD_GROW) < 0.0:
+			if terrain.dirt_depth(center, ROAD_GROW) < 0.0:
 				continue
 			var a: int = vertex.call(column, row)
 			var b: int = vertex.call(column + 1, row)
@@ -173,7 +177,9 @@ static func line_clumps(parent: Node3D, from: Vector3, to: Vector3, free_at: Cal
 	var side := (to - from).cross(Vector3.UP).normalized()
 	var along := 0.0
 	while along < length:
-		var at := from.lerp(to, along / length) + side * rng.randf_range(-0.45, 0.45)
+		# Только снаружи забора: внутри — газон участка, и кочка, которую
+		# нельзя скосить, там выглядела бы недоделкой.
+		var at := from.lerp(to, along / length) - side * rng.randf_range(0.5, 1.1)
 		at.y = terrain.height_at(Vector2(at.x, at.z))
 		if free_at.call(Vector2(at.x, at.z)):
 			if rng.randf() < 0.18:
@@ -233,7 +239,7 @@ static func _ground_tile(parent: Node3D, tile: Rect2, noise: FastNoiseLite,
 			var at := tile.position + Vector2(column * tile.size.x / columns, row * tile.size.y / rows)
 			# Под дорогой земля чуть ниже: на подъёмах сетка земли редкая
 			# и иначе прорезала бы дорогу.
-			var sink := 0.22 if terrain.road_depth(at, ROAD_GROW + GRID_STEP) > 0.0 else 0.03
+			var sink := 0.22 if terrain.dirt_depth(at, ROAD_GROW + GRID_STEP) > 0.0 else 0.03
 			vertices.append(Vector3(at.x, terrain.height_at(at) - sink, at.y))
 			normals.append(terrain.normal_at(at))
 			var color := ground_color(at, terrain, noise, patches, spots)

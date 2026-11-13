@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://scripts/plot.gd" id="1_plot"]
 [ext_resource type="Script" path="res://scripts/mow_field.gd" id="2_field"]
@@ -9,7 +9,6 @@
 [ext_resource type="Script" path="res://scripts/stone.gd" id="7_stone"]
 [ext_resource type="Script" path="res://scripts/find_item.gd" id="8_find"]
 [ext_resource type="Script" path="res://scripts/flower_bed.gd" id="9_bed"]
-[ext_resource type="Script" path="res://scripts/wild_flowers.gd" id="10_wild"]
 [ext_resource type="Script" path="res://scripts/villager.gd" id="11_villager"]
 [ext_resource type="Script" path="res://scripts/repairable.gd" id="12_repair"]
 [ext_resource type="Script" path="res://scripts/bureau.gd" id="13_bureau"]
@@ -22,7 +21,7 @@ plot_name = "Площадь"
 completed_title = "Площадь выкошена!"
 reward_coins = 250
 requires_plot = "garden"
-unlock_text = "Калитка на площадь открыта — она через дорогу от двора"
+unlock_text = "Калитка на площадь открыта — стрелки на земле покажут дорогу"
 locked_text = "Площадь пока закрыта. Сначала выкосите сад бабушки"
 
 [node name="MowField" type="Node3D" parent="."]
@@ -160,21 +159,6 @@ find_id = "square_coins"
 display_name = "кошелёк с мелочью"
 kind = 2
 coins_reward = 15
-
-[node name="Poppies" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.4, 0, -2.8)
-script = ExtResource("10_wild")
-flowers_id = "square_poppies"
-
-[node name="Daisies" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.2, 0, 2.6)
-script = ExtResource("10_wild")
-flowers_id = "square_daisies"
-
-[node name="Cornflowers" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.8, 0, -7.6)
-script = ExtResource("10_wild")
-flowers_id = "square_cornflowers"
 
 [node name="BedLeft" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.9, 0, 4.4)

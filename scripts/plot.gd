@@ -38,6 +38,9 @@ const HINT_REFRESH := 0.6
 
 var field: MowField
 var fence: PlotFence
+## Участок уже открыт по правилам игры, но игрок ещё не видел, как
+## открывается калитка: до показа (reveal) она остаётся закрытой.
+var reveal_pending := false
 
 var _state: Dictionary
 var _hints: Array[Node3D] = []
@@ -65,6 +68,9 @@ func _enter_tree() -> void:
 			field = child
 		elif child is PlotFence:
 			fence = child
+	# Газон участка тянется до самого забора.
+	if field and fence:
+		field.apron = fence.fence_offset + 0.3
 
 
 func _ready() -> void:
@@ -97,6 +103,9 @@ func _process(delta: float) -> void:
 	_locked_toast_cooldown -= delta
 	if not is_unlocked() and _locked_toast_cooldown <= 0.0:
 		_check_locked_gate()
+	# Показ не случился, а игрок уже у калитки: открываем без камеры.
+	if reveal_pending and fence and _gate_distance() < 3.5:
+		reveal()
 
 
 func is_completed() -> bool:
@@ -143,7 +152,7 @@ func get_inner_rect() -> Rect2:
 ## Где можно ходить: сам участок и проход через калитку, если она открыта.
 func get_walk_rects() -> Array[Rect2]:
 	var rects: Array[Rect2] = [get_inner_rect()]
-	if fence and is_unlocked():
+	if fence and is_unlocked() and not reveal_pending:
 		rects.append(fence.get_gate_rect(WALK_MARGIN))
 	return rects
 
@@ -167,8 +176,6 @@ func get_stamps() -> Array[Dictionary]:
 			func(animal: Animal) -> bool: return animal.is_moved())
 	_add_count_stamp(stamps, "flower_bed", "Клумбы цветут",
 			func(bed: FlowerBed) -> bool: return bed.is_planted())
-	_add_count_stamp(stamps, "wild_flowers", "Полевые цветы сохранены",
-			func(flowers: WildFlowers) -> bool: return flowers.is_alive())
 	_add_count_stamp(stamps, "stone", "Камни убраны",
 			func(stone: Stone) -> bool: return stone.is_removed())
 	_add_count_stamp(stamps, "repairable", "Всё починено",
@@ -228,7 +235,17 @@ func _player_position() -> Vector3:
 	return player.global_position + Vector3.UP * 1.4 if player else global_position
 
 
+# Калитку открывает не сам участок, а показ: интерфейс закрывает окно
+# завершения, камера едет к калитке, и она распахивается на глазах у игрока.
 func _on_required_plot_completed() -> void:
+	reveal_pending = true
+
+
+## Открывает калитку на глазах у игрока (см. reveal_pending).
+func reveal() -> void:
+	if not reveal_pending:
+		return
+	reveal_pending = false
 	if fence:
 		fence.set_gate_open(true, true)
 		fence.show_guide_arrow(self)
@@ -247,14 +264,6 @@ func _celebrate() -> void:
 	var player := get_tree().get_first_node_in_group("player") as Node3D
 	if player:
 		Juice.confetti(self, player.global_position + Vector3.UP * 1.2)
-	# Бережному садовнику — монеты за каждую сохранённую куртину цветов.
-	var bonus := 0
-	for flowers: WildFlowers in members("wild_flowers"):
-		if flowers.is_alive():
-			bonus += flowers.bonus_coins
-	if bonus > 0:
-		GameState.add_coins(bonus, _player_position())
-		GameState.toast("Бережный садовник: +%d монет за сохранённые цветы" % bonus)
 
 
 # Зажигает окна домов на участке.
@@ -267,15 +276,20 @@ func _store_state() -> void:
 	_state["mask"] = field.get_state()
 
 
+# Расстояние от игрока до калитки по земле.
+func _gate_distance() -> float:
+	var player := get_tree().get_first_node_in_group("player") as Node3D
+	if player == null or fence == null:
+		return INF
+	var gate := fence.get_gate_position()
+	return Vector2(player.global_position.x - gate.x, player.global_position.z - gate.z).length()
+
+
 # Подсказка, если игрок подошёл к закрытой калитке.
 func _check_locked_gate() -> void:
 	if fence == null or locked_text == "":
 		return
-	var player := get_tree().get_first_node_in_group("player") as Node3D
-	if player == null:
-		return
-	var gate := fence.get_gate_position()
-	if Vector2(player.global_position.x - gate.x, player.global_position.z - gate.z).length() < 2.6:
+	if _gate_distance() < 2.6:
 		_locked_toast_cooldown = 10.0
 		GameState.toast(locked_text)
 		Sfx.play("deny", -6.0)

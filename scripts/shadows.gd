@@ -44,6 +44,14 @@ var _dynamic: Array[MeshInstance3D] = []
 var _last: Dictionary = {}
 var _static_dirty := true
 var _final_dirty := true
+## Сдвиг окна идёт в два кадра, иначе земля один кадр читала бы старую
+## картинку по новому окну (все тени мигали не на своём месте):
+##   STATIC_PENDING — окно сдвинулось, неподвижная картинка ждёт перерисовки;
+##   STATIC_DRAWN   — она нарисована, в этом кадре переезжает всё остальное.
+enum Shift { NONE, STATIC_PENDING, STATIC_DRAWN }
+var _shift := Shift.NONE
+## Неподвижная картинка перерисована в прошлом кадре.
+var _static_drawn := false
 var _since_render := 0.0
 var _since_refresh := 0.0
 ## Сколько раз перерисовывалась каждая картинка (для проверок).
@@ -88,7 +96,34 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_since_render += delta
 	_since_refresh += delta
-	_follow_target()
+	match _shift:
+		Shift.NONE:
+			_follow_target()
+		Shift.STATIC_DRAWN:
+			# Неподвижная картинка уже нарисована для нового окна: теперь
+			# переезжают итоговая камера и параметры материалов — все разом.
+			_shift = Shift.NONE
+			_final_camera.global_position = _static_camera.global_position
+			_backdrop.global_position = Vector3(_center.x, -1.0, _center.y)
+			var corner := _center - Vector2.ONE * WINDOW * 0.5
+			Graphics.set_shade(_final_view.get_texture(),
+					Vector4(corner.x, corner.y, 1.0 / WINDOW, EDGE_FADE))
+			_render_final()
+			return
+	if _shift == Shift.STATIC_PENDING:
+		# Окно сдвинулось: в этом кадре рисуется только неподвижная картинка.
+		# Итоговую не трогаем — её подложка и камера ещё на старом месте,
+		# и земля читает её по старому окну.
+		_shift = Shift.STATIC_DRAWN
+		_static_dirty = false
+		_since_refresh = 0.0
+		static_renders += 1
+		_static_view.render_target_update_mode = SubViewport.UPDATE_ONCE
+		return
+	if _static_drawn:
+		# Неподвижная картинка обновилась в прошлом кадре — итоговая за ней.
+		_static_drawn = false
+		_final_dirty = true
 	if not _final_dirty:
 		for proxy in _dynamic:
 			if not is_instance_valid(proxy):
@@ -102,14 +137,19 @@ func _process(delta: float) -> void:
 		_static_dirty = true
 	if _static_dirty:
 		_static_dirty = false
-		_final_dirty = true
+		_static_drawn = true
 		static_renders += 1
 		_static_view.render_target_update_mode = SubViewport.UPDATE_ONCE
+		return
 	if _final_dirty and _since_render >= MIN_INTERVAL:
-		_final_dirty = false
-		_since_render = 0.0
-		final_renders += 1
-		_final_view.render_target_update_mode = SubViewport.UPDATE_ONCE
+		_render_final()
+
+
+func _render_final() -> void:
+	_final_dirty = false
+	_since_render = 0.0
+	final_renders += 1
+	_final_view.render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
 ## Сколько моделей отбрасывают тень (для проверок).
@@ -162,7 +202,8 @@ func _apply_quality() -> void:
 	_static_dirty = true
 
 
-# Окно идёт за игроком шагами по сетке; картинки и параметры материалов обновляются.
+# Окно идёт за игроком шагами по сетке. Здесь сдвигается только камера
+# неподвижной картинки; остальное — кадром позже (см. Shift).
 func _follow_target() -> void:
 	if _target == null:
 		return
@@ -171,12 +212,8 @@ func _follow_target() -> void:
 	if snapped == _center:
 		return
 	_center = snapped
-	for camera in [_static_camera, _final_camera]:
-		camera.global_position = Vector3(_center.x, 50.0, _center.y)
-	_backdrop.global_position = Vector3(_center.x, -1.0, _center.y)
-	var corner := _center - Vector2.ONE * WINDOW * 0.5
-	Graphics.set_shade(_final_view.get_texture(), Vector4(corner.x, corner.y, 1.0 / WINDOW, EDGE_FADE))
-	_static_dirty = true
+	_static_camera.global_position = Vector3(_center.x, 50.0, _center.y)
+	_shift = Shift.STATIC_PENDING
 
 
 # Новым моделям из группы «shadow_caster» — по двойнику на нужном слое.

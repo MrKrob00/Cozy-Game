@@ -15,9 +15,14 @@ Kevin MacLeod ([incompetech.com](https://incompetech.com)), лицензия [Cr
 
 ## 3D-модели
 
-[KayKit: Medieval Hexagon Pack](https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0) — Kay Lousberg ([kaylousberg.com](https://www.kaylousberg.com)), лицензия CC0. Деревья, камни, кувшинки, бочки, ящики, мешки, тачка, доски, мельница. Переведены в цвет вершин скриптом `tools/convert_kaykit.py` (`assets/models/`), цвета слегка подогнаны под палитру игры.
+Модели Kay Lousberg ([kaylousberg.com](https://www.kaylousberg.com)), лицензия CC0:
 
-Остальные модели (персонажи, косилка, дома, забор, клумбы) — временные, собраны в игре из примитивов.
+- [KayKit: Medieval Hexagon Pack](https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0) — дома, кузница (мастерская), колодцы, таверна, рынок, церковь, лесопилка, мельница, деревья, пни, камни, кувшинки и осока, бочки, ящики, мешки, тачка, доски;
+- [KayKit: Halloween Bits](https://github.com/KayKit-Game-Assets/KayKit-Halloween-Bits-1.0) — фонарь на столбе, напольный фонарь, тыквы.
+
+Переведены в цвет вершин скриптом `tools/convert_kaykit.py` (`assets/models/`), цвета слегка подогнаны под палитру игры.
+
+Остальные модели (персонажи, косилка, зверьки, забор, скамейки, клумбы, фонтан) — временные, собраны в игре из примитивов.
 
 ## Звуки
 

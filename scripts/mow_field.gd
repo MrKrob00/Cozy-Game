@@ -32,6 +32,9 @@ const TONE_NEUTRAL := 128
 ## Значения _blocked: ячейка занята, земля в ней голая или под газоном.
 const BLOCKED_BARE := 1
 const BLOCKED_LAWN := 2
+## Полоса стриженого газона вокруг каждого предмета на поле, метры: вплотную
+## к стволу или скамейке косилкой не подлезть, поэтому трава там не растёт.
+const CLEARANCE := 0.55
 
 ## Размер поля в метрах (X, Z). Центр — в начале координат узла.
 @export var size := Vector2(24.0, 24.0)
@@ -49,6 +52,11 @@ const BLOCKED_LAWN := 2
 ## Цвет «голых» ячеек после покоса: земля во дворе, камень на площади.
 @export var bare_color := Color(0.66, 0.54, 0.38)
 @export var random_seed := 1
+
+## Кайма стриженого газона вокруг поля, метры: земля поля тянется до забора
+## тем же материалом, и участок не выглядит прямоугольной заплаткой на лугу.
+## Ставит участок (Plot) по отступу своего забора.
+var apron := 0.0
 
 var _resolution := Vector2i.ZERO
 var _data := PackedByteArray()
@@ -252,6 +260,7 @@ func set_state(state: PackedByteArray) -> bool:
 ## В круге ничего не растёт: ствол дерева, столб. Если bare выключен,
 ## земля в круге выглядит как стриженый газон, а не как голая почва.
 func block_circle(world_center: Vector3, radius: float, bare := true) -> void:
+	_clear_cells(_cells_in_circle(world_center, radius + CLEARANCE))
 	for cell in _cells_in_circle(world_center, radius):
 		_blocked[cell] = BLOCKED_BARE if bare else BLOCKED_LAWN
 
@@ -259,8 +268,17 @@ func block_circle(world_center: Vector3, radius: float, bare := true) -> void:
 ## В прямоугольнике ничего не растёт: скамейка, клумба, стена.
 ## yaw — поворот объекта в мире (global_rotation.y).
 func block_rect(world_center: Vector3, rect_size: Vector2, yaw := 0.0) -> void:
+	_clear_cells(_cells_in_rect(world_center, rect_size + Vector2.ONE * CLEARANCE * 2.0,
+			yaw - global_rotation.y))
 	for cell in _cells_in_rect(world_center, rect_size, yaw - global_rotation.y):
 		_blocked[cell] = BLOCKED_BARE
+
+
+# Полоса вокруг предмета: травы нет, земля выглядит как стриженый газон.
+func _clear_cells(cells: PackedInt32Array) -> void:
+	for cell in cells:
+		if _blocked[cell] == 0:
+			_blocked[cell] = BLOCKED_LAWN
 
 
 ## Под травой в круге — не газон, а камень или земля: после покоса стерни не остаётся.
@@ -402,7 +420,7 @@ func _build_materials() -> void:
 
 func _build_ground() -> void:
 	var plane := PlaneMesh.new()
-	plane.size = size
+	plane.size = size + Vector2.ONE * apron * 2.0
 	var ground := MeshInstance3D.new()
 	ground.name = "Ground"
 	ground.mesh = plane

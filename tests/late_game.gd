@@ -99,6 +99,9 @@ func _run() -> void:
 	check(is_zero_approx(square.get_progress()) and is_zero_approx(orchard.get_progress()), "mowing other plots does not touch square or orchard")
 	print("square %.0f m2, orchard %.0f m2" % [square.field.get("_mowable_cells") / 64.0, orchard.field.get("_mowable_cells") / 64.0])
 	await wait(8.0)
+	# Показ калиток камерой проверяет tests/village.gd; здесь открываем сразу.
+	garden.reveal()
+	square.reveal()
 	hud.get_node("%Completion").visible = false
 
 	# 2. Площадь повёрнута калиткой к южной дороге: заходим через калитку.
@@ -111,19 +114,30 @@ func _run() -> void:
 	var behind: Vector3 = player.global_position - Vector3(0, 0, 2.0)
 	check(square.field.get_height_at(behind) == 0.0, "grass is cut where the mower passed on a rotated plot")
 
-	# 3. Бурьян: слабый нож упирается, нож второго уровня режет.
+	# 3. Бурьян: слабый нож его не режет, но косилка продирается сквозь него;
+	# нож второго уровня режет.
 	var weeds: Vector3 = square.get_node("WeedsRight").global_position
 	check(square.field.get_height_at(weeds) > 0.95, "weed patch is in place on the rotated plot")
 	player.global_position = weeds + Vector3(0, 0, 4.4)
 	player.rotation = Vector3(0, 0, 0)
 	gs.empty_bag()
-	await walk("north", 240)
-	print("at weeds: gap=", player.global_position.distance_to(weeds))
+	Input.action_press("move_up")
+	Input.action_press("move_right")
+	await frames(150)
+	var in_weeds_speed: float = player.velocity.length()
+	await frames(90)
+	Input.action_release("move_up")
+	Input.action_release("move_right")
+	await frames(20)
+	print("at weeds: gap=", player.global_position.distance_to(weeds), " speed in weeds=", in_weeds_speed)
 	check(square.field.get_height_at(weeds) > 0.95, "basic blade does not cut weeds")
-	check(player.global_position.distance_to(weeds) > 2.2, "mower stops at the edge of the weeds")
-	check(toasts.any(func(t): return t.begins_with("Бурьян не поддаётся")), "weeds explain what is needed")
+	check(player.global_position.distance_to(weeds) < 1.6, "the mower can drive through the weeds")
+	check(in_weeds_speed > 0.5 and in_weeds_speed < player.speed * 0.6, "but slowly")
+	check(toasts.any(func(t): return t.begins_with("Бурьян этот нож не берёт")), "weeds explain what is needed")
 	gs.add_coins(60)
 	check(gs.buy_upgrade("blade") and player.can_cut_weeds(), "second blade level cuts weeds")
+	player.global_position = weeds + Vector3(0, 0, 4.4)
+	player.rotation = Vector3(0, 0, 0)
 	var bag_before: float = gs.bag_fill
 	await walk("north", 300)
 	check(square.field.get_height_at(weeds) == 0.0, "weeds are cut with the better blade")
@@ -152,6 +166,7 @@ func _run() -> void:
 	check(repair.is_repaired() and gs.coins == coins - 80, "fountain repair costs 80 coins")
 	check(square.get_node("Fountain").get("_fountain_fixed").visible, "repaired fountain shows water")
 	await wait(8.0)
+	orchard.reveal()
 	hud.get_node("%Completion").visible = false
 	check(square.get_node("Postman").is_present(), "postman returns after the square is mowed")
 
