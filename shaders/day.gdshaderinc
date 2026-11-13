@@ -7,11 +7,21 @@ uniform vec3 day_dir = vec3(0.353, -0.788, -0.504);    // куда светит 
 uniform vec3 day_sun = vec3(0.7, 0.672, 0.602);        // цвет солнца × яркость
 uniform vec3 day_ambient = vec3(0.546, 0.588, 0.665);  // свет неба
 uniform float day_saturation = 1.0;                    // насыщенность картинки
+// Дымка по глубине (Firewatch: «туман добавляет глубину и расстояние»):
+// далёкое растворяется в цвете неба. Цвет — линейный.
+uniform vec3 haze_color = vec3(0.39, 0.74, 0.96);
+uniform vec2 haze_range = vec2(30.0, 95.0);            // где начинается и где максимальна, метры
+uniform float haze_max = 0.55;
 
 // Освещённость поверхности с нормалью n; shade — доля тени (0..1).
 vec3 day_light(vec3 n, float shade) {
 	float facing = smoothstep(-0.02, 0.06, dot(n, -day_dir));
 	return day_ambient + day_sun * (facing * (1.0 - shade));
+}
+
+// Доля дымки для точки на расстоянии distance от камеры.
+float day_haze(float distance) {
+	return smoothstep(haze_range.x, haze_range.y, distance) * haze_max;
 }
 
 // Насыщенность: заросший участок блёклый, выкошенный — яркий. Считается

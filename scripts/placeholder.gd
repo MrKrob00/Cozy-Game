@@ -12,7 +12,8 @@ class_name Placeholder
 ##   bake_cell  — у узла: склеивать по клеткам такого размера (метры), чтобы
 ##                не терять отсечение невидимого на больших площадях;
 ##   plant      — у узла: склеенные детали — цветы (качаются, приминаются);
-##   anchor     — у детали цветка: основание стебля в координатах узла.
+##   anchor     — у детали цветка: основание стебля в координатах узла;
+##   sway       — у детали: сила качания на ветру (0..1), пишется в альфу цвета.
 
 const TOON_SHADER := preload("res://shaders/toon.gdshader")
 const RECEIVE_SHADER := preload("res://shaders/toon_receive.gdshader")
@@ -55,6 +56,7 @@ static func vertex_material(receives := false) -> ShaderMaterial:
 		return _vertex_receive_material
 	if _vertex_material == null:
 		_vertex_material = _make(TOON_SHADER, Color.WHITE)
+		_vertex_material.set_shader_parameter("sway_strength", 1.0)
 	return _vertex_material
 
 
@@ -67,7 +69,9 @@ static func plant_material() -> ShaderMaterial:
 
 ## Новый материал растворения для одной модели (крона дерева).
 static func fade_material() -> ShaderMaterial:
-	return _make(FADE_SHADER, Color.WHITE)
+	var mat := _make(FADE_SHADER, Color.WHITE)
+	mat.set_shader_parameter("sway_strength", 1.0)
+	return mat
 
 
 static func set_pusher(world_position: Vector3) -> void:
@@ -127,7 +131,7 @@ static func _bake_node(node: Node3D) -> bool:
 	for key: Array in groups:
 		var mesh := _merge(groups[key], plant)
 		var instance := MeshInstance3D.new()
-		instance.name = "Baked"
+		instance.name = "Baked_%d_%d" % [key[1].x, key[1].y] + ("_cast" if key[0] else "")
 		instance.mesh = mesh
 		instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		if plant:
@@ -178,6 +182,8 @@ static func _merge(items: Array, plant: bool) -> ArrayMesh:
 		var normal_basis := Transform3D(local.basis.inverse().transposed(), Vector3.ZERO)
 		normals.append_array(normal_basis * part_normals)
 		var color: Color = _colors[mesh_part.material_override].srgb_to_linear()
+		# Альфа цвета вершины — сила качания на ветру (листва, кочки, цветы).
+		color.a = mesh_part.get_meta("sway", 0.0)
 		var part_colors := PackedColorArray()
 		part_colors.resize(part_vertices.size())
 		part_colors.fill(color)
@@ -238,13 +244,17 @@ static func sphere(radius: float, segments := 12) -> SphereMesh:
 	return mesh
 
 
-static func cylinder(radius: float, height: float, top_radius := -1.0) -> CylinderMesh:
+static func cylinder(radius: float, height: float, top_radius := -1.0, segments := 10,
+		caps := true) -> CylinderMesh:
 	var mesh := CylinderMesh.new()
 	mesh.bottom_radius = radius
 	mesh.top_radius = radius if top_radius < 0.0 else top_radius
 	mesh.height = height
-	mesh.radial_segments = 10
+	mesh.radial_segments = segments
 	mesh.rings = 1
+	# Без крышек: травинке и стеблю они не видны, а треугольники стоят.
+	mesh.cap_top = caps
+	mesh.cap_bottom = caps
 	return mesh
 
 

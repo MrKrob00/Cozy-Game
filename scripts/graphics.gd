@@ -27,6 +27,8 @@ const PRESETS := [
 		"msaa": false,
 		# Картинка теней: сторона в пикселях.
 		"shade_size": 512,
+		# Доля россыпей луга (кочки, цветы).
+		"scatter": 0.5,
 	},
 	{
 		"title": "средняя",
@@ -37,6 +39,7 @@ const PRESETS := [
 		"render_scale": 0.9,
 		"msaa": false,
 		"shade_size": 1024,
+		"scatter": 0.75,
 	},
 	{
 		"title": "высокая",
@@ -47,6 +50,7 @@ const PRESETS := [
 		"render_scale": 1.0,
 		"msaa": true,
 		"shade_size": 1024,
+		"scatter": 1.0,
 	},
 ]
 
@@ -71,6 +75,7 @@ var _day := {
 	"day_sun": Vector3(0.7, 0.672, 0.602),
 	"day_ambient": Vector3(0.546, 0.588, 0.665),
 	"day_saturation": 1.0,
+	"haze_color": Vector3(0.39, 0.74, 0.96),
 }
 var _shade := {
 	"shade_tex": null,
@@ -98,8 +103,12 @@ func track(material: ShaderMaterial, receives := false) -> ShaderMaterial:
 	return material
 
 
-## Свет дня: цвет солнца с яркостью, свет неба и насыщенность картинки.
-func set_day(sun: Color, sun_energy: float, ambient: Color, saturation: float) -> void:
+## Свет дня: цвет солнца с яркостью, свет неба, насыщенность картинки
+## и цвет дымки (обычно цвет неба).
+func set_day(sun: Color, sun_energy: float, ambient: Color, saturation: float,
+		haze := Color(0.66, 0.88, 0.98)) -> void:
+	var haze_linear := haze.srgb_to_linear()
+	_day["haze_color"] = Vector3(haze_linear.r, haze_linear.g, haze_linear.b)
 	_day["day_sun"] = Vector3(sun.r, sun.g, sun.b) * sun_energy * EXPOSURE
 	_day["day_ambient"] = Vector3(ambient.r, ambient.g, ambient.b) * EXPOSURE
 	_day["day_saturation"] = saturation

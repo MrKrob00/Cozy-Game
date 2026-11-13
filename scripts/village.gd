@@ -25,7 +25,9 @@ const CHIRPS := ["chirp_1", "chirp_2", "chirp_3"]
 const SWITCH_MARGIN := 0.5
 const FESTIVAL_FLAG := "festival"
 ## Свет неба (как прежний окружающий свет сцены).
-const AMBIENT := Color(0.546, 0.588, 0.665)
+## Холоднее прежнего: тень голубоватая, солнце тёплое (совет Pontus Albrecht
+## и Firewatch: тёплый свет, холодная тень).
+const AMBIENT := Color(0.50, 0.57, 0.72)
 ## Пауза между покосом последнего участка и праздником, секунд.
 const FESTIVAL_DELAY := 11.0
 
@@ -38,6 +40,7 @@ var _sun: DirectionalLight3D
 ## Сглаженный прогресс текущего участка, по которому меняется картинка.
 var _mood := 0.0
 var _chirp_timer := 3.0
+var _fluff: CPUParticles3D
 
 
 func _enter_tree() -> void:
@@ -67,6 +70,7 @@ func _ready() -> void:
 	add_child(shadows)
 	# Склейка деталей — когда все объекты построили свои модели.
 	_bake_world.call_deferred()
+	_build_fluff()
 	_update_current_plot()
 	_mood = current_plot.get_mood() if current_plot else 1.0
 	_apply_mood()
@@ -77,6 +81,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if _fluff and _player:
+		_fluff.global_position = _player.global_position + Vector3(0.0, 1.6, 0.0)
 	_update_current_plot()
 	var progress := current_plot.get_mood() if current_plot else 1.0
 	if not is_equal_approx(_mood, progress):
@@ -151,6 +157,41 @@ func _update_current_plot() -> void:
 	current_plot_changed.emit(current_plot)
 
 
+# Пух и пыльца в воздухе вокруг игрока: мир не застывший.
+func _build_fluff() -> void:
+	_fluff = CPUParticles3D.new()
+	_fluff.name = "Fluff"
+	_fluff.amount = 22
+	_fluff.lifetime = 7.0
+	_fluff.preprocess = 7.0
+	_fluff.local_coords = false
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.035
+	mesh.height = 0.07
+	mesh.radial_segments = 4
+	mesh.rings = 2
+	_fluff.mesh = mesh
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.vertex_color_use_as_albedo = true
+	_fluff.material_override = material
+	var fade := Gradient.new()
+	fade.offsets = PackedFloat32Array([0.0, 0.2, 0.8, 1.0])
+	fade.colors = PackedColorArray([Color(1.0, 1.0, 0.92, 0.0), Color(1.0, 1.0, 0.92, 0.85),
+			Color(1.0, 1.0, 0.92, 0.85), Color(1.0, 1.0, 0.92, 0.0)])
+	_fluff.color_ramp = fade
+	_fluff.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	_fluff.emission_box_extents = Vector3(14.0, 1.2, 10.0)
+	_fluff.direction = Vector3(1.0, 0.1, -0.4)
+	_fluff.spread = 30.0
+	_fluff.initial_velocity_min = 0.2
+	_fluff.initial_velocity_max = 0.5
+	_fluff.gravity = Vector3(0.0, 0.02, 0.0)
+	_fluff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_fluff)
+
+
 func _bake_world() -> void:
 	Placeholder.bake_tree(self)
 
@@ -160,4 +201,5 @@ func _apply_mood() -> void:
 		_environment.background_color = sky_color_overgrown.lerp(sky_color_mowed, _mood)
 	Graphics.set_day(sun_color_overgrown.lerp(sun_color_mowed, _mood),
 			lerpf(sun_energy_range.x, sun_energy_range.y, _mood), AMBIENT,
-			lerpf(saturation_range.x, saturation_range.y, _mood))
+			lerpf(saturation_range.x, saturation_range.y, _mood),
+			sky_color_overgrown.lerp(sky_color_mowed, _mood))

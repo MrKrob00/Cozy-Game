@@ -7,19 +7,21 @@ extends Node3D
 @export var tree_count := 60
 @export var random_seed := 11
 
-const GROUND := Color(0.56, 0.78, 0.44)
-const ROAD := Color(0.87, 0.77, 0.56)
-const ROAD_EDGE := Color(0.78, 0.67, 0.47)
 const TRUNK := Color(0.50, 0.35, 0.25)
 const POST := Color(0.30, 0.30, 0.34)
 const LANTERN := Color(1.0, 0.9, 0.55)
 const BAKE_CELL := 24.0
+## Насколько луг выходит за участки и улицу, метры.
+const MEADOW_MARGIN := 28.0
 const FLAGS := [Color(1.0, 0.45, 0.45), Color(1.0, 0.82, 0.3), Color(0.45, 0.8, 1.0),
 		Color(0.7, 0.55, 1.0), Color(0.55, 0.85, 0.5)]
 const LEAVES := [Color(0.30, 0.62, 0.32), Color(0.40, 0.70, 0.34), Color(0.24, 0.54, 0.36)]
 
 
 var _lamps: Array[Vector3] = []
+var _trees: Array[Vector3] = []
+## Где россыпям не место: [центр (x, z), радиус].
+var _obstacles: Array = []
 var _bunting: Node3D
 
 
@@ -35,21 +37,17 @@ func _ready() -> void:
 	# Окружение склеивается по клеткам: одна модель на клетку, но далёкие
 	# клетки за кадром всё равно отсекаются.
 	set_meta("bake_cell", BAKE_CELL)
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(400.0, 400.0)
-	var ground := Placeholder.part(self, plane, GROUND,
-			Vector3(street.get_center().x, -0.03, street.get_center().y))
-	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-
 	# Дорога чуть шире области, по которой ходит игрок.
 	var road_rect := street.grow(0.9)
-	for part: Array in [[road_rect.grow(0.25), ROAD_EDGE, -0.02], [road_rect, ROAD, -0.01]]:
-		var rect: Rect2 = part[0]
-		var road := PlaneMesh.new()
-		road.size = rect.size
-		var strip := Placeholder.part(self, road, part[1],
-				Vector3(rect.get_center().x, part[2], rect.get_center().y))
-		strip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var area := _village_area().grow(MEADOW_MARGIN)
+	# Далеко за лугом — ровная заливка; её прячет дымка.
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(400.0, 400.0)
+	var ground := Placeholder.part(self, plane, Meadow.GRASS_LIGHT,
+			Vector3(area.get_center().x, -0.05, area.get_center().y))
+	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	Meadow.build_ground(self, area, road_rect, random_seed)
+	Meadow.build_road(self, road_rect, random_seed)
 
 	var rng := RandomNumberGenerator.new()
 	rng.seed = random_seed
@@ -57,6 +55,19 @@ func _ready() -> void:
 	_build_lamps(road_rect)
 	_build_near_bushes(road_rect, rng)
 	_build_trees(road_rect, rng)
+	_collect_obstacles()
+	var free_at := _is_free.bind(road_rect)
+	Meadow.scatter(self, area.grow(-6.0), free_at, _trees, random_seed + 5)
+	var index := 0
+	for node in get_tree().get_nodes_in_group("plot"):
+		var plot := node as Plot
+		if plot.fence == null:
+			continue
+		var corners := plot.fence.get_corners()
+		for i in corners.size():
+			Meadow.line_clumps(self, corners[i], corners[(i + 1) % corners.size()], free_at,
+					random_seed + 20 + index)
+			index += 1
 
 	var village := get_tree().get_first_node_in_group("village") as Village
 	if village:
@@ -135,6 +146,7 @@ func _build_trees(road: Rect2, rng: RandomNumberGenerator) -> void:
 			continue
 		if _inside_plot(at, 3.5, false):
 			continue
+		_trees.append(at)
 		var tree := Node3D.new()
 		tree.position = at
 		tree.scale = Vector3.ONE * rng.randf_range(0.8, 1.4)
@@ -143,14 +155,18 @@ func _build_trees(road: Rect2, rng: RandomNumberGenerator) -> void:
 		var color: Color = LEAVES[rng.randi() % LEAVES.size()]
 		# Деревья вдали попроще: меньше граней.
 		Placeholder.part(tree, Placeholder.cylinder(0.28, 1.6, 0.2), TRUNK, Vector3(0.0, 0.8, 0.0))
-		Placeholder.part(tree, Placeholder.sphere(1.3, 8), color, Vector3(0.0, 2.4, 0.0))
-		Placeholder.part(tree, Placeholder.sphere(0.95, 8), color, Vector3(0.5, 3.3, 0.2))
-		Placeholder.part(tree, Placeholder.sphere(0.8, 8), color, Vector3(-0.6, 3.0, -0.3))
+		for leaves in [
+			Placeholder.part(tree, Placeholder.sphere(1.3, 8), color, Vector3(0.0, 2.4, 0.0)),
+			Placeholder.part(tree, Placeholder.sphere(0.95, 8), color, Vector3(0.5, 3.3, 0.2)),
+			Placeholder.part(tree, Placeholder.sphere(0.8, 8), color, Vector3(-0.6, 3.0, -0.3)),
+		]:
+			leaves.set_meta("sway", 0.35)
 
 
 func _bush(at: Vector3, size: float, rng: RandomNumberGenerator) -> void:
 	var color: Color = LEAVES[rng.randi() % LEAVES.size()]
 	var bush := Placeholder.part(self, Placeholder.sphere(size, 8), color, at + Vector3(0.0, size * 0.55, 0.0))
+	bush.set_meta("sway", 0.15)
 	bush.scale = Vector3(1.0, 0.8, 1.0)
 
 
@@ -166,3 +182,48 @@ func _inside_plot(at: Vector3, margin: float, gates_only: bool) -> bool:
 			if plot.get_inner_rect().grow(reach).has_point(Vector2(at.x, at.z)):
 				return true
 	return false
+
+
+# Прямоугольник, в котором стоят все участки и улица.
+func _village_area() -> Rect2:
+	var area := street
+	for node in get_tree().get_nodes_in_group("plot"):
+		var plot := node as Plot
+		area = area.merge(plot.get_inner_rect().grow(plot.fence.fence_offset if plot.fence else 2.0))
+	return area
+
+
+# Препятствия для россыпей: дома, деревья, ящики, жители.
+func _collect_obstacles() -> void:
+	_obstacles.clear()
+	for node in get_tree().get_nodes_in_group("grass_shaper"):
+		var prop := node as PlotProp
+		if prop:
+			var radius: float = {PlotProp.Kind.HOUSE: 4.4, PlotProp.Kind.SHED: 2.2}.get(prop.kind, 1.2)
+			_obstacles.append([Vector2(prop.global_position.x, prop.global_position.z), radius])
+	for node in get_tree().get_nodes_in_group("interactable"):
+		var item := node as Node3D
+		_obstacles.append([Vector2(item.global_position.x, item.global_position.z), 1.3])
+	for node in get_tree().get_nodes_in_group("shadow_dynamic"):
+		if node is Villager:
+			_obstacles.append([Vector2(node.global_position.x, node.global_position.z), 1.0])
+	for tree in _trees:
+		_obstacles.append([Vector2(tree.x, tree.z), 0.7])
+	for lamp in _lamps:
+		_obstacles.append([Vector2(lamp.x, lamp.z), 0.5])
+
+
+# Свободно ли место для россыпи: не на улице, не там, где ходят и косят, не в препятствии.
+func _is_free(at: Vector2, road: Rect2) -> bool:
+	if road.grow(0.4).has_point(at):
+		return false
+	for node in get_tree().get_nodes_in_group("walk_area"):
+		if node == self:
+			continue
+		for rect: Rect2 in node.get_walk_rects():
+			if rect.grow(0.2).has_point(at):
+				return false
+	for obstacle: Array in _obstacles:
+		if at.distance_to(obstacle[0]) < obstacle[1]:
+			return false
+	return true

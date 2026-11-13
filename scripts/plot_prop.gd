@@ -177,9 +177,12 @@ func _build_tree() -> void:
 	_crown = Node3D.new()
 	_crown.name = "Crown"
 	add_child(_crown)
-	Placeholder.part(_crown, Placeholder.sphere(1.5), LEAVES, Vector3(0.0, 3.1, 0.0))
-	Placeholder.part(_crown, Placeholder.sphere(1.05), LEAVES_LIGHT, Vector3(0.7, 4.0, 0.3))
-	Placeholder.part(_crown, Placeholder.sphere(0.9), LEAVES, Vector3(-0.8, 3.7, -0.4))
+	for leaves in [
+		Placeholder.part(_crown, Placeholder.sphere(1.5), LEAVES, Vector3(0.0, 3.1, 0.0)),
+		Placeholder.part(_crown, Placeholder.sphere(1.05), LEAVES_LIGHT, Vector3(0.7, 4.0, 0.3)),
+		Placeholder.part(_crown, Placeholder.sphere(0.9), LEAVES, Vector3(-0.8, 3.7, -0.4)),
+	]:
+		leaves.set_meta("sway", 0.35)
 	if fruit:
 		var rng := RandomNumberGenerator.new()
 		rng.seed = hash(name)

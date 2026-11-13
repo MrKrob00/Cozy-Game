@@ -59,6 +59,7 @@ void vertex() {
 	vec3 cut = cut_color(mask.g) * (0.96 + 0.08 * random);
 	vec3 color = mix(cut, grown_color, grown);
 	v_color = day_grade(color * day_light(vec3(0.0, 1.0, 0.0), shade_at(root.xz)));
+	v_color = mix(v_color, haze_color, day_haze(distance(v, CAMERA_POSITION_WORLD)));
 }
 
 void fragment() {

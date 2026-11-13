@@ -101,6 +101,14 @@ func _arrow_base_y() -> float:
 	return to_local(get_gate_position()).y + ARROW_HEIGHT
 
 
+## Углы забора в мировых координатах, по кругу.
+func get_corners() -> Array[Vector3]:
+	var corners: Array[Vector3] = []
+	for local: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]:
+		corners.append(to_global(Vector3(local.x * _half.x, 0.0, local.y * _half.y)))
+	return corners
+
+
 ## Середина калитки в мировых координатах.
 func get_gate_position() -> Vector3:
 	return to_global(Vector3(gate_x, 0.0, _half.y))
