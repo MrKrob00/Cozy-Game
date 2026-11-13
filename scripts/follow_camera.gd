@@ -26,6 +26,10 @@ var _yaw_offset := 0.0
 var _distance_offset := 0.0
 # Короткий наезд камеры (nudge).
 var _nudge := 0.0
+var _menu := false
+const MENU_PULL_BACK := 9.0
+## Скорость облёта на титульном экране, градусов в секунду.
+const MENU_SPIN := 4.0
 var _nudge_tween: Tween
 var _flyover: Tween
 
@@ -51,6 +55,8 @@ func _input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
+	if _menu:
+		_yaw_offset = fmod(_yaw_offset + MENU_SPIN * delta + 180.0, 360.0) - 180.0
 	if _target:
 		var wanted := _target.global_position
 		var body := _target as CharacterBody3D
@@ -78,6 +84,20 @@ func play_flyover(duration := 6.0, swing_degrees := 70.0, pull_back := 7.0) -> v
 	_flyover.parallel().tween_property(self, "_distance_offset", pull_back, duration * 0.5)
 	_flyover.tween_property(self, "_yaw_offset", 0.0, duration * 0.5)
 	_flyover.parallel().tween_property(self, "_distance_offset", 0.0, duration * 0.5)
+
+
+## Титульный экран: камера отъезжает и медленно кружит над деревней.
+func set_menu(on: bool) -> void:
+	_menu = on
+	if _flyover:
+		_flyover.kill()
+	_flyover = create_tween().set_parallel(true)
+	_flyover.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	if on:
+		_distance_offset = MENU_PULL_BACK
+	else:
+		_flyover.tween_property(self, "_distance_offset", 0.0, 1.6)
+		_flyover.tween_property(self, "_yaw_offset", 0.0, 1.6)
 
 
 ## Короткий наезд: камера на миг приближается на amount метров и возвращается.

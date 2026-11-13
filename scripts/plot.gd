@@ -231,6 +231,7 @@ func _player_position() -> Vector3:
 func _on_required_plot_completed() -> void:
 	if fence:
 		fence.set_gate_open(true, true)
+		fence.show_guide_arrow(self)
 	unlocked.emit()
 	if unlock_text != "":
 		GameState.toast(unlock_text)

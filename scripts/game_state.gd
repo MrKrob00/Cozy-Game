@@ -73,6 +73,8 @@ var bag_capacity: float:
 
 # Настройки, а не прогресс: переживают «Начать заново».
 var sound_enabled := true
+## Титульный экран уже показан в этом запуске (после «Начать заново» его нет).
+var title_seen := false
 var music_enabled := true
 ## Качество графики: 0 — низкое, 1 — среднее, 2 — высокое, -1 — выбрать по устройству.
 var graphics_quality := -1
@@ -89,6 +91,17 @@ func _notification(what: int) -> void:
 	if what in [NOTIFICATION_WM_CLOSE_REQUEST, NOTIFICATION_APPLICATION_PAUSED,
 			NOTIFICATION_WM_GO_BACK_REQUEST]:
 		save_game()
+
+
+## Есть ли что продолжать: на титульном экране «Продолжить» вместо «Играть».
+func has_progress() -> bool:
+	if grass_banked > 0.0 or bag_fill > 0.0 or coins > 0 or not flags.is_empty():
+		return true
+	# Записи участков есть всегда; прогресс — это отметки и завершение.
+	for state: Dictionary in plots.values():
+		if state.has("milestones") or state.get("completed", false):
+			return true
+	return false
 
 
 func is_bag_full() -> bool:

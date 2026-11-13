@@ -18,10 +18,15 @@ const WOOD_DARK := Color(0.56, 0.39, 0.25)
 const LEAVES := [Color(0.30, 0.62, 0.32), Color(0.40, 0.70, 0.34), Color(0.24, 0.54, 0.36)]
 const POST_SPACING := 2.0
 const GATE_OPEN_ANGLE := 1.9
+const ARROW_HEIGHT := 2.6
+const ARROW_COLOR := Color(1.0, 0.80, 0.25)
 
 var _half := Vector2.ZERO
 var _gate: Node3D
 var _gate_open := true
+var _arrow: Node3D
+var _arrow_time := 0.0
+var _guide_plot: Plot
 
 
 func _enter_tree() -> void:
@@ -32,6 +37,7 @@ func _enter_tree() -> void:
 
 
 func _ready() -> void:
+	set_process(false)
 	for side: float in [-1.0, 1.0]:
 		_fence_run(Vector3(_half.x * side, 0.0, -_half.y), Vector3(_half.x * side, 0.0, _half.y))
 	if fence_back:
@@ -47,6 +53,52 @@ func _ready() -> void:
 		Placeholder.part(self, Placeholder.box(Vector3(0.2, 1.3, 0.2)), WOOD_DARK, Vector3(x, 0.65, _half.y))
 		Placeholder.part(self, Placeholder.sphere(0.14), WOOD_DARK, Vector3(x, 1.36, _half.y))
 	_build_gate(gate_left)
+
+
+## Стрелка над калиткой: зовёт на только что открытый участок и исчезает,
+## когда игрок туда зашёл.
+func show_guide_arrow(plot: Plot) -> void:
+	if _arrow:
+		return
+	_guide_plot = plot
+	_arrow = Node3D.new()
+	_arrow.name = "GuideArrow"
+	add_child(_arrow)
+	_arrow.global_position = get_gate_position() + Vector3.UP * ARROW_HEIGHT
+	for arrow_part in [
+		Placeholder.part(_arrow, Placeholder.cylinder(0.0, 0.7, 0.45), ARROW_COLOR, Vector3.ZERO),
+		Placeholder.part(_arrow, Placeholder.cylinder(0.17, 0.6), ARROW_COLOR, Vector3(0.0, 0.62, 0.0)),
+	]:
+		arrow_part.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	Placeholder.bake_tree(_arrow)
+	_arrow.scale = Vector3.ONE * 0.01
+	var grow := _arrow.create_tween()
+	grow.tween_property(_arrow, "scale", Vector3.ONE, 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	set_process(true)
+
+
+func _process(delta: float) -> void:
+	if _arrow == null:
+		set_process(false)
+		return
+	_arrow_time += delta
+	_arrow.position.y = _arrow_base_y() + sin(_arrow_time * 3.5) * 0.25
+	_arrow.rotate_y(delta * 1.8)
+	var village := get_tree().get_first_node_in_group("village") as Village
+	if village and village.current_plot == _guide_plot and _guide_plot.get_progress() > 0.0:
+		var arrow := _arrow
+		_arrow = null
+		var shrink := arrow.create_tween()
+		shrink.tween_property(arrow, "scale", Vector3.ONE * 0.01, 0.3).set_ease(Tween.EASE_IN)
+		shrink.tween_callback(arrow.queue_free)
+
+
+func has_guide_arrow() -> bool:
+	return _arrow != null
+
+
+func _arrow_base_y() -> float:
+	return to_local(get_gate_position()).y + ARROW_HEIGHT
 
 
 ## Середина калитки в мировых координатах.

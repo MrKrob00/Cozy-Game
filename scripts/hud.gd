@@ -59,6 +59,11 @@ const TYPE_SPEED := 0.028
 @onready var _speech: PanelContainer = %Speech
 @onready var _speech_label: Label = %SpeechLabel
 @onready var _pinch_zoom: PinchZoom = %PinchZoom
+@onready var _title_panel: Control = %TitlePanel
+@onready var _title_label: Label = %TitleLabel
+@onready var _subtitle: Label = %Subtitle
+@onready var _play_button: Button = %PlayButton
+@onready var _new_game_button: Button = %NewGameButton
 
 var _player: Player
 ## Участок, прогресс которого сейчас показан.
@@ -83,6 +88,8 @@ var _action_pulse: Tween
 var _speaker: Node
 var _stamp_tweens: Array[Tween] = []
 var _fps_timer := 0.0
+var _new_game_armed := false
+var _title_bob: Tween
 
 
 func _enter_tree() -> void:
@@ -173,6 +180,16 @@ func _ready() -> void:
 	_hint_hidden = GameState.bag_fill > 0.0 or GameState.grass_banked > 0.0
 	_hint_label.visible = not _hint_hidden
 
+	_play_button.pressed.connect(_on_play_pressed)
+	_new_game_button.pressed.connect(_on_new_game_pressed)
+	for button: Button in [_play_button, _new_game_button]:
+		button.pressed.connect(_on_any_button_pressed.bind(button))
+	# Титульный экран — один раз за запуск; в проверках без экрана его нет.
+	if GameState.title_seen or DisplayServer.get_name() == "headless":
+		_title_panel.visible = false
+	else:
+		_show_title.call_deferred()
+
 
 func _process(delta: float) -> void:
 	# Счётчик FPS и диагностика обновляются пару раз в секунду.
@@ -186,7 +203,79 @@ func _process(delta: float) -> void:
 		_diag_label.text = _diagnostics()
 
 
+func is_title_shown() -> bool:
+	return _title_panel.visible
+
+
+# Титульный экран: камера кружит над деревней, игрок ждёт.
+func _show_title() -> void:
+	_title_panel.visible = true
+	_margin.visible = false
+	_joystick.visible = false
+	_joystick.process_mode = Node.PROCESS_MODE_DISABLED
+	if _player:
+		_player.controls_enabled = false
+	var camera := get_viewport().get_camera_3d() as FollowCamera
+	if camera:
+		camera.set_menu(true)
+	var returning := GameState.has_progress()
+	_play_button.text = "Продолжить" if returning else "Играть"
+	_new_game_button.visible = returning
+	_new_game_button.text = "Новая игра"
+	_new_game_armed = false
+	# Название падает сверху, подпись и кнопки появляются следом.
+	Juice.slam(_title_label, 1.5, 0.3)
+	var appear: Array[Control] = [_subtitle, _play_button]
+	if returning:
+		appear.append(_new_game_button)
+	for i in appear.size():
+		var control := appear[i]
+		control.modulate.a = 0.0
+		var tween := create_tween()
+		tween.tween_interval(0.35 + 0.15 * i)
+		tween.tween_callback(func() -> void: Juice.pop_in(control, 0.3))
+	if _title_bob:
+		_title_bob.kill()
+	_title_bob = create_tween().set_loops()
+	_title_bob.tween_property(_title_label, "rotation", 0.02, 1.6).set_trans(Tween.TRANS_SINE)
+	_title_bob.tween_property(_title_label, "rotation", -0.02, 1.6).set_trans(Tween.TRANS_SINE)
+
+
+func _on_play_pressed() -> void:
+	GameState.title_seen = true
+	if _title_bob:
+		_title_bob.kill()
+	var fade := create_tween()
+	fade.tween_property(_title_panel, "modulate:a", 0.0, 0.35)
+	fade.tween_callback(func() -> void:
+		_title_panel.visible = false
+		_title_panel.modulate.a = 1.0)
+	var camera := get_viewport().get_camera_3d() as FollowCamera
+	if camera:
+		camera.set_menu(false)
+	if _player:
+		_player.controls_enabled = true
+	_joystick.visible = true
+	_joystick.process_mode = Node.PROCESS_MODE_INHERIT
+	_margin.visible = true
+	Juice.pop_in(_margin, 0.35)
+	Sfx.play("chime", -8.0)
+
+
+func _on_new_game_pressed() -> void:
+	# Стирание прогресса требует второго нажатия.
+	if not _new_game_armed:
+		_new_game_armed = true
+		_new_game_button.text = "Стереть прогресс? Нажмите ещё раз"
+		return
+	GameState.title_seen = true
+	GameState.reset_game()
+
+
 func _input(event: InputEvent) -> void:
+	if _title_panel.visible:
+		# На титульном экране пауза не открывается.
+		return
 	# Кнопки Godot слышат только первый палец. Если левый палец держит джойстик,
 	# нажатие вторым пальцем на кнопку действия ловим сами.
 	if event is InputEventScreenTouch and event.pressed and event.index > 0 \

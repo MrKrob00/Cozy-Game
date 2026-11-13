@@ -433,3 +433,98 @@ theme_override_font_sizes/font_size = 96
 text = "День 2"
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="TitlePanel" type="Control" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Shade" type="ColorRect" parent="Root/TitlePanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.1, 0.16, 0.1, 0.18)
+
+[node name="Center" type="CenterContainer" parent="Root/TitlePanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Column" type="VBoxContainer" parent="Root/TitlePanel/Center"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 22
+
+[node name="TitleLabel" type="Label" parent="Root/TitlePanel/Center/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.97, 0.88, 1)
+theme_override_colors/font_outline_color = Color(0.2, 0.36, 0.18, 1)
+theme_override_constants/outline_size = 34
+theme_override_font_sizes/font_size = 128
+text = "Cozy Game"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="Root/TitlePanel/Center/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.97, 0.88, 1)
+theme_override_colors/font_outline_color = Color(0.2, 0.36, 0.18, 1)
+theme_override_constants/outline_size = 16
+theme_override_font_sizes/font_size = 42
+text = "уютная игра про покос травы"
+horizontal_alignment = 1
+
+[node name="Gap" type="Control" parent="Root/TitlePanel/Center/Column"]
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="PlayButton" type="Button" parent="Root/TitlePanel/Center/Column"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(520, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+focus_mode = 0
+theme_override_font_sizes/font_size = 48
+text = "Играть"
+
+[node name="NewGameButton" type="Button" parent="Root/TitlePanel/Center/Column"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(520, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+focus_mode = 0
+text = "Новая игра"
+
+[node name="TitleCredits" type="Label" parent="Root/TitlePanel"]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -600.0
+offset_top = -70.0
+offset_right = 600.0
+offset_bottom = -30.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(1, 0.97, 0.88, 0.85)
+theme_override_colors/font_outline_color = Color(0.2, 0.36, 0.18, 1)
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 24
+text = "Музыка: Kevin MacLeod (incompetech.com), CC BY 4.0"
+horizontal_alignment = 1

@@ -41,6 +41,8 @@ const SWISH_STEP := 0.55
 const HAND := Vector3(0.26, 0.82, -0.36)
 
 var interaction_target: Interactable
+## Пока выключено (титульный экран), игрок не слушается ввода.
+var controls_enabled := true
 ## Текущие параметры косилки (из апгрейдов).
 var speed := 2.5
 var blade_width := 0.6
@@ -94,6 +96,8 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if not controls_enabled:
+		return
 	if event.is_action_pressed("interact"):
 		try_interact()
 		return
@@ -335,6 +339,8 @@ func _update_interaction(delta: float) -> void:
 
 ## Желаемое направление в мировых координатах, длина 0–1.
 func _desired_direction() -> Vector3:
+	if not controls_enabled:
+		return Vector3.ZERO
 	# Пока игрок масштабирует камеру двумя пальцами, косилка стоит.
 	if _pinch_zoom and _pinch_zoom.active:
 		return Vector3.ZERO

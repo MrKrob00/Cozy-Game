@@ -51,6 +51,20 @@ func _run() -> void:
 	var toasts: Array[String] = []
 	gs.toast_requested.connect(func(t): toasts.append(t))
 
+	# 0. Титульный экран: без экрана его нет; показанный — игрок ждёт, «Играть» отпускает.
+	check(not hud.is_title_shown() and player.controls_enabled, "no title screen in headless runs")
+	hud.call("_show_title")
+	check(hud.is_title_shown() and not player.controls_enabled, "title screen holds the player")
+	check(hud.get_node("%PlayButton").text == "Играть" and not hud.get_node("%NewGameButton").visible, "fresh game offers Play only")
+	var start_pos: Vector3 = player.global_position
+	Input.action_press("move_up")
+	await frames(30)
+	Input.action_release("move_up")
+	check(player.global_position.distance_to(start_pos) < 0.01, "player does not move behind the title")
+	hud.get_node("%PlayButton").pressed.emit()
+	await frames(40)
+	check(not hud.is_title_shown() and player.controls_enabled and gs.title_seen, "Play hands control to the player")
+
 	# 1. Два участка; игрок начинает во дворе.
 	check(get_nodes_in_group("plot").size() == 4, "village has four plots")
 	check(village.current_plot == yard, "player starts in the yard")
@@ -110,6 +124,7 @@ func _run() -> void:
 	check(yard.is_completed() and garden.is_unlocked(), "mowing the yard unlocks the garden")
 	check(garden.get_walk_rects().size() == 2, "garden gate passage appears")
 	check(toasts.any(func(t): return t.begins_with("Калитка в сад бабушки открыта")), "unlock toast")
+	check(garden.fence.has_guide_arrow(), "an arrow over the garden gate shows the way")
 	check(garden.get_progress() == 0.0, "mowing the yard does not touch the garden")
 	for i in 460:
 		await process_frame
@@ -126,6 +141,7 @@ func _run() -> void:
 	check(village.current_plot == garden, "garden becomes the current plot")
 	check(hud.get_node("%ProgressLabel").text.begins_with("Сад бабушки"), "HUD switches to the garden")
 	check(garden.get_progress() > 0.005 and gs.bag_fill > 2.0, "mowing works on the second plot")
+	check(not garden.fence.has_guide_arrow(), "the guide arrow goes once the player mows the garden")
 
 	# 7. Полевые цветы: наехали — скошены, объехали — остались.
 	var poppies = garden.get_node("Poppies")
