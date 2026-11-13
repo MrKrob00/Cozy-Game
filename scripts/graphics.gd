@@ -57,6 +57,8 @@ const PRESETS := [
 ## Общая яркость света дня. Подобрана по снимкам: без неё в Compatibility
 ## выкошенный газон светлее, чем был в Mobile, и упирается в белый.
 const EXPOSURE := 0.86
+const BOUNCE := Color(0.50, 0.44, 0.30)
+const GLOW := Color(0.36, 0.14, 0.03)
 ## Направление солнечных лучей (как у прежнего DirectionalLight3D).
 const SUN_DIRECTION := Vector3(0.353, -0.788, -0.504)
 
@@ -74,6 +76,8 @@ var _day := {
 	"day_dir": SUN_DIRECTION.normalized(),
 	"day_sun": Vector3(0.7, 0.672, 0.602),
 	"day_ambient": Vector3(0.546, 0.588, 0.665),
+	"day_bounce": Vector3(0.43, 0.40, 0.28),
+	"day_glow": Vector3(0.26, 0.10, 0.02),
 	"day_saturation": 1.0,
 	"haze_color": Vector3(0.39, 0.74, 0.96),
 }
@@ -111,6 +115,9 @@ func set_day(sun: Color, sun_energy: float, ambient: Color, saturation: float,
 	_day["haze_color"] = Vector3(haze_linear.r, haze_linear.g, haze_linear.b)
 	_day["day_sun"] = Vector3(sun.r, sun.g, sun.b) * sun_energy * EXPOSURE
 	_day["day_ambient"] = Vector3(ambient.r, ambient.g, ambient.b) * EXPOSURE
+	# Отражённый от земли свет — тёплый, от него тени снизу не серые.
+	_day["day_bounce"] = Vector3(BOUNCE.r, BOUNCE.g, BOUNCE.b) * EXPOSURE
+	_day["day_glow"] = Vector3(GLOW.r, GLOW.g, GLOW.b) * sun_energy
 	_day["day_saturation"] = saturation
 	_push(_lit, _day)
 

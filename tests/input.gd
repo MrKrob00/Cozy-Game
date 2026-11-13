@@ -143,6 +143,32 @@ func _run() -> void:
 				inside = true
 	check(inside, "player stays inside walkable areas")
 
+	# 6b. Поворот вокруг косилки, покос до колёс, скорость на улице.
+	player.global_position = Vector3(0, 0, 3.0)
+	player.rotation = Vector3.ZERO
+	await frames(3)
+	var blade_before: Vector3 = player.get_blade_position()
+	Input.action_press("move_right")
+	await frames(10)
+	Input.action_release("move_right")
+	var blade_shift: float = Vector2(player.get_blade_position().x - blade_before.x, player.get_blade_position().z - blade_before.z).length()
+	var body_shift: float = Vector2(player.global_position.x, player.global_position.z - 3.0).length()
+	print("turn: blade moved %.2f, body moved %.2f" % [blade_shift, body_shift])
+	check(blade_shift < body_shift, "turning pivots around the mower, not the character")
+	check(is_equal_approx(player.get_cut_width(), player.blade_width + 0.18), "cut reaches the middle of the wheels")
+	player.global_position = Vector3(-60.0, 0, 11.3)
+	player.rotation = Vector3(0, PI * 0.5, 0)
+	await frames(5)
+	Input.action_press("move_up"); Input.action_press("move_left")
+	await frames(90)
+	var road_speed: float = player.velocity.length()
+	Input.action_release("move_up"); Input.action_release("move_left")
+	print("road speed %.2f" % road_speed)
+	check(road_speed > player.speed * 1.3, "the mower rolls faster on the street")
+	check(player.global_position.y > 2.0, "the street climbs toward the next plots")
+	player.global_position = Vector3(0, 0, 3.0)
+	await frames(30)
+
 	# 7. Качество графики: меньше травы и ниже разрешение 3D на низком.
 	var hud = current_scene.get_node("HUD")
 	var count_grass := func() -> int:
@@ -183,7 +209,7 @@ func _run() -> void:
 	check(not current_scene.get_node("Sun").visible, "the engine light is off: materials light themselves")
 	var far_chunk = null
 	var near_chunk = null
-	for chunk in current_scene.get_node("Garden/MowField").find_children("Grass_*", "MultiMeshInstance3D", false, false):
+	for chunk in current_scene.get_node("Orchard/MowField").find_children("Grass_*", "MultiMeshInstance3D", false, false):
 		far_chunk = chunk
 	for chunk in field.find_children("Grass_*", "MultiMeshInstance3D", false, false):
 		if chunk.multimesh.visible_instance_count == -1:

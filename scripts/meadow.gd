@@ -14,6 +14,7 @@ const GRASS_LIGHT := Color(0.62, 0.82, 0.44)
 const GRASS_DARK := Color(0.42, 0.65, 0.38)
 const CLOVER := Color(0.74, 0.82, 0.40)
 const DRY := Color(0.80, 0.78, 0.46)
+const SLOPE := Color(0.50, 0.58, 0.32)
 const DIRT := Color(0.68, 0.57, 0.40)
 const WORN := Color(0.64, 0.66, 0.44)
 const ROAD := Color(0.88, 0.78, 0.57)
@@ -35,7 +36,7 @@ const TILE := 30.0
 
 
 ## Земля луга: сетка с цветом в вершинах, кусками по TILE метров.
-static func build_ground(parent: Node3D, area: Rect2, road: Rect2, seed: int) -> void:
+static func build_ground(parent: Node3D, area: Rect2, road: Rect2, seed: int, terrain: Terrain) -> void:
 	var noise := _noise(seed, 0.06)
 	var patches := _noise(seed + 1, 0.13)
 	var spots := _noise(seed + 2, 0.2)
@@ -44,7 +45,7 @@ static func build_ground(parent: Node3D, area: Rect2, road: Rect2, seed: int) ->
 		var z := area.position.y
 		while z < area.end.y:
 			var tile := Rect2(x, z, minf(TILE, area.end.x - x), minf(TILE, area.end.y - z))
-			_ground_tile(parent, tile, road, noise, patches, spots)
+			_ground_tile(parent, tile, road, noise, patches, spots, terrain)
 			z += TILE
 		x += TILE
 
@@ -64,7 +65,7 @@ static func ground_color(at: Vector2, road: Rect2, noise: FastNoiseLite,
 
 
 ## Дорога: колеи, крапины и рваные края, переходящие в траву.
-static func build_road(parent: Node3D, road: Rect2, seed: int) -> void:
+static func build_road(parent: Node3D, road: Rect2, seed: int, terrain: Terrain) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed
 	var noise := _noise(seed + 3, 0.6)
@@ -83,13 +84,15 @@ static func build_road(parent: Node3D, road: Rect2, seed: int) -> void:
 			var edge := column == 0 or column == COLUMNS
 			if edge:
 				z += (-1.0 if column == 0 else 1.0) * rng.randf_range(-0.25, 0.45)
+			# Дорога слегка петляет, чтобы не быть линейкой.
+			z += sin(x * 0.11) * 0.45 + sin(x * 0.037 + 1.3) * 0.35
 			var at := Vector2(x, z)
 			var rut := maxf(_bump(across, 0.3, 0.07), _bump(across, 0.7, 0.07))
 			var color := ROAD.lerp(ROAD_RUT, rut * 0.8)
 			color = color.lerp(ROAD_RUT, maxf(noise.get_noise_2dv(at), 0.0) * 0.5)
 			if edge:
 				color = ROAD_EDGE
-			vertices.append(Vector3(x, -0.01, z))
+			vertices.append(Vector3(x, terrain.street_height(x) + 0.03, z))
 			colors.append(color.srgb_to_linear())
 	for row in rows - 1:
 		for column in COLUMNS:
@@ -100,18 +103,21 @@ static func build_road(parent: Node3D, road: Rect2, seed: int) -> void:
 
 
 ## Россыпи: кочки, цветы, камни, грибы. free_at(точка) говорит, можно ли там.
-static func scatter(parent: Node3D, area: Rect2, free_at: Callable, trees: Array[Vector3], seed: int) -> void:
+static func scatter(parent: Node3D, area: Rect2, free_at: Callable, trees: Array[Vector3], seed: int,
+		terrain: Terrain) -> void:
+	var on_ground := func(at: Vector2) -> Vector3:
+		return Vector3(at.x, terrain.height_at(at), at.y)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed
 	var lush := _noise(seed + 4, 0.06)
 	# На низком качестве россыпей меньше: это треугольники на каждом кадре.
 	var amount: float = Graphics.preset["scatter"]
 	# Кочки: гуще там, где трава сочнее.
-	for i in int(area.get_area() * 0.12 * amount):
+	for i in int(area.get_area() * 0.09 * amount):
 		var at := _random_point(area, rng)
 		if lush.get_noise_2dv(at) < -0.15 or not free_at.call(at):
 			continue
-		tuft(parent, Vector3(at.x, 0.0, at.y), rng)
+		tuft(parent, on_ground.call(at), rng)
 	# Цветы куртинами, у каждой свой цвет.
 	for i in int(area.get_area() / 40.0 * amount):
 		var at := _random_point(area, rng)
@@ -121,7 +127,7 @@ static func scatter(parent: Node3D, area: Rect2, free_at: Callable, trees: Array
 		for k in rng.randi_range(4, 9):
 			var spot := at + Vector2(rng.randf_range(-0.7, 0.7), rng.randf_range(-0.7, 0.7))
 			if free_at.call(spot):
-				flower(parent, Vector3(spot.x, 0.0, spot.y), petal, rng)
+				flower(parent, on_ground.call(spot), petal, rng)
 	# Камни группами: большой, средний и мелкие рядом.
 	for i in int(area.get_area() / 260.0):
 		var at := _random_point(area, rng)
@@ -130,7 +136,7 @@ static func scatter(parent: Node3D, area: Rect2, free_at: Callable, trees: Array
 		var size := rng.randf_range(0.22, 0.38)
 		for k in rng.randi_range(1, 3):
 			var spot := at + Vector2(rng.randf_range(-0.5, 0.5), rng.randf_range(-0.5, 0.5))
-			rock(parent, Vector3(spot.x, 0.0, spot.y), size, rng)
+			rock(parent, on_ground.call(spot), size, rng)
 			size *= rng.randf_range(0.45, 0.7)
 	# Грибы у стволов деревьев.
 	for tree in trees:
@@ -140,12 +146,13 @@ static func scatter(parent: Node3D, area: Rect2, free_at: Callable, trees: Array
 		var spot := Vector2(tree.x, tree.z) + Vector2(cos(angle), sin(angle)) * rng.randf_range(0.9, 1.8)
 		if free_at.call(spot):
 			for k in rng.randi_range(1, 3):
-				mushroom(parent, Vector3(spot.x + rng.randf_range(-0.3, 0.3), 0.0,
-						spot.y + rng.randf_range(-0.3, 0.3)), rng)
+				mushroom(parent, on_ground.call(spot + Vector2(rng.randf_range(-0.3, 0.3),
+						rng.randf_range(-0.3, 0.3))), rng)
 
 
 ## Кочки и цветы вдоль линии (забор): ломают длинную прямую.
-static func line_clumps(parent: Node3D, from: Vector3, to: Vector3, free_at: Callable, seed: int) -> void:
+static func line_clumps(parent: Node3D, from: Vector3, to: Vector3, free_at: Callable, seed: int,
+		terrain: Terrain) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed
 	var length := from.distance_to(to)
@@ -153,6 +160,7 @@ static func line_clumps(parent: Node3D, from: Vector3, to: Vector3, free_at: Cal
 	var along := 0.0
 	while along < length:
 		var at := from.lerp(to, along / length) + side * rng.randf_range(-0.45, 0.45)
+		at.y = terrain.height_at(Vector2(at.x, at.z))
 		if free_at.call(Vector2(at.x, at.z)):
 			if rng.randf() < 0.18:
 				flower(parent, at, PETALS[rng.randi() % PETALS.size()], rng)
@@ -199,30 +207,40 @@ static func mushroom(parent: Node3D, at: Vector3, rng: RandomNumberGenerator) ->
 
 
 static func _ground_tile(parent: Node3D, tile: Rect2, road: Rect2, noise: FastNoiseLite,
-		patches: FastNoiseLite, spots: FastNoiseLite) -> void:
+		patches: FastNoiseLite, spots: FastNoiseLite, terrain: Terrain) -> void:
 	var columns := maxi(int(ceilf(tile.size.x / GRID_STEP)), 1)
 	var rows := maxi(int(ceilf(tile.size.y / GRID_STEP)), 1)
 	var vertices := PackedVector3Array()
+	var normals := PackedVector3Array()
 	var colors := PackedColorArray()
 	var indices := PackedInt32Array()
 	for row in rows + 1:
 		for column in columns + 1:
 			var at := tile.position + Vector2(column * tile.size.x / columns, row * tile.size.y / rows)
-			vertices.append(Vector3(at.x, -0.03, at.y))
-			colors.append(ground_color(at, road, noise, patches, spots).srgb_to_linear())
+			# Под дорогой земля чуть ниже: на подъёмах сетка земли редкая
+			# и иначе прорезала бы дорогу.
+			var sink := 0.22 if road.grow(1.6).has_point(at) else 0.03
+			vertices.append(Vector3(at.x, terrain.height_at(at) - sink, at.y))
+			normals.append(terrain.normal_at(at))
+			var color := ground_color(at, road, noise, patches, spots)
+			# Склоны чуть темнее и теплее: рельеф читается сверху.
+			var slope := 1.0 - normals[-1].y
+			color = color.lerp(SLOPE, clampf(slope * 4.0, 0.0, 0.45))
+			colors.append(color.srgb_to_linear())
 	for row in rows:
 		for column in columns:
 			var a := row * (columns + 1) + column
 			var b := a + columns + 1
 			indices.append_array([a, a + 1, b, b, a + 1, b + 1])
-	_add_mesh(parent, "Ground_%d_%d" % [int(tile.position.x), int(tile.position.y)], vertices, colors, indices)
+	_add_mesh(parent, "Ground_%d_%d" % [int(tile.position.x), int(tile.position.y)], vertices, colors, indices,
+			normals)
 
 
 static func _add_mesh(parent: Node3D, mesh_name: String, vertices: PackedVector3Array,
-		colors: PackedColorArray, indices: PackedInt32Array) -> void:
-	var normals := PackedVector3Array()
-	normals.resize(vertices.size())
-	normals.fill(Vector3.UP)
+		colors: PackedColorArray, indices: PackedInt32Array, normals := PackedVector3Array()) -> void:
+	if normals.is_empty():
+		normals.resize(vertices.size())
+		normals.fill(Vector3.UP)
 	var surface := []
 	surface.resize(Mesh.ARRAY_MAX)
 	surface[Mesh.ARRAY_VERTEX] = vertices

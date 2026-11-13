@@ -15,8 +15,9 @@ signal festival_started(announce: bool)
 ## Насыщенность картинки на заросшем и на выкошенном участке.
 @export var saturation_range := Vector2(0.72, 1.1)
 @export var sun_energy_range := Vector2(0.58, 0.74)
-@export var sun_color_overgrown := Color(0.9, 0.93, 1.0)
-@export var sun_color_mowed := Color(1.0, 0.95, 0.84)
+@export var sun_color_overgrown := Color(0.96, 0.92, 0.90)
+## Золотистое солнце позднего дня — главная нота уюта.
+@export var sun_color_mowed := Color(1.0, 0.88, 0.68)
 @export var sky_color_overgrown := Color(0.72, 0.79, 0.82)
 @export var sky_color_mowed := Color(0.66, 0.88, 0.98)
 
@@ -27,7 +28,7 @@ const FESTIVAL_FLAG := "festival"
 ## Свет неба (как прежний окружающий свет сцены).
 ## Холоднее прежнего: тень голубоватая, солнце тёплое (совет Pontus Albrecht
 ## и Firewatch: тёплый свет, холодная тень).
-const AMBIENT := Color(0.50, 0.57, 0.72)
+const AMBIENT := Color(0.50, 0.56, 0.74)
 ## Пауза между покосом последнего участка и праздником, секунд.
 const FESTIVAL_DELAY := 11.0
 

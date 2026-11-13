@@ -43,7 +43,7 @@ func _process(_delta: float) -> void:
 		GameState.set_flag("hint_wild_flowers")
 		GameState.toast("Полевые цветы! Объезжайте их — тогда они останутся в саду")
 	# Нож задел середину куртины — цветы скошены.
-	if player.is_blade_spinning() and offset.length() < radius * 0.5 + player.blade_width * 0.5:
+	if player.is_blade_spinning() and offset.length() < radius * 0.5 + player.get_cut_width() * 0.5:
 		_cut()
 
 

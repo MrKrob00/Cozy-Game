@@ -2,8 +2,10 @@ extends Node3D
 ## Земля, улица и окружение деревни: фонари, кусты, деревья вдали.
 ## Всё временное, из примитивов (см. Placeholder).
 
-## Улица (мировые X, Z; ширина, длина): по ней игрок ходит между участками.
-@export var street := Rect2(-11.0, 9.4, 73.0, 3.8)
+## Улица — из рельефа (Terrain.street).
+var street: Rect2:
+	get:
+		return _terrain.street if _terrain else Rect2()
 @export var tree_count := 60
 @export var random_seed := 11
 
@@ -18,6 +20,7 @@ const FLAGS := [Color(1.0, 0.45, 0.45), Color(1.0, 0.82, 0.3), Color(0.45, 0.8, 
 const LEAVES := [Color(0.30, 0.62, 0.32), Color(0.40, 0.70, 0.34), Color(0.24, 0.54, 0.36)]
 
 
+var _terrain: Terrain
 var _lamps: Array[Vector3] = []
 var _trees: Array[Vector3] = []
 ## Где россыпям не место: [центр (x, z), радиус].
@@ -27,6 +30,7 @@ var _bunting: Node3D
 
 func _enter_tree() -> void:
 	add_to_group("walk_area")
+	_terrain = get_parent().get_node_or_null("Terrain") as Terrain
 
 
 func get_walk_rects() -> Array[Rect2]:
@@ -44,10 +48,10 @@ func _ready() -> void:
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(400.0, 400.0)
 	var ground := Placeholder.part(self, plane, Meadow.GRASS_LIGHT,
-			Vector3(area.get_center().x, -0.05, area.get_center().y))
+			Vector3(area.get_center().x, -0.6, area.get_center().y))
 	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	Meadow.build_ground(self, area, road_rect, random_seed)
-	Meadow.build_road(self, road_rect, random_seed)
+	Meadow.build_ground(self, area, road_rect, random_seed, _terrain)
+	Meadow.build_road(self, road_rect, random_seed, _terrain)
 
 	var rng := RandomNumberGenerator.new()
 	rng.seed = random_seed
@@ -57,7 +61,7 @@ func _ready() -> void:
 	_build_trees(road_rect, rng)
 	_collect_obstacles()
 	var free_at := _is_free.bind(road_rect)
-	Meadow.scatter(self, area.grow(-6.0), free_at, _trees, random_seed + 5)
+	Meadow.scatter(self, area.grow(-6.0), free_at, _trees, random_seed + 5, _terrain)
 	var index := 0
 	for node in get_tree().get_nodes_in_group("plot"):
 		var plot := node as Plot
@@ -66,7 +70,7 @@ func _ready() -> void:
 		var corners := plot.fence.get_corners()
 		for i in corners.size():
 			Meadow.line_clumps(self, corners[i], corners[(i + 1) % corners.size()], free_at,
-					random_seed + 20 + index)
+					random_seed + 20 + index, _terrain)
 			index += 1
 
 	var village := get_tree().get_first_node_in_group("village") as Village
@@ -102,7 +106,7 @@ func _build_street_ends(road: Rect2, rng: RandomNumberGenerator) -> void:
 	for x: float in [road.position.x - 0.6, road.end.x + 0.6]:
 		var z := road.position.y - 0.5
 		while z <= road.end.y + 0.5:
-			_bush(Vector3(x + rng.randf_range(-0.2, 0.2), 0.0, z), rng.randf_range(0.7, 0.95), rng)
+			_bush(_ground(x + rng.randf_range(-0.2, 0.2), z), rng.randf_range(0.7, 0.95), rng)
 			z += 1.0
 
 
@@ -112,7 +116,7 @@ func _build_lamps(road: Rect2) -> void:
 	while x < road.end.x - 1.0:
 		if not _inside_plot(Vector3(x, 0.0, road.position.y), 0.0, true):
 			var lamp := Node3D.new()
-			lamp.position = Vector3(x, 0.0, road.position.y + 0.3)
+			lamp.position = _ground(x, road.position.y + 0.3)
 			lamp.set_meta("merge_up", true)
 			add_child(lamp)
 			_lamps.append(lamp.position)
@@ -126,7 +130,7 @@ func _build_lamps(road: Rect2) -> void:
 func _build_near_bushes(road: Rect2, rng: RandomNumberGenerator) -> void:
 	var x := road.position.x + 1.0
 	while x < road.end.x:
-		var at := Vector3(x + rng.randf_range(-0.6, 0.6), 0.0, road.end.y + rng.randf_range(0.6, 1.6))
+		var at := _ground(x + rng.randf_range(-0.6, 0.6), road.end.y + rng.randf_range(0.6, 1.6))
 		# Там, где с ближней стороны стоит участок, кусты не нужны.
 		if not _inside_plot(at, 1.0, false):
 			_bush(at, rng.randf_range(0.3, 0.5), rng)
@@ -146,6 +150,7 @@ func _build_trees(road: Rect2, rng: RandomNumberGenerator) -> void:
 			continue
 		if _inside_plot(at, 3.5, false):
 			continue
+		at = _ground(at.x, at.z)
 		_trees.append(at)
 		var tree := Node3D.new()
 		tree.position = at
@@ -182,6 +187,11 @@ func _inside_plot(at: Vector3, margin: float, gates_only: bool) -> bool:
 			if plot.get_inner_rect().grow(reach).has_point(Vector2(at.x, at.z)):
 				return true
 	return false
+
+
+# Точка на земле с высотой рельефа.
+func _ground(x: float, z: float) -> Vector3:
+	return Vector3(x, _terrain.height_at(Vector2(x, z)) if _terrain else 0.0, z)
 
 
 # Прямоугольник, в котором стоят все участки и улица.

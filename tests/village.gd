@@ -70,6 +70,8 @@ func _run() -> void:
 	check(village.current_plot == yard, "player starts in the yard")
 	check(hud.get_node("%ProgressLabel").text.begins_with("Двор"), "HUD shows the yard")
 	check(yard.is_unlocked() and not garden.is_unlocked(), "garden is locked until the yard is mowed")
+	check(garden.global_position.y > yard.global_position.y + 1.0, "each next plot sits higher")
+	check(garden.fence.get("_sign_label").text.contains("закрыто"), "a locked plot's signpost says closed")
 	check(yard.get_walk_rects().size() == 2 and garden.get_walk_rects().size() == 1, "locked plot has no gate passage")
 	var yard_cells: int = yard.field.get("_mowable_cells")
 	var garden_cells: int = garden.field.get("_mowable_cells")
@@ -125,6 +127,10 @@ func _run() -> void:
 	check(garden.get_walk_rects().size() == 2, "garden gate passage appears")
 	check(toasts.any(func(t): return t.begins_with("Калитка в сад бабушки открыта")), "unlock toast")
 	check(garden.fence.has_guide_arrow(), "an arrow over the garden gate shows the way")
+	check(garden.fence.get("_sign_label").text.contains("Сад бабушки") and not garden.fence.get("_sign_label").text.contains("закрыто"), "the garden signpost no longer says closed")
+	var pointer = hud.get_node("Root/GoalPointer")
+	await frames(3)
+	check(pointer.target == garden, "the screen-edge pointer leads to the garden")
 	check(garden.get_progress() == 0.0, "mowing the yard does not touch the garden")
 	for i in 460:
 		await process_frame
@@ -138,6 +144,7 @@ func _run() -> void:
 	await walk_north(260)
 	print("in garden: ", player.global_position, " progress=", garden.get_progress(), " bag=", gs.bag_fill)
 	check(player.global_position.z < 6.0, "player walks through the open gate")
+	check(absf(player.global_position.y - garden.global_position.y) < 0.05, "player stands on the garden terrace")
 	check(village.current_plot == garden, "garden becomes the current plot")
 	check(hud.get_node("%ProgressLabel").text.begins_with("Сад бабушки"), "HUD switches to the garden")
 	check(garden.get_progress() > 0.005 and gs.bag_fill > 2.0, "mowing works on the second plot")

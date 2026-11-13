@@ -1,7 +1,8 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/village.gd" id="1_village"]
 [ext_resource type="Script" path="res://scripts/village_decor.gd" id="2_decor"]
+[ext_resource type="Script" path="res://scripts/terrain.gd" id="10_terrain"]
 [ext_resource type="PackedScene" path="res://scenes/plots/yard.tscn" id="3_yard"]
 [ext_resource type="PackedScene" path="res://scenes/plots/garden.tscn" id="4_garden"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="5_player"]
@@ -29,19 +30,22 @@ light_color = Color(1, 0.96, 0.86, 1)
 visible = false
 light_energy = 0.7
 
+[node name="Terrain" type="Node" parent="."]
+script = ExtResource("10_terrain")
+
 [node name="Decor" type="Node3D" parent="."]
 script = ExtResource("2_decor")
 
 [node name="Yard" parent="." instance=ExtResource("3_yard")]
 
 [node name="Garden" parent="." instance=ExtResource("4_garden")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 0, -1)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 1.8, -1)
 
 [node name="Square" parent="." instance=ExtResource("8_square")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 6, 0, 25.6)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -52, 3.6, 25.6)
 
 [node name="Orchard" parent="." instance=ExtResource("9_orchard")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 42, 0, 26.6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -84, 5.4, -4)
 
 [node name="Player" parent="." instance=ExtResource("5_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 6.6)

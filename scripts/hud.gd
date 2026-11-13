@@ -180,6 +180,11 @@ func _ready() -> void:
 	_hint_hidden = GameState.bag_fill > 0.0 or GameState.grass_banked > 0.0
 	_hint_label.visible = not _hint_hidden
 
+	var pointer := GoalPointer.new()
+	pointer.name = "GoalPointer"
+	_root.add_child(pointer)
+	_root.move_child(pointer, _flyers.get_index())
+
 	_play_button.pressed.connect(_on_play_pressed)
 	_new_game_button.pressed.connect(_on_new_game_pressed)
 	for button: Button in [_play_button, _new_game_button]:

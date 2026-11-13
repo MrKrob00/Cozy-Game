@@ -7,9 +7,11 @@ render_mode unshaded, cull_disabled, depth_test_disabled, depth_draw_never, worl
 uniform vec3 day_dir = vec3(0.353, -0.788, -0.504);
 
 void vertex() {
-	float lift = max(VERTEX.y, 0.0) / max(-day_dir.y, 0.1);
+	// Земля под предметом — высота его узла (участки стоят на террасах).
+	float ground = MODEL_MATRIX[3].y;
+	float lift = max(VERTEX.y - ground, 0.0) / max(-day_dir.y, 0.1);
 	VERTEX.xz += day_dir.xz * lift;
-	VERTEX.y = 0.0;
+	VERTEX.y = ground;
 }
 
 void fragment() {

@@ -27,6 +27,7 @@ var _gate_open := true
 var _arrow: Node3D
 var _arrow_time := 0.0
 var _guide_plot: Plot
+var _sign_label: Label3D
 
 
 func _enter_tree() -> void:
@@ -53,6 +54,51 @@ func _ready() -> void:
 		Placeholder.part(self, Placeholder.box(Vector3(0.2, 1.3, 0.2)), WOOD_DARK, Vector3(x, 0.65, _half.y))
 		Placeholder.part(self, Placeholder.sphere(0.14), WOOD_DARK, Vector3(x, 1.36, _half.y))
 	_build_gate(gate_left)
+	_build_signpost.call_deferred(gate_right)
+
+
+# Столбик с табличкой у калитки, снаружи: имя участка и что его открывает.
+func _build_signpost(gate_right: float) -> void:
+	var plot := Plot.of(self)
+	if plot == null:
+		return
+	var post := Node3D.new()
+	post.name = "Signpost"
+	post.position = Vector3(gate_right + 0.9, 0.0, _half.y + 0.8)
+	add_child(post)
+	Placeholder.part(post, Placeholder.box(Vector3(0.14, 1.6, 0.14)), WOOD_DARK, Vector3(0.0, 0.8, 0.0))
+	Placeholder.part(post, Placeholder.box(Vector3(1.5, 0.55, 0.08)), WOOD, Vector3(0.0, 1.45, 0.0))
+	Placeholder.part(post, Placeholder.prism(Vector3(0.3, 0.3, 0.08)), WOOD, Vector3(0.9, 1.45, 0.0),
+			Vector3(0.0, 0.0, -90.0))
+	Placeholder.bake_tree(post)
+	_sign_label = Label3D.new()
+	_sign_label.position = Vector3(0.0, 2.15, 0.0)
+	_sign_label.font_size = 54
+	_sign_label.pixel_size = 0.006
+	_sign_label.outline_size = 18
+	_sign_label.modulate = Color(1.0, 0.97, 0.88)
+	_sign_label.outline_modulate = Color(0.33, 0.22, 0.12)
+	_sign_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_sign_label.no_depth_test = true
+	post.add_child(_sign_label)
+	_update_sign(plot)
+	plot.unlocked.connect(_update_sign.bind(plot))
+	plot.completed.connect(_update_sign.bind(plot))
+
+
+func _update_sign(plot: Plot) -> void:
+	if _sign_label == null:
+		return
+	var text := plot.plot_name
+	if not plot.is_unlocked():
+		text += "\nзакрыто"
+		_sign_label.modulate = Color(0.85, 0.82, 0.78)
+	elif plot.is_completed():
+		text += "\nвыкошен"
+		_sign_label.modulate = Color(0.8, 1.0, 0.7)
+	else:
+		_sign_label.modulate = Color(1.0, 0.92, 0.55)
+	_sign_label.text = text
 
 
 ## Стрелка над калиткой: зовёт на только что открытый участок и исчезает,

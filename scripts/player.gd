@@ -27,6 +27,10 @@ signal interaction_target_changed(target: Interactable)
 
 ## Расстояние от персонажа до центра ножа.
 const BLADE_OFFSET := 0.95
+## Покос шире ножа: до середины колёс (колёса стоят на blade_width / 2 + 0,09).
+const CUT_EXTRA := 0.18
+## Во сколько раз быстрее косилка катится вне участков (по улице).
+const ROAD_SPEED_BOOST := 1.6
 const BLADE_LENGTH := 0.4
 ## Курсор ближе этого расстояния не двигает персонажа.
 const MOUSE_DEADZONE := 1.3
@@ -75,6 +79,8 @@ var _bag_shown := 0.0
 var _time := 0.0
 var _weed_hint_time := 0.0
 var _smoothed_direction := Vector3.ZERO
+var _road_boost := 0.0
+var _terrain: Terrain
 var _target_time := 0.0
 
 
@@ -86,6 +92,9 @@ func _ready() -> void:
 	for node in get_tree().get_nodes_in_group("mow_field"):
 		_fields.append(node as MowField)
 	_walk_areas = get_tree().get_nodes_in_group("walk_area")
+	_terrain = Terrain.of(self)
+	if _terrain:
+		global_position.y = _terrain.height_at(Vector2(global_position.x, global_position.z))
 	_pinch_zoom = get_tree().get_first_node_in_group("pinch_zoom") as PinchZoom
 	_build_character()
 	_apply_upgrades(false)
@@ -126,11 +135,19 @@ func _physics_process(delta: float) -> void:
 		var angle := forward.signed_angle_to(desired.normalized(), Vector3.UP)
 		var turn := clampf(angle * minf(turn_response * delta, 1.0),
 				-turn_rate * delta, turn_rate * delta)
+		# Поворот вокруг косилки, а не вокруг персонажа: нож почти не уходит
+		# в сторону, и ровную полосу вести легче.
+		var pivot := get_blade_position()
 		rotate_y(turn)
+		global_position = pivot + (global_position - pivot).rotated(Vector3.UP, turn)
 		_turn_speed = lerpf(_turn_speed, turn / delta, 0.2)
 		# Чем сильнее надо повернуть, тем медленнее едем — получается дуга, а не занос.
 		var alignment := clampf(cos(angle), 0.0, 1.0)
 		target_speed = speed * strength * lerpf(0.35, 1.0, alignment)
+		# За калиткой косить нечего: косилка катится быстрее.
+		_road_boost = lerpf(_road_boost, 1.0 if _field_at(global_position) == null else 0.0,
+				1.0 - exp(-3.0 * delta))
+		target_speed *= 1.0 + (ROAD_SPEED_BOOST - 1.0) * _road_boost
 		var ahead := _grass_height_at(get_blade_position() + forward * 0.25)
 		if ahead > 0.9:
 			# Бурьян: слабый нож в него упирается, хороший идёт медленно.
@@ -152,6 +169,9 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	var wanted := global_position
 	global_position = _constrain(before, global_position)
+	if _terrain:
+		var ground := _terrain.height_at(Vector2(global_position.x, global_position.z))
+		global_position.y = lerpf(global_position.y, ground, 1.0 - exp(-14.0 * delta))
 	# Граница участка — это забор: упор в неё тоже считается ударом.
 	var pushed_back := wanted - global_position
 	_check_bump(target_speed, pushed_back.dot(-global_basis.z) > 0.004)
@@ -165,7 +185,7 @@ func _physics_process(delta: float) -> void:
 	if is_blade_spinning():
 		var field := _field_at(blade_position)
 		if field:
-			units = field.mow(blade_position, forward, blade_width, BLADE_LENGTH, can_cut_weeds())
+			units = field.mow(blade_position, forward, get_cut_width(), BLADE_LENGTH, can_cut_weeds())
 			if units > 0.0:
 				GameState.add_grass(units)
 
@@ -225,6 +245,11 @@ func _process(delta: float) -> void:
 ## Центр ножа в мировых координатах.
 func get_blade_position() -> Vector3:
 	return global_position - global_basis.z * BLADE_OFFSET
+
+
+## Ширина полосы покоса, метры.
+func get_cut_width() -> float:
+	return blade_width + CUT_EXTRA
 
 
 ## Режет ли нож прямо сейчас: косилка едет и в мешке есть место.
@@ -457,7 +482,7 @@ func _build_mower() -> void:
 	_clippings.material_override = Placeholder.material(Color(0.62, 0.86, 0.34))
 	_clippings.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_clippings.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
-	_clippings.emission_box_extents = Vector3(blade_width * 0.5, 0.03, 0.12)
+	_clippings.emission_box_extents = Vector3(get_cut_width() * 0.5, 0.03, 0.12)
 	_clippings.direction = Vector3(0.0, 1.0, 0.25)
 	_clippings.spread = 38.0
 	_clippings.initial_velocity_min = 1.6
