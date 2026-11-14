@@ -120,7 +120,6 @@ func _flag() -> String:
 	return "animal_" + animal_id
 
 
-# Временные модели из примитивов (см. Placeholder).
 func _build_visuals() -> void:
 	_model = Node3D.new()
 	add_child(_model)
@@ -143,41 +142,23 @@ func _build_visuals() -> void:
 	add_child(_body)
 
 
+# Лягушка — модель Quaternius (CC0), сидит и дышит.
 func _build_frog() -> void:
-	const SKIN := Color(0.42, 0.74, 0.3)
-	const BELLY := Color(0.85, 0.92, 0.6)
-	const DARK := Color(0.15, 0.13, 0.13)
-	var body := Placeholder.part(_model, Placeholder.sphere(0.26), SKIN, Vector3(0.0, 0.17, 0.04))
-	body.scale = Vector3(1.1, 0.75, 1.2)
-	Placeholder.part(_model, Placeholder.sphere(0.17), BELLY, Vector3(0.0, 0.12, -0.14))
-	for side: float in [-1.0, 1.0]:
-		Placeholder.part(_model, Placeholder.sphere(0.09), SKIN, Vector3(0.13 * side, 0.36, -0.14))
-		Placeholder.part(_model, Placeholder.sphere(0.045), DARK, Vector3(0.14 * side, 0.38, -0.21))
-		var leg := Placeholder.part(_model, Placeholder.sphere(0.13), SKIN, Vector3(0.27 * side, 0.08, 0.14))
-		leg.scale = Vector3(0.8, 0.6, 1.3)
+	var frog := CharacterModel.create("res://assets/animals/frog.glb", 0.24)
+	frog.rotation.y = PI
+	_model.add_child(frog)
+	frog.play("FrogArmature|Frog_Idle", 1.0, 0.0)
 
 
-# Спящий рыжий кот, свернувшийся калачиком.
+# Кот — модель Kenney Cube Pets (CC0).
 func _build_cat() -> void:
-	const FUR := Color(0.95, 0.62, 0.28)
-	const FUR_LIGHT := Color(0.99, 0.86, 0.66)
-	const DARK := Color(0.15, 0.13, 0.13)
-	var body := Placeholder.part(_model, Placeholder.sphere(0.3), FUR, Vector3(0.0, 0.2, 0.06))
-	body.scale = Vector3(1.15, 0.7, 1.3)
-	Placeholder.part(_model, Placeholder.sphere(0.19), FUR, Vector3(0.0, 0.24, -0.3))
-	Placeholder.part(_model, Placeholder.sphere(0.09), FUR_LIGHT, Vector3(0.0, 0.19, -0.44))
-	Placeholder.part(_model, Placeholder.sphere(0.025), Color(0.95, 0.5, 0.55), Vector3(0.0, 0.22, -0.52))
-	for side: float in [-1.0, 1.0]:
-		Placeholder.part(_model, Placeholder.cylinder(0.07, 0.14, 0.0), FUR, Vector3(0.11 * side, 0.43, -0.28))
-		# Закрытые глаза.
-		Placeholder.part(_model, Placeholder.box(Vector3(0.07, 0.015, 0.02)), DARK, Vector3(0.08 * side, 0.28, -0.47))
-	# Хвост, обёрнутый вокруг тела.
-	for i in 6:
-		var angle := 0.5 + i * 0.42
-		Placeholder.part(_model, Placeholder.sphere(0.075 - i * 0.004), FUR if i < 5 else FUR_LIGHT,
-				Vector3(sin(angle) * 0.4, 0.09, 0.06 + cos(angle) * 0.42))
+	var cat := CharacterModel.create("res://assets/animals/cat.glb", 0.62)
+	cat.rotation.y = PI
+	_model.add_child(cat)
+	cat.play("idle", 1.0, 0.0)
 
 
+# Ёжик пока собран из примитивов: готовой модели в нужном стиле не нашлось.
 func _build_hedgehog() -> void:
 	const SPIKES := Color(0.45, 0.32, 0.24)
 	const FACE := Color(0.93, 0.80, 0.64)

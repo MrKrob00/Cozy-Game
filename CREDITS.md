@@ -22,7 +22,18 @@ Kevin MacLeod ([incompetech.com](https://incompetech.com)), лицензия [Cr
 
 Переведены в цвет вершин скриптом `tools/convert_kaykit.py` (`assets/models/`), цвета слегка подогнаны под палитру игры.
 
-Остальные модели (персонажи, косилка, зверьки, забор, скамейки, клумбы, фонтан) — временные, собраны в игре из примитивов.
+Модели [Kenney](https://kenney.nl), лицензия CC0 (`assets/characters/`, `assets/animals/`):
+
+- [Mini Characters](https://kenney.nl/assets/mini-characters) — герой, Мастер, Бабушка, Почтальон, со своими анимациями;
+- [Cube Pets](https://kenney.nl/assets/cube-pets) — кот.
+
+Модели [Quaternius](https://quaternius.com), лицензия CC0:
+
+- [Easy Enemy Pack](https://quaternius.com/packs/easyenemy.html) — лягушка.
+
+Свои модели (`tools/make_models.py` → `assets/models/mower_*.gltf`, `straw_hat.gltf`): газонокосилка по частям (корпус трёх уровней, мотор, колёса, ручка, мешок) и соломенная шляпа. Готовой бесплатной косилки в подходящем стиле не нашлось.
+
+Пока из примитивов: ёжик, забор, скамейки, клумбы, фонтан, находки.
 
 ## Звуки
 

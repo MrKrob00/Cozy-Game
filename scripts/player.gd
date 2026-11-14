@@ -45,9 +45,16 @@ const TURN_COMMIT_ANGLE := 2.3
 const REACH_OFFSET := 0.9
 ## Сколько секунд нужно пробыть рядом, чтобы простое действие выполнилось само.
 const AUTO_INTERACT_DELAY := 0.4
-const CHARACTER_SCALE := 1.15
-## Положение правой ладони в координатах персонажа.
-const HAND := Vector3(0.26, 0.82, -0.36)
+## Рост героя, метры (модель Kenney Mini Characters подгоняется под него).
+const HERO_HEIGHT := 1.5
+## Где стоит герой относительно точки игрока: чуть позади, чтобы ладони
+## ложились на ручку косилки, а мешок помещался между ним и косилкой.
+const HERO_OFFSET := Vector3(0.0, 0.0, 0.12)
+## Шляпа: во сколько раз тулья уже головы и насколько она надета, метры.
+const HAT_FIT := 0.86
+const HAT_SINK := 0.1
+## Радиус колеса косилки (tools/make_models.py), метры.
+const WHEEL_RADIUS := 0.15
 
 var interaction_target: Interactable
 ## Сенсорная схема «вести пальцем» (ставит интерфейс; null — джойстик).
@@ -66,6 +73,10 @@ var _mouse_held := false
 var _clippings: CPUParticles3D
 var _bag: MeshInstance3D
 var _character: Node3D
+var _hero: CharacterModel
+var _wheels: Array[MeshInstance3D] = []
+var _wheel_turn := 0.0
+var _engine_top := 0.0
 var _mower_root: Node3D
 var _mower: Node3D
 var _engine_cap: MeshInstance3D
@@ -213,23 +224,21 @@ func _process(delta: float) -> void:
 	var pace := clampf(_current_speed / speed, 0.0, 1.0)
 	var blend := 1.0 - exp(-10.0 * delta)
 
-	# Персонаж шагает вперевалку и наклоняется в повороты.
-	_walk_phase += _current_speed * delta * 7.0
-	_character.position.y = absf(sin(_walk_phase)) * 0.06 * pace
-	_character.rotation.z = sin(_walk_phase) * 0.07 * pace - _turn_speed * 0.035
-	_character.rotation.x = -0.1 * pace
+	# Герой катит косилку: шаги — анимация модели в темпе хода, в повороты
+	# он слегка наклоняется.
+	if pace > 0.06:
+		_hero.play("push-walk", clampf(_current_speed / 1.9, 0.5, 2.2))
+	else:
+		_hero.play("push-idle")
+	_character.rotation.z = lerpf(_character.rotation.z, -_turn_speed * 0.03, blend)
+	_character.rotation.x = lerpf(_character.rotation.x, -0.06 * pace, blend)
 
 	# Тронулся или остановился — лёгкая пружинка.
 	var moving := pace > 0.25
 	if moving != _was_moving:
 		_was_moving = moving
-		Juice.squash(_character, 0.12 if moving else 0.08, 0.35, Vector3.ONE * CHARACTER_SCALE)
-	# Постоял — дышит и оглядывается по сторонам.
+		Juice.squash(_character, 0.1 if moving else 0.06, 0.35)
 	_idle_time = 0.0 if pace > 0.05 else _idle_time + delta
-	var idle := clampf((_idle_time - 1.2) / 0.8, 0.0, 1.0)
-	_character.position.y += sin(_time * 2.2) * 0.012 * idle
-	_character.rotation.y = lerp_angle(_character.rotation.y,
-			sin(_time * 0.6) * 0.45 * idle * signf(sin(_time * 0.21)), 1.0 - exp(-3.0 * delta))
 	_exhaust.emitting = pace > 0.2
 	_bump_cooldown -= delta
 
@@ -238,15 +247,18 @@ func _process(delta: float) -> void:
 	var shake := 0.004 + 0.006 * pace + 0.008 * _cut_amount
 	_mower.position.y = sin(_time * 47.0) * shake
 	_mower.rotation.z = sin(_time * 39.0) * shake * 1.5 - _turn_speed * 0.02
-	_engine_cap.position.y = 0.7 + absf(sin(_time * 23.0)) * (0.01 + 0.02 * pace)
+	_engine_cap.position.y = _engine_top + absf(sin(_time * 23.0)) * (0.008 + 0.02 * pace)
+	# Колёса катятся по пройденному пути.
+	_wheel_turn -= _current_speed * delta / WHEEL_RADIUS
+	for wheel in _wheels:
+		wheel.rotation.x = _wheel_turn
 
 	# Мешок плавно раздувается; при опустошении сдувается, полный — подрагивает.
 	_bag_shown = lerpf(_bag_shown, _bag_ratio, blend)
-	var height := lerpf(0.55, 1.25, _bag_shown)
-	var depth := lerpf(0.7, 1.3, _bag_shown)
+	var height := lerpf(0.6, 1.1, _bag_shown)
+	var depth := lerpf(0.6, 0.92, _bag_shown)
 	var wobble := sin(_time * 14.0) * 0.04 if _bag_ratio >= 0.999 else 0.0
-	_bag.scale = Vector3(1.0 + wobble, height - wobble, depth)
-	_bag.position = Vector3(0.0, 0.2 + 0.2 * height, 0.31 + 0.16 * depth)
+	_bag.scale = Vector3(0.87 + wobble, height - wobble, depth)
 
 	# Косилка беззвучна: ни мотора, ни звука среза. О покосе говорят летящая
 	# трава и полосы на газоне (повторяющийся звук игроку мешал).
@@ -427,30 +439,35 @@ func _apply_upgrades(announce: bool) -> void:
 		Juice.sparkle(self, _mower_root.global_position + Vector3.UP * 0.6)
 
 
-# Временный вид персонажа из примитивов (см. Placeholder).
+# Герой — модель Kenney Mini Characters в соломенной шляпе. Анимация «катит
+# косилку» складывается из шагов и позы «держит двумя руками».
 func _build_character() -> void:
-	const STRAW := Color(0.96, 0.82, 0.42)
-	_character = Placeholder.person(self, Color(0.27, 0.48, 0.80), Color(0.98, 0.95, 0.86),
-			Color(1.0, 0.82, 0.66), HAND)
+	_character = Node3D.new()
 	_character.name = "Character"
-	_character.scale = Vector3.ONE * CHARACTER_SCALE
-	Placeholder.part(_character, Placeholder.cylinder(0.42, 0.04), STRAW, Vector3(0.0, 1.33, 0.0))
-	Placeholder.part(_character, Placeholder.cylinder(0.24, 0.16, 0.19), STRAW, Vector3(0.0, 1.42, 0.0))
-	Placeholder.bake_tree(_character)
+	_character.position = HERO_OFFSET
+	add_child(_character)
+	_hero = CharacterModel.create("res://assets/characters/hero.glb", HERO_HEIGHT)
+	# Модель смотрит на +Z, игрок — на −Z.
+	_hero.rotation.y = PI
+	_character.add_child(_hero)
+	var arms: Array[String] = ["arm-left", "arm-right"]
+	_hero.combine("push-walk", "walk", "holding-both", arms)
+	_hero.combine("push-idle", "idle", "holding-both", arms)
+	_hero.play("push-idle", 1.0, 0.0)
+	# Соломенная шляпа по размеру головы; держится на кости головы.
+	var head := _hero.part_box("head-mesh")
+	var hat_scale := head.size.x * 0.5 / 0.2 * HAT_FIT
+	var hat := Models.place(_hero.attach("head"), "straw_hat",
+			Vector3(0.0, head.end.y - _hero.bone_height("head") - HAT_SINK, 0.0), hat_scale, 0.0, false)
+	hat.set_meta("no_bake", true)
 
 
-# Временный вид косилки. Нарочно крупная и яркая, чтобы её было видно в высокой траве.
-# Цвет корпуса и размер мотора меняются с апгрейдами.
+# Косилка из своих моделей (tools/make_models.py): корпус по уровню ножа,
+# мотор растёт с улучшением, колёса крутятся, мешок раздувается.
 func _build_mower() -> void:
-	const CREAM := Color(0.98, 0.95, 0.86)
-	const STRAW := Color(0.96, 0.82, 0.42)
-	const DARK := Color(0.22, 0.22, 0.26)
-	const METAL := Color(0.72, 0.74, 0.78)
-	const CANVAS := Color(0.55, 0.68, 0.42)
-	const BODY_COLORS := [Color(0.90, 0.30, 0.26), Color(0.95, 0.55, 0.20), Color(0.30, 0.62, 0.85)]
-
 	if _mower_root:
 		_mower_root.free()
+	_wheels.clear()
 	_mower_root = Node3D.new()
 	_mower_root.name = "Mower"
 	_mower_root.position = Vector3(0.0, 0.0, -BLADE_OFFSET)
@@ -459,31 +476,23 @@ func _build_mower() -> void:
 	_mower = Node3D.new()
 	_mower_root.add_child(_mower)
 
-	var body_color: Color = BODY_COLORS[mini(GameState.upgrade_level("blade"), BODY_COLORS.size() - 1)]
+	var level := mini(GameState.upgrade_level("blade"), 2)
 	var engine := 1.0 + 0.18 * GameState.upgrade_level("motor")
 	var deck_width := blade_width + 0.1
-	Placeholder.part(_mower, Placeholder.box(Vector3(deck_width, 0.26, 0.7)), body_color, Vector3(0.0, 0.27, 0.0))
-	Placeholder.part(_mower, Placeholder.box(Vector3(deck_width + 0.06, 0.08, 0.08)), CREAM, Vector3(0.0, 0.2, -0.37))
-	Placeholder.part(_mower, Placeholder.box(Vector3(0.4 * engine, 0.26, 0.36 * engine)), DARK, Vector3(0.0, 0.53, -0.06))
-	_engine_cap = Placeholder.part(_mower, Placeholder.cylinder(0.09 * engine, 0.08), STRAW, Vector3(0.0, 0.7, -0.06))
+	Models.place(_mower, "mower_deck_%d" % level, Vector3.ZERO, 1.0)
+	Models.place(_mower, "mower_handle", Vector3.ZERO, 1.0)
+	Models.place(_mower, "mower_engine", Vector3(0.0, 0.44, -0.06), engine)
+	_engine_top = 0.44 + 0.3 * engine
+	_engine_cap = Models.place(_mower, "mower_cap", Vector3(0.0, _engine_top, -0.06), engine, 0.0, false)
 	_engine_cap.set_meta("no_bake", true)
-	_bag = Placeholder.part(_mower, Placeholder.box(Vector3(deck_width * 0.85, 0.4, 0.32)), CANVAS)
+	_bag = Models.place(_mower, "mower_bag", Vector3(0.0, 0.25, 0.36), 1.0, 0.0, false)
 	_bag.set_meta("no_bake", true)
 	for side: float in [-1.0, 1.0]:
 		for z: float in [-0.24, 0.26]:
-			Placeholder.part(_mower, Placeholder.cylinder(0.15, 0.1), DARK,
-					Vector3((deck_width * 0.5 + 0.04) * side, 0.15, z), Vector3(0.0, 0.0, 90.0))
-
-	# Ручки тянутся от корпуса к ладоням персонажа.
-	var grip := HAND * CHARACTER_SCALE + Vector3(0.0, 0.0, BLADE_OFFSET)
-	var base := Vector3(grip.x, 0.4, 0.2)
-	var handle_length := base.distance_to(grip)
-	var handle_tilt := -rad_to_deg(atan2(grip.y - base.y, grip.z - base.z))
-	for side: float in [-1.0, 1.0]:
-		Placeholder.part(_mower, Placeholder.box(Vector3(0.05, 0.05, handle_length)), METAL,
-				(base + grip) * 0.5 * Vector3(side, 1.0, 1.0), Vector3(handle_tilt, 0.0, 0.0))
-	Placeholder.part(_mower, Placeholder.box(Vector3(grip.x * 2.0 + 0.1, 0.05, 0.05)), METAL,
-			Vector3(0.0, grip.y, grip.z))
+			var wheel := Models.place(_mower, "mower_wheel", Vector3((deck_width * 0.5 + 0.05) * side, WHEEL_RADIUS, z),
+					1.0, 0.0, false)
+			wheel.set_meta("no_bake", true)
+			_wheels.append(wheel)
 
 	_clippings = CPUParticles3D.new()
 	_clippings.name = "Clippings"
@@ -511,7 +520,7 @@ func _build_mower() -> void:
 	# Маленькие облачка из мотора: косилку не слышно, зато видно, что она работает.
 	_exhaust = CPUParticles3D.new()
 	_exhaust.name = "Exhaust"
-	_exhaust.position = Vector3(0.0, 0.78, -0.06)
+	_exhaust.position = Vector3(0.14, 0.44 + 0.27 * engine, 0.2)
 	_exhaust.emitting = false
 	_exhaust.amount = 6
 	_exhaust.lifetime = 0.9

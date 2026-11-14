@@ -30,6 +30,7 @@ const MIN_INTERVAL := 1.0 / 30.0
 ## (что-то показалось или спряталось, а движения не было).
 const REFRESH := 2.0
 const CAST_SHADER := preload("res://shaders/shadow_cast.gdshader")
+const CAST_FLAT_SHADER := preload("res://shaders/shadow_cast_flat.gdshader")
 
 var _static_view: SubViewport
 var _final_view: SubViewport
@@ -37,6 +38,8 @@ var _static_camera: Camera3D
 var _final_camera: Camera3D
 var _backdrop: MeshInstance3D
 var _cast_material: ShaderMaterial
+## Для готовых моделей со скелетом (CharacterModel).
+var _cast_flat_material: ShaderMaterial
 var _target: Node3D
 var _center := Vector2(INF, INF)
 ## Двойники движущихся моделей и их последнее состояние.
@@ -63,6 +66,9 @@ func _ready() -> void:
 	_cast_material = ShaderMaterial.new()
 	_cast_material.shader = CAST_SHADER
 	_cast_material.set_shader_parameter("day_dir", Graphics.sun_direction)
+	_cast_flat_material = ShaderMaterial.new()
+	_cast_flat_material.shader = CAST_FLAT_SHADER
+	_cast_flat_material.set_shader_parameter("day_dir", Graphics.sun_direction)
 
 	_static_view = _make_view("StaticShade")
 	_static_camera = _make_camera(_static_view, LAYER_STATIC)
@@ -227,6 +233,12 @@ func _add_casters() -> void:
 		proxy.name = "ShadowProxy"
 		proxy.mesh = caster.mesh
 		proxy.material_override = _cast_material
+		if caster.has_meta("shadow_flat"):
+			# Модель со скелетом: двойник двигается теми же костями.
+			proxy.material_override = _cast_flat_material
+			proxy.skin = caster.skin
+			if not caster.skeleton.is_empty() and caster.get_node_or_null(caster.skeleton):
+				proxy.skeleton = NodePath("../" + String(caster.skeleton))
 		proxy.layers = LAYER_DYNAMIC if dynamic else LAYER_STATIC
 		proxy.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		caster.add_child(proxy)

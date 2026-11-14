@@ -693,7 +693,9 @@ func _apply_touch_controls() -> void:
 		# Закреплённый джойстик: всегда виден, стоит слева внизу и никуда не
 		# уезжает. Слушает касания только в своей части экрана.
 		_joystick.joystick_mode = VirtualJoystick.JOYSTICK_FIXED
-		_joystick.visibility_mode = VirtualJoystick.VISIBILITY_ALWAYS
+		# Без сенсорного экрана (компьютер) джойстик не показываем.
+		_joystick.visibility_mode = VirtualJoystick.VISIBILITY_ALWAYS if _touch \
+				else VirtualJoystick.VISIBILITY_WHEN_TOUCHED
 		_joystick.anchor_left = 0.0
 		_joystick.anchor_top = 0.3
 		_joystick.anchor_right = 0.45
