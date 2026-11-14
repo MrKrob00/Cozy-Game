@@ -76,6 +76,13 @@ var _character: Node3D
 var _hero: CharacterModel
 var _wheels: Array[MeshInstance3D] = []
 var _wheel_turn := 0.0
+## До какого момента (по _time) герой радуется и не держит ручку косилки.
+var _cheer_until := 0.0
+## Сколько метров высокой травы и бурьяна срезано с последней «живности».
+var _tall_cut := 0.0
+var _weed_cut := 0.0
+var _grass_ahead := 0.0
+var _last_cut_time := -1.0
 var _engine_top := 0.0
 var _mower_root: Node3D
 var _mower: Node3D
@@ -175,6 +182,7 @@ func _physics_process(delta: float) -> void:
 				1.0 - exp(-3.0 * delta))
 		target_speed *= 1.0 + (ROAD_SPEED_BOOST - 1.0) * _road_boost
 		var ahead := _grass_height_at(get_blade_position() + forward * 0.25)
+		_grass_ahead = ahead
 		if ahead > 0.9:
 			# Бурьян: ехать можно, но медленно; срезает его только нож получше.
 			target_speed *= weed_speed
@@ -214,8 +222,13 @@ func _physics_process(delta: float) -> void:
 			if units > 0.0:
 				GameState.add_grass(units)
 
-	_cutting = units > 0.0
+	# Новые ячейки срезаются не каждый кадр (на малом ходу — раз в несколько),
+	# поэтому «косит» — это «срезал что-то за последнюю долю секунды».
+	if units > 0.0:
+		_last_cut_time = _time
+	_cutting = _time - _last_cut_time < 0.2
 	_clippings.emitting = _cutting
+	_grass_life(_grass_ahead if _cutting else 0.0, _current_speed * delta)
 	_update_interaction(delta)
 
 
@@ -226,7 +239,9 @@ func _process(delta: float) -> void:
 
 	# Герой катит косилку: шаги — анимация модели в темпе хода, в повороты
 	# он слегка наклоняется.
-	if pace > 0.06:
+	if _time < _cheer_until:
+		pass
+	elif pace > 0.06:
 		_hero.play("push-walk", clampf(_current_speed / 1.9, 0.5, 2.2))
 	else:
 		_hero.play("push-idle")
@@ -264,6 +279,13 @@ func _process(delta: float) -> void:
 	# трава и полосы на газоне (повторяющийся звук игроку мешал).
 
 
+## Герой радуется: подпрыгивает (участок выкошен).
+func celebrate() -> void:
+	_cheer_until = _time + 1.5
+	_hero.play("jump", 1.0, 0.1)
+	Juice.squash(_character, 0.18, 0.5)
+
+
 ## Центр ножа в мировых координатах.
 func get_blade_position() -> Vector3:
 	return global_position - global_basis.z * BLADE_OFFSET
@@ -297,6 +319,23 @@ func _check_bump(target_speed: float, at_border: bool) -> void:
 		Sfx.play("bonk", -5.0, 1.0, 0.1)
 		Sfx.buzz(12)
 	_in_contact = contact
+
+
+# Живность в траве: из высокой травы изредка выпрыгивают кузнечики, из
+# срезанного бурьяна летит пух. height — высота травы под ножом, 0–1.
+func _grass_life(height: float, moved: float) -> void:
+	var at := get_blade_position() + Vector3.UP * 0.45
+	if height > 0.9:
+		_weed_cut += moved
+		if _weed_cut >= 0.7:
+			_weed_cut = 0.0
+			Juice.fluff(get_parent(), at)
+	elif height > 0.7:
+		_tall_cut += moved
+		if _tall_cut >= 2.4:
+			_tall_cut = 0.0
+			if randf() < 0.6:
+				Juice.critters(get_parent(), at, randi_range(2, 4))
 
 
 ## Берёт ли нож бурьян (нужен второй уровень ножа).

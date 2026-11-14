@@ -133,6 +133,54 @@ static func sparkle(host: Node, at: Vector3, color := Color(1.0, 0.95, 0.6), amo
 	particles.emitting = true
 
 
+## Кузнечики выпрыгивают из высокой травы, когда по ней идёт косилка.
+static func critters(host: Node, at: Vector3, amount := 4) -> void:
+	var particles := _burst(host, at, amount, 0.75)
+	particles.mesh = Placeholder.box(Vector3(0.08, 0.06, 0.15))
+	var body := StandardMaterial3D.new()
+	body.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	body.albedo_color = Color(0.56, 0.78, 0.25)
+	particles.material_override = body
+	particles.direction = Vector3.UP
+	particles.spread = 55.0
+	particles.initial_velocity_min = 2.6
+	particles.initial_velocity_max = 4.0
+	particles.gravity = Vector3(0.0, -9.0, 0.0)
+	particles.angular_velocity_min = -400.0
+	particles.angular_velocity_max = 400.0
+	particles.emitting = true
+
+
+## Пух летит из срезанного бурьяна и медленно уплывает по ветру.
+static func fluff(host: Node, at: Vector3, amount := 9) -> void:
+	var particles := _burst(host, at, amount, 2.4)
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.07
+	mesh.height = 0.14
+	mesh.radial_segments = 5
+	mesh.rings = 2
+	particles.mesh = mesh
+	var puff := StandardMaterial3D.new()
+	puff.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	puff.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	puff.vertex_color_use_as_albedo = true
+	particles.material_override = puff
+	var fade := Gradient.new()
+	fade.offsets = PackedFloat32Array([0.0, 0.7, 1.0])
+	fade.colors = PackedColorArray([Color(1.0, 1.0, 0.95, 0.95), Color(1.0, 1.0, 0.95, 0.8), Color(1.0, 1.0, 0.95, 0.0)])
+	particles.color_ramp = fade
+	particles.direction = Vector3(0.6, 1.0, -0.2)
+	particles.spread = 40.0
+	particles.initial_velocity_min = 0.9
+	particles.initial_velocity_max = 2.0
+	particles.scale_amount_min = 0.6
+	particles.scale_amount_max = 1.3
+	particles.gravity = Vector3(0.5, 0.25, -0.2)
+	particles.damping_min = 0.6
+	particles.damping_max = 1.2
+	particles.emitting = true
+
+
 ## Разноцветное конфетти.
 static func confetti(host: Node, at: Vector3, amount := 70) -> void:
 	var particles := _burst(host, at, amount, 2.2)

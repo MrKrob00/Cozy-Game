@@ -183,7 +183,7 @@ func set_gate_open(open: bool, animated: bool) -> void:
 	if not animated:
 		_gate.rotation.y = angle
 		return
-	Sfx.play("pop")
+	Sfx.play("gate", -3.0)
 	Juice.sparkle(self, _gate.global_position + Vector3(gate_width * 0.5, 0.8, 0.0))
 	var tween := create_tween()
 	tween.tween_property(_gate, "rotation:y", angle, 0.9) \

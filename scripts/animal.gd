@@ -156,6 +156,10 @@ func _build_cat() -> void:
 	cat.rotation.y = PI
 	_model.add_child(cat)
 	cat.play("idle", 1.0, 0.0)
+	# На празднике кот танцует.
+	var village := get_tree().get_first_node_in_group("village") as Village
+	if village:
+		village.festival_started.connect(func(_announce: bool) -> void: cat.play("dance"))
 
 
 # Ёжик пока собран из примитивов: готовой модели в нужном стиле не нашлось.

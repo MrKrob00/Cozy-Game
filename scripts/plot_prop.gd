@@ -26,6 +26,8 @@ const LEAVES_LIGHT := Color(0.44, 0.74, 0.36)
 ## Масштаб готовых моделей: дом около 4,5 м в ширину и 5,5 м в высоту.
 const MODEL_SCALE := {"house_a": 5.8, "house_c": 5.8, "house_b": 4.6, "house_d": 4.6,
 		"blacksmith": 2.5, "well": 2.7, "well_blue": 2.7}
+## Масштаб модели скамейки: около 1,5 м в ширину.
+const BENCH_SCALE := 1.9
 const POND_RADIUS := 2.8
 ## Насколько растворяется крона, когда заслоняет игрока.
 const CROWN_FADE := 0.3
@@ -255,13 +257,10 @@ func _build_well() -> void:
 	add_child(shape)
 
 
+# Скамейка — модель Kenney Graveyard Kit (CC0). Сиденье смотрит на +Z.
 func _build_bench() -> void:
-	Placeholder.part(self, Placeholder.box(Vector3(1.5, 0.08, 0.45)), WOOD, Vector3(0.0, 0.45, 0.0))
-	Placeholder.part(self, Placeholder.box(Vector3(1.5, 0.4, 0.07)), WOOD, Vector3(0.0, 0.8, -0.22), Vector3(-10.0, 0.0, 0.0))
-	for side: float in [-1.0, 1.0]:
-		Placeholder.part(self, Placeholder.box(Vector3(0.1, 0.45, 0.42)), WOOD_DARK, Vector3(0.62 * side, 0.22, 0.0))
-		Placeholder.part(self, Placeholder.box(Vector3(0.08, 0.5, 0.08)), WOOD_DARK, Vector3(0.62 * side, 0.7, -0.22))
-	_add_box_collision(Vector3(1.6, 1.0, 0.6), Vector3(0.0, 0.5, 0.0))
+	Models.place(self, "bench", Vector3.ZERO, BENCH_SCALE)
+	_add_box_collision(Vector3(1.55, 1.0, 0.8), Vector3(0.0, 0.5, 0.0))
 
 
 func _build_tree() -> void:

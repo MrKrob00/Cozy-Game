@@ -34,6 +34,9 @@ signal milestone(percent: int)
 const WALK_MARGIN := 1.1
 const MILESTONES := [25, 50, 75]
 const MAX_HINTS := 10
+## Птицы прилетают на газон, когда скошена эта доля участка; сколько их.
+const BIRDS_FROM := 0.5
+const BIRD_COUNT := 2
 const HINT_REFRESH := 0.6
 
 var field: MowField
@@ -47,6 +50,7 @@ var _hints: Array[Node3D] = []
 var _hint_timer := 0.0
 var _time := 0.0
 var _locked_toast_cooldown := 0.0
+var _birds: Array[LawnBird] = []
 
 
 ## Участок, которому принадлежит узел (ближайший предок-участок).
@@ -90,6 +94,7 @@ func _ready() -> void:
 		fence.set_gate_open(is_unlocked(), false)
 	if is_completed():
 		_light_up()
+	_update_birds(field.get_progress())
 
 
 func _process(delta: float) -> void:
@@ -195,6 +200,7 @@ func _add_count_stamp(stamps: Array[Dictionary], group: String, title: String, d
 
 
 func _on_progress_changed(ratio: float) -> void:
+	_update_birds(ratio)
 	if not is_completed():
 		var reached: Array = _state.get("milestones", [])
 		for percent: int in MILESTONES:
@@ -222,6 +228,19 @@ func _on_progress_changed(ratio: float) -> void:
 		GameState.toast("Идеально! Ни травинки не осталось")
 		Sfx.play("find", -4.0, 1.2)
 		GameState.save_game()
+
+
+# Птицы на газоне: появляются, когда скошена половина участка, и улетают,
+# если трава снова отросла.
+func _update_birds(ratio: float) -> void:
+	if ratio >= BIRDS_FROM and _birds.is_empty():
+		for i in BIRD_COUNT:
+			_birds.append(LawnBird.spawn(self, hash(plot_id) + i))
+	elif ratio < BIRDS_FROM * 0.6 and not _birds.is_empty():
+		for bird in _birds:
+			if is_instance_valid(bird):
+				bird.queue_free()
+		_birds.clear()
 
 
 func _on_day_started(_day: int) -> void:
@@ -261,9 +280,10 @@ func _celebrate() -> void:
 	var camera := get_viewport().get_camera_3d() as FollowCamera
 	if camera:
 		camera.play_flyover()
-	var player := get_tree().get_first_node_in_group("player") as Node3D
+	var player := get_tree().get_first_node_in_group("player") as Player
 	if player:
 		Juice.confetti(self, player.global_position + Vector3.UP * 1.2)
+		player.celebrate()
 
 
 # Зажигает окна домов на участке.

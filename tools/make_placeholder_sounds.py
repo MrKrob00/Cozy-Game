@@ -104,33 +104,6 @@ def save(name, signal, peak):
     print(f"{name}.wav  {len(signal) / RATE:.2f} с")
 
 
-def find():
-    notes = ["E6", "G#6", "B6", "E7"]
-    return mix([(0.07 * i, bell(note(n), 0.6)) for i, n in enumerate(notes)], 0.85)
-
-
-def coin():
-    return mix([(0.0, bell(note("B6"), 0.25, 9)), (0.07, bell(note("E7"), 0.3, 8))], 0.4)
-
-
-def dump():
-    # Трава сыплется в ящик: шорох вниз и мягкий стук. Стук — выше 400 Гц,
-    # иначе динамик телефона его не воспроизводит.
-    whoosh = band_noise(0.42, 500, 5000) * sweep(1.0, 0.2, 0.42) ** 2
-    whoosh = envelope(whoosh, 0.02, 0.25)
-    t = seconds(0.2)
-    thud = (np.sin(2 * np.pi * 440 * t) + 0.5 * np.sin(2 * np.pi * 660 * t)) * np.exp(-30 * t)
-    return mix([(0.0, whoosh * 0.7), (0.28, thud * 0.8)], 0.55)
-
-
-def bonk():
-    """Мягкий деревянный «бум» при наезде косилки на препятствие."""
-    t = seconds(0.18)
-    knock = np.sin(2 * np.pi * sweep_freq(620, 480, t) * t) * np.exp(-26 * t)
-    click = band_noise(0.18, 1500, 4000) * np.exp(-90 * t) * 0.35
-    return knock + click
-
-
 def sweep_freq(f_from, f_to, t):
     return f_from + (f_to - f_from) * (t / t[-1])
 
@@ -146,20 +119,8 @@ def chime():
     return mix([(0.0, bell(note("G6"), 0.7, 5)), (0.12, bell(note("D7"), 0.8, 4.5))], 1.0)
 
 
-def stamp():
-    """Штамп падает на бумагу: глухой хлопок средних частот и щелчок."""
-    t = seconds(0.16)
-    body = band_noise(0.16, 450, 1600) * np.exp(-38 * t)
-    tap = np.sin(2 * np.pi * 520 * t) * np.exp(-45 * t) * 0.6
-    return body + tap
-
-
 def bag_full():
     return mix([(0.0, mallet(note("G5"), 0.3)), (0.13, mallet(note("D5"), 0.4))], 0.55)
-
-
-def deny():
-    return mix([(0.0, mallet(note("D5"), 0.2, 10)), (0.1, mallet(note("D5"), 0.25, 10))], 0.4)
 
 
 def hop():
@@ -170,25 +131,12 @@ def squeak():
     return envelope(np.concatenate([sweep(1700, 2700, 0.07), sweep(2700, 2100, 0.09)]), 0.005, 0.05)
 
 
-def plant():
-    notes = ["C6", "D6", "E6", "G6", "A6", "C7"]
-    return mix([(0.075 * i, bell(note(n), 0.45, 7)) for i, n in enumerate(notes)], 0.95)
-
-
 def complete():
     # Короткая радостная фраза и аккорд.
     parts = [(0.11 * i, mallet(note(n), 0.5, 5)) for i, n in enumerate(["C5", "E5", "G5", "C6"])]
     parts += [(0.5, mallet(note(n), 1.3, 2.6, 0.15) * 0.7) for n in ["C5", "E5", "G5", "C6", "E6"]]
     parts += [(0.5 + 0.06 * i, bell(note(n), 0.9, 4) * 0.25) for i, n in enumerate(["G6", "C7", "E7"])]
     return mix(parts, 1.9)
-
-
-def click():
-    return envelope(sweep(900, 600, 0.035), 0.002, 0.02)
-
-
-def pop():
-    return envelope(sweep(420, 760, 0.07, 0.5), 0.003, 0.04)
 
 
 def chirp(pattern):
@@ -201,22 +149,15 @@ def chirp(pattern):
     return mix(parts, at + 0.05)
 
 
+# Остальные звуки (монеты, штамп, удар, клики и др.) — настоящие, из наборов
+# Kenney: tools/import_sounds.py.
 SOUNDS = {
-    "bonk": (bonk, 0.5),
     "blip": (lambda: blip(880), 0.25),
     "chime": (chime, 0.5),
-    "stamp": (stamp, 0.55),
-    "find": (find, 0.6),
-    "coin": (coin, 0.5),
-    "dump": (dump, 0.7),
     "bag_full": (bag_full, 0.6),
-    "deny": (deny, 0.5),
     "hop": (hop, 0.45),
     "squeak": (squeak, 0.35),
-    "plant": (plant, 0.55),
     "complete": (complete, 0.7),
-    "click": (click, 0.4),
-    "pop": (pop, 0.45),
     "chirp_1": (lambda: chirp([(0, 3200, 4600, 0.07), (0.05, 3400, 4800, 0.07), (0.05, 3600, 5200, 0.1)]), 0.3),
     "chirp_2": (lambda: chirp([(0, 5200, 3900, 0.09), (0.09, 5200, 3900, 0.09)]), 0.3),
     "chirp_3": (lambda: chirp([(0, 2800, 3500, 0.05)] + [(0.035, 4200, 4500, 0.04)] * 4), 0.28),

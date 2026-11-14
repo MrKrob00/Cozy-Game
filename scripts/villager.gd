@@ -32,6 +32,8 @@ var _line_index := 0
 var _time := 0.0
 var _model: Node3D
 var _figure: CharacterModel
+var _festive := false
+var _next_cheer := 0.0
 var _bubble: Label3D
 var _body: StaticBody3D
 
@@ -41,6 +43,9 @@ func _ready() -> void:
 	_build_visuals()
 	global_rotation.y = deg_to_rad(facing_degrees)
 	_present = appears_after_plot == "" or GameState.is_plot_completed(appears_after_plot)
+	var village := get_tree().get_first_node_in_group("village") as Village
+	if village:
+		village.festival_started.connect(func(_announce: bool) -> void: _festive = true)
 	visible = _present
 	_body.process_mode = Node.PROCESS_MODE_INHERIT if _present else Node.PROCESS_MODE_DISABLED
 	if not _present:
@@ -53,6 +58,10 @@ func _process(delta: float) -> void:
 	if not _present:
 		return
 	_time += delta
+	# На празднике жители время от времени подпрыгивают от радости.
+	if _festive and _time >= _next_cheer:
+		_next_cheer = _time + randf_range(2.0, 4.5)
+		_figure.play("jump", 1.0, 0.1)
 	var player := get_tree().get_first_node_in_group("player") as Node3D
 	if player == null:
 		return

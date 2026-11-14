@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Переводит модели KayKit (CC0, Kay Lousberg) в формат игры.
+"""Переводит модели KayKit и Kenney (CC0) в формат игры.
 
 KayKit раскрашивает модели одной текстурой-палитрой. Игре текстуры не нужны:
 скрипт берёт цвет палитры в каждой вершине (по UV) и записывает его в цвет
@@ -7,12 +7,13 @@ KayKit раскрашивает модели одной текстурой-па�
 В альфе цвета — сила качания на ветру (кроны деревьев), её читает шейдер.
 
 Запуск из папки проекта (нужны numpy и Pillow):
-  python3 tools/convert_kaykit.py <папка, в которой лежат скачанные наборы>
+  python3 tools/convert_kaykit.py <папка с наборами> [<ещё папка> ...]
 
 Наборы (все CC0), каждый — своей папкой с именем как у репозитория:
   https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0
   https://github.com/KayKit-Game-Assets/KayKit-City-Builder-Bits-1.0
   https://github.com/KayKit-Game-Assets/KayKit-Halloween-Bits-1.0
+  Kenney Graveyard Kit (папка graveyard с .glb и Textures): https://kenney.nl/assets/graveyard-kit
 """
 
 import base64
@@ -31,6 +32,7 @@ PACKS = {
     "hex": ("kaykit-medieval-hexagon-pack-1.0", "addons/kaykit_medieval_hexagon_pack/Assets/gltf"),
     "city": ("kaykit-city-builder-bits-1.0", "addons/kaykit_city_builder_bits/Assets/gltf"),
     "halloween": ("kaykit-halloween-bits-1.0", "addons/kaykit_halloween_bits/Assets/gltf"),
+    "graveyard": ("graveyard", ""),
 }
 
 # (файл в наборе hex или «набор:файл», имя у нас, качание: None — нет, число —
@@ -82,6 +84,8 @@ MODELS = [
     ("halloween:lantern_standing.gltf", "lantern", None),
     ("halloween:pumpkin_orange.gltf", "pumpkin", None),
     ("halloween:pumpkin_orange_small.gltf", "pumpkin_small", None),
+    # Садовая скамейка — Kenney Graveyard Kit.
+    ("graveyard:bench.glb", "bench", None),
 ]
 
 COMPONENT = {5120: "b", 5121: "B", 5122: "h", 5123: "H", 5125: "I", 5126: "f"}
@@ -152,21 +156,36 @@ def srgb_to_linear(c):
     return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
 
 
-def pack_path(root, source):
-    """Путь к файлу модели: «набор:файл» или просто файл из набора hex."""
+def pack_path(roots, source):
+    """Путь к файлу модели: «набор:файл» или просто файл из набора hex.
+    Набор ищется по имени папки в любой из папок roots."""
     pack, _, file = source.rpartition(":")
     folder, inner = PACKS[pack or "hex"]
-    for entry in os.listdir(root):
-        if entry.lower() == folder:
-            return os.path.join(root, entry, inner, file)
-    sys.exit(f"Нет набора {folder} в {root}")
+    for root in roots:
+        for entry in os.listdir(root):
+            if entry.lower() == folder:
+                return os.path.join(root, entry, inner, file)
+    sys.exit(f"Нет набора {folder} в {roots}")
 
 
-def convert(root, source, name, sway_from, part=""):
-    path = pack_path(root, source)
+def load_gltf(path):
+    """Читает .gltf (с внешними .bin) или .glb. Возвращает (описание, буферы)."""
     folder = os.path.dirname(path)
+    if path.endswith(".glb"):
+        data = open(path, "rb").read()
+        json_length = struct.unpack_from("<I", data, 12)[0]
+        gltf = json.loads(data[20:20 + json_length])
+        binary = data[20 + json_length + 8:]
+        return gltf, [binary if "uri" not in b else open(os.path.join(folder, b["uri"]), "rb").read()
+                      for b in gltf["buffers"]]
     gltf = json.load(open(path))
-    buffers = [open(os.path.join(folder, b["uri"]), "rb").read() for b in gltf["buffers"]]
+    return gltf, [open(os.path.join(folder, b["uri"]), "rb").read() for b in gltf["buffers"]]
+
+
+def convert(roots, source, name, sway_from, part=""):
+    path = pack_path(roots, source)
+    folder = os.path.dirname(path)
+    gltf, buffers = load_gltf(path)
     palette = np.asarray(Image.open(os.path.join(folder, gltf["images"][0]["uri"])).convert("RGB"),
                          dtype=np.float64) / 255.0
     height, width = palette.shape[:2]
@@ -257,7 +276,7 @@ def convert(root, source, name, sway_from, part=""):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    if len(sys.argv) < 2:
         sys.exit(__doc__)
     for entry in MODELS:
-        convert(sys.argv[1], *entry)
+        convert(sys.argv[1:], *entry)

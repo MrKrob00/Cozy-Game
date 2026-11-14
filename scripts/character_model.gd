@@ -8,7 +8,7 @@ extends Node3D
 
 const SHADER := preload("res://shaders/toon_skin.gdshader")
 ## Анимации, которые идут по кругу.
-const LOOPED := ["idle", "walk", "sprint", "run", "sit", "holding-both", "push-walk", "push-idle",
+const LOOPED := ["idle", "walk", "sprint", "run", "sit", "eat", "dance", "holding-both", "push-walk", "push-idle",
 		"FrogArmature|Frog_Idle"]
 
 ## Материалы по паре «текстура, цвет»: общие на все модели.
@@ -21,11 +21,12 @@ var body: Node3D
 
 
 ## Загружает модель (.glb из assets) и подгоняет её высоту, метры.
-static func create(path: String, height: float) -> CharacterModel:
+## Мелочи (птицы на газоне) могут не отбрасывать тень: так дешевле.
+static func create(path: String, height: float, casts_shadow := true) -> CharacterModel:
 	var model := CharacterModel.new()
 	model.body = (load(path) as PackedScene).instantiate()
 	model.add_child(model.body)
-	model._setup(height)
+	model._setup(height, casts_shadow)
 	return model
 
 
@@ -90,7 +91,7 @@ func bone_height(bone: String) -> float:
 	return at.y * body.scale.x + body.position.y
 
 
-func _setup(height: float) -> void:
+func _setup(height: float, casts_shadow: bool) -> void:
 	var players := body.find_children("*", "AnimationPlayer", true, false)
 	if not players.is_empty():
 		animation = players[0]
@@ -121,9 +122,11 @@ func _setup(height: float) -> void:
 			instance.set_surface_override_material(surface, _material_for(instance.mesh.surface_get_material(surface)))
 		instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		# Тень — двойник со скелетом, землёй считается низ модели (Shadows).
-		instance.set_meta("shadow_flat", true)
-		instance.add_to_group("shadow_caster")
-	Graphics.casters_changed.emit.call_deferred()
+		if casts_shadow:
+			instance.set_meta("shadow_flat", true)
+			instance.add_to_group("shadow_caster")
+	if casts_shadow:
+		Graphics.casters_changed.emit.call_deferred()
 
 
 # Положение детали относительно корня модели (узлы ещё могут быть не в дереве).

@@ -206,6 +206,13 @@ func get_height_at(world_position: Vector3) -> float:
 	return _data[cell * CHANNELS] / 255.0
 
 
+## Открытый выкошенный газон в точке: внутри поля, не занято предметом,
+## трава срезана. Сюда садятся птицы.
+func is_open_lawn(world_position: Vector3) -> bool:
+	var cell := _cell_at(world_position)
+	return cell != -1 and _blocked[cell] == 0 and _data[cell * CHANNELS] == 0
+
+
 ## Ограничивает точку границами поля с запасом margin (в метрах).
 func clamp_to_bounds(world_position: Vector3, margin: float) -> Vector3:
 	var local := to_local(world_position)
