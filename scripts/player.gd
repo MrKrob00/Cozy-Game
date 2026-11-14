@@ -68,6 +68,9 @@ var interaction_target: Interactable
 var touch_pad: TouchPad
 ## Пока выключено (титульный экран), игрок не слушается ввода.
 var controls_enabled := true
+## Насколько косилка сейчас «в пути» по дороге, 0–1 (камера на это время
+## чуть отъезжает: в дороге важнее видеть, куда едешь).
+var travel := 0.0
 ## Текущие параметры косилки (из апгрейдов).
 var speed := 2.5
 var blade_width := 0.6
@@ -239,6 +242,7 @@ func _physics_process(delta: float) -> void:
 	_clippings.emitting = _cutting
 	_grass_life(_grass_ahead if _cutting else 0.0, _current_speed * delta)
 	_tidy_leftovers(delta)
+	travel = _road_boost * clampf(_current_speed / maxf(speed, 0.1) - 0.6, 0.0, 1.0)
 	# На дороге косилка катится быстро: из-под колёс вылетает пыль.
 	if _road_boost > 0.6 and _current_speed > speed * 1.2:
 		_dust_distance += _current_speed * delta

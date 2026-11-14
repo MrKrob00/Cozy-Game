@@ -39,6 +39,9 @@ var _flyover: Tween
 var _reveal_point := Vector3.ZERO
 var _reveal_weight := 0.0
 var _reveal: Tween
+## Насколько камера отъезжает, когда цель быстро едет по дороге, метры.
+const TRAVEL_PULL_BACK := 2.2
+var _travel := 0.0
 ## Насколько камера отъезжает, пока показывает точку, метры.
 const REVEAL_PULL_BACK := 3.0
 
@@ -75,6 +78,9 @@ func _process(delta: float) -> void:
 			wanted += _ahead
 		_focus = _focus.lerp(wanted, 1.0 - exp(-follow_speed * delta))
 	_distance = lerpf(_distance, zoom_distances[zoom_index], 1.0 - exp(-zoom_speed * delta))
+	# В дороге камера плавно отъезжает, на участке возвращается.
+	var travelling: float = _target.get("travel") if _target and _target.get("travel") != null else 0.0
+	_travel = lerpf(_travel, travelling, 1.0 - exp(-1.5 * delta))
 	_apply()
 
 
@@ -148,4 +154,4 @@ func _apply() -> void:
 	rotation_degrees = Vector3(-pitch_degrees, yaw_degrees + _yaw_offset, 0.0)
 	var focus := _focus.lerp(_reveal_point, _reveal_weight)
 	global_position = focus + global_basis.z * (_distance + _distance_offset + _nudge
-			+ REVEAL_PULL_BACK * _reveal_weight)
+			+ REVEAL_PULL_BACK * _reveal_weight + TRAVEL_PULL_BACK * _travel)
