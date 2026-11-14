@@ -89,12 +89,12 @@ func _build_signpost(gate_right: float) -> void:
 func _update_sign(plot: Plot) -> void:
 	if _sign_label == null:
 		return
-	var text := plot.plot_name
+	var text := L.t(plot.plot_name)
 	if not plot.is_unlocked():
-		text += "\nзакрыто"
+		text += "\n" + L.t("закрыто")
 		_sign_label.modulate = Color(0.85, 0.82, 0.78)
 	elif plot.is_completed():
-		text += "\nвыкошен"
+		text += "\n" + L.t("выкошен")
 		_sign_label.modulate = Color(0.8, 1.0, 0.7)
 	else:
 		_sign_label.modulate = Color(1.0, 0.92, 0.55)

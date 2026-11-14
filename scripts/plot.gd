@@ -167,8 +167,8 @@ func distance_to(world_position: Vector3) -> float:
 ## Необязательный чек-лист участка: [{title, earned}].
 func get_stamps() -> Array[Dictionary]:
 	var stamps: Array[Dictionary] = [
-		{"title": "Выкошен", "earned": is_completed()},
-		{"title": "Идеально — ни травинки", "earned": _state.get("perfect", false)},
+		{"title": L.t("Выкошен"), "earned": is_completed()},
+		{"title": L.t("Идеально — ни травинки"), "earned": _state.get("perfect", false)},
 	]
 	_add_count_stamp(stamps, "find", "Все находки",
 			func(find: FindItem) -> bool: return find.is_collected())
@@ -189,7 +189,7 @@ func _add_count_stamp(stamps: Array[Dictionary], group: String, title: String, d
 		return
 	var count := nodes.filter(done).size()
 	stamps.append({
-		"title": "%s (%d из %d)" % [title, count, nodes.size()],
+		"title": L.t("%s (%d из %d)") % [L.t(title), count, nodes.size()],
 		"earned": count == nodes.size(),
 	})
 
@@ -214,7 +214,7 @@ func _on_progress_changed(ratio: float) -> void:
 		_state["tidy"] = true
 		var thanks := maxi(reward_coins / 5, 5)
 		GameState.add_coins(thanks, _player_position())
-		GameState.toast("%s снова ухожен: +%d монет" % [plot_name, thanks])
+		GameState.toast(L.t("%s снова ухожен: +%d монет") % [L.t(plot_name), thanks])
 		Sfx.play("coin")
 		GameState.save_game()
 	if ratio >= 1.0 and not _state.get("perfect", false):

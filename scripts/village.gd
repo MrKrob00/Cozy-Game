@@ -131,10 +131,10 @@ func get_summary() -> Array[String]:
 			if stamp["earned"]:
 				earned += 1
 	return [
-		"Участков выкошено: %d" % _plots.size(),
-		"Дней в деревне: %d" % GameState.day,
-		"Находок: %d из %d" % [found, finds.size()],
-		"Штампов: %d из %d" % [earned, total],
+		L.t("Участков выкошено: %d") % _plots.size(),
+		L.t("Дней в деревне: %d") % GameState.day,
+		L.t("Находок: %d из %d") % [found, finds.size()],
+		L.t("Штампов: %d из %d") % [earned, total],
 	]
 
 

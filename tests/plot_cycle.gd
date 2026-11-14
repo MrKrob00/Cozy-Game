@@ -44,6 +44,9 @@ func _initialize() -> void:
 
 func _run() -> void:
 	gs = root.get_node("GameState")
+	# Проверки сверяют русские тексты; английский проверяется отдельно.
+	gs.language = "ru"
+	gs.apply_language()
 	gs.clear()
 	change_scene_to_file("res://scenes/village.tscn")
 	await frames(5)

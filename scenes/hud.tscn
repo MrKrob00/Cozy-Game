@@ -297,10 +297,12 @@ layout_mode = 2
 size_flags_vertical = 4
 theme_override_constants/separation = 6
 
-[node name="Buttons" type="VBoxContainer" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns"]
-custom_minimum_size = Vector2(520, 0)
+[node name="Buttons" type="GridContainer" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns"]
+custom_minimum_size = Vector2(980, 0)
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/h_separation = 14
+theme_override_constants/v_separation = 12
+columns = 2
 
 [node name="ResumeButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
 unique_name_in_owner = true
@@ -337,6 +339,12 @@ unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 text = "Управление: джойстик слева"
+
+[node name="LanguageButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Язык: Русский"
 
 [node name="ProbeButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
 unique_name_in_owner = true
@@ -486,7 +494,7 @@ theme_override_colors/font_color = Color(1, 0.97, 0.88, 1)
 theme_override_colors/font_outline_color = Color(0.2, 0.36, 0.18, 1)
 theme_override_constants/outline_size = 34
 theme_override_font_sizes/font_size = 128
-text = "Cozy Game"
+text = "Cozy Grass Cut"
 horizontal_alignment = 1
 
 [node name="Subtitle" type="Label" parent="Root/TitlePanel/Center/Column"]
@@ -496,7 +504,7 @@ theme_override_colors/font_color = Color(1, 0.97, 0.88, 1)
 theme_override_colors/font_outline_color = Color(0.2, 0.36, 0.18, 1)
 theme_override_constants/outline_size = 16
 theme_override_font_sizes/font_size = 42
-text = "уютная игра про покос травы"
+text = "Полоса за полосой — и деревня оживает"
 horizontal_alignment = 1
 
 [node name="Gap" type="Control" parent="Root/TitlePanel/Center/Column"]
@@ -520,6 +528,15 @@ layout_mode = 2
 size_flags_horizontal = 4
 focus_mode = 0
 text = "Новая игра"
+
+[node name="TitleLanguageButton" type="Button" parent="Root/TitlePanel/Center/Column"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(520, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+focus_mode = 0
+theme_override_font_sizes/font_size = 30
+text = "Language / Язык: Русский"
 
 [node name="TitleCredits" type="Label" parent="Root/TitlePanel"]
 layout_mode = 1

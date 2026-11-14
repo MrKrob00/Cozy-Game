@@ -50,6 +50,8 @@ const FIXED_STICK_AT := Vector2(0.36, 0.62)
 @onready var _joystick: VirtualJoystick = $VirtualJoystick
 @onready var _controls_button: Button = %ControlsButton
 @onready var _probe_button: Button = %ProbeButton
+@onready var _language_button: Button = %LanguageButton
+@onready var _title_language_button: Button = %TitleLanguageButton
 @onready var _reset_button: Button = %ResetButton
 @onready var _quit_button: Button = %QuitButton
 @onready var _workshop_panel: Control = %WorkshopPanel
@@ -156,8 +158,8 @@ func _ready() -> void:
 	GameState.toast_requested.connect(show_toast)
 	GameState.reward_shown.connect(_on_reward_shown)
 	GameState.settings_changed.connect(_update_settings_buttons)
-	_coins_label.text = "Монеты: %d" % _shown_coins
-	_compost_label.text = "Компост: %d" % _shown_compost
+	_coins_label.text = L.t("Монеты: %d") % _shown_coins
+	_compost_label.text = L.t("Компост: %d") % _shown_compost
 	_on_bag_changed(GameState.bag_fill, GameState.bag_capacity)
 
 	_action_button.pressed.connect(func() -> void: _player.try_interact())
@@ -178,7 +180,13 @@ func _ready() -> void:
 	_controls_button.pressed.connect(func() -> void:
 		GameState.set_touch_controls(GameState.touch_controls + 1)
 		_update_settings_buttons())
+	# Кнопки паузы стоят в два столбца одинаковой ширины: одним столбцом
+	# они не помещались по высоте экрана.
+	for child in _resume_button.get_parent().get_children():
+		(child as Control).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_probe_button.pressed.connect(_run_probe)
+	for button: Button in [_language_button, _title_language_button]:
+		button.pressed.connect(_switch_language)
 	# Выбор сенсорной схемы нужен только там, где есть сенсорный экран.
 	_controls_button.visible = _touch
 	_reset_button.pressed.connect(_on_reset_pressed)
@@ -197,7 +205,8 @@ func _ready() -> void:
 	_quit_button.visible = not (OS.has_feature("mobile") or OS.has_feature("web"))
 	_update_settings_buttons()
 	for button: Button in [_action_button, _pause_button, _resume_button, _sound_button,
-			_music_button, _graphics_button, _fps_button, _controls_button, _probe_button, _reset_button, _quit_button, _continue_button,
+			_music_button, _graphics_button, _fps_button, _controls_button, _probe_button, _language_button,
+			_title_language_button, _reset_button, _quit_button, _continue_button,
 			_workshop_close]:
 		button.pressed.connect(_on_any_button_pressed.bind(button))
 
@@ -330,7 +339,7 @@ func _input(event: InputEvent) -> void:
 
 ## Показывает короткое сообщение; несколько подряд встают в очередь.
 func show_toast(text: String) -> void:
-	_toasts.append(text)
+	_toasts.append(L.t(text))
 	if not _toast_busy:
 		_next_toast()
 
@@ -353,7 +362,7 @@ func play_night() -> void:
 	_night.visible = true
 	_night.modulate.a = 0.0
 	_night_label.modulate.a = 0.0
-	_night_label.text = "День %d" % (GameState.day + 1)
+	_night_label.text = L.t("День %d") % (GameState.day + 1)
 	var tween := create_tween()
 	tween.tween_property(_night, "modulate:a", 1.0, 0.7)
 	tween.tween_callback(GameState.next_day)
@@ -386,7 +395,8 @@ func close_workshop() -> void:
 ## Показывает реплику жителя внизу экрана (вызывается через группу «hud»).
 func show_speech(speaker: Node, speaker_name: String, text: String) -> void:
 	_speaker = speaker
-	_speech_label.text = "%s: %s" % [speaker_name, text]
+	speaker_name = L.t(speaker_name)
+	_speech_label.text = "%s: %s" % [speaker_name, L.t(text)]
 	_speech_label.visible_characters = speaker_name.length() + 2
 	Juice.pop_in(_speech, 0.22)
 	# У каждого жителя свой голос: высота «бипа» зависит от имени.
@@ -451,7 +461,7 @@ func _on_progress_changed(ratio: float) -> void:
 	var percent := floori(ratio * 100.0 + 0.0001)
 	if percent == _shown_percent:
 		return
-	_progress_label.text = "%s: %d %%" % [_plot.plot_name, percent]
+	_progress_label.text = "%s: %d %%" % [L.t(_plot.plot_name), percent]
 	# Каждый новый процент слегка «подпрыгивает», круглые — сильнее.
 	if _shown_percent >= 0:
 		Juice.punch(_progress_label, 0.22 if percent % 10 == 0 else 0.08)
@@ -466,7 +476,7 @@ func _on_progress_changed(ratio: float) -> void:
 
 func _on_milestone(percent: int, plot: Plot) -> void:
 	var words := {25: "четверть позади", 50: "половина!", 75: "осталось чуть-чуть"}
-	show_toast("%s: %s" % [plot.plot_name, words.get(percent, "%d %%" % percent)])
+	show_toast("%s: %s" % [L.t(plot.plot_name), L.t(words.get(percent, "%d %%" % percent))])
 	Sfx.play("chime", -4.0, 1.0 + (percent - 25) / 200.0, 0.0)
 	Sfx.buzz(20)
 	if plot == _plot:
@@ -505,10 +515,10 @@ func _show_counter(value: float, kind: String) -> void:
 	var number := roundi(value)
 	if kind == "coins":
 		_shown_coins = number
-		_coins_label.text = "Монеты: %d" % number
+		_coins_label.text = L.t("Монеты: %d") % number
 	else:
 		_shown_compost = number
-		_compost_label.text = "Компост: %d" % number
+		_compost_label.text = L.t("Компост: %d") % number
 
 
 # Награда вылетает из точки мира и летит к своему счётчику горстью значков.
@@ -585,7 +595,7 @@ func _on_target_changed(target: Interactable) -> void:
 	if target == null:
 		_action_button.visible = false
 		return
-	_action_button.text = target.get_prompt() if _touch else "E — " + target.get_prompt()
+	_action_button.text = L.t(target.get_prompt()) if _touch else "E — " + L.t(target.get_prompt())
 	Juice.pop_in(_action_button)
 	Sfx.play("pop", -8.0)
 	# Кнопка мягко «дышит», чтобы её заметили.
@@ -601,8 +611,8 @@ func _on_plot_completed(plot: Plot) -> void:
 	# Сначала облёт камеры, чтобы игрок увидел выкошенный участок, потом окно.
 	show_toast(plot.completed_title)
 	await get_tree().create_timer(COMPLETION_DELAY).timeout
-	_completion_title.text = plot.completed_title
-	_completion_reward.text = "Награда: +%d монет" % plot.reward_coins
+	_completion_title.text = L.t(plot.completed_title)
+	_completion_reward.text = L.t("Награда: +%d монет") % plot.reward_coins
 	_kill_stamp_tweens()
 	var stamps := _fill_stamps(_completion_stamps, plot)
 	_completion.visible = true
@@ -666,7 +676,7 @@ func _set_paused(paused: bool) -> void:
 	_reset_armed = false
 	_reset_button.text = "Начать заново"
 	if paused and _plot:
-		_pause_title.text = _plot.plot_name
+		_pause_title.text = L.t(_plot.plot_name)
 		_fill_stamps(_pause_stamps, _plot)
 		Juice.pop_in(_pause_window, 0.22)
 
@@ -720,11 +730,24 @@ func _apply_touch_controls() -> void:
 		_player.touch_pad = _touch_pad if scheme == 2 else null
 
 
+# Следующий язык по кругу. Тексты уже построены, поэтому сцена
+# перезагружается: игра сохранена, титульный экран второй раз не показывается.
+func _switch_language() -> void:
+	var codes: Array = GameState.LANGUAGES.keys()
+	GameState.set_language(codes[(codes.find(GameState.get_language()) + 1) % codes.size()])
+	get_tree().paused = false
+	get_tree().reload_current_scene()
+
+
 func _update_settings_buttons() -> void:
-	_controls_button.text = "Управление: %s" % GameState.TOUCH_CONTROLS[GameState.touch_controls]
+	# Кнопка языка подписана на обоих языках: её найдёт и тот, кто не читает текущий.
+	var language_name: String = GameState.LANGUAGES[GameState.get_language()]
+	_language_button.text = L.t("Язык: %s") % language_name
+	_title_language_button.text = "Language / Язык: %s" % language_name
+	_controls_button.text = L.t("Управление: %s") % L.t(GameState.TOUCH_CONTROLS[GameState.touch_controls])
 	_sound_button.text = "Звуки: включены" if GameState.sound_enabled else "Звуки: выключены"
 	_music_button.text = "Музыка: включена" if GameState.music_enabled else "Музыка: выключена"
-	_graphics_button.text = "Графика: %s" % Graphics.preset["title"]
+	_graphics_button.text = L.t("Графика: %s") % L.t(Graphics.preset["title"])
 	_fps_button.text = "Счётчик FPS: включён" if GameState.show_fps else "Счётчик FPS: выключен"
 	_fps_label.visible = GameState.show_fps
 
@@ -766,7 +789,7 @@ func _show_probe_result(text: String) -> void:
 	rows.add_theme_constant_override("separation", 16)
 	panel.add_child(rows)
 	var label := Label.new()
-	label.text = text + "\n\nТаблица скопирована в буфер обмена — пришлите её."
+	label.text = text + L.t("\n\nТаблица скопирована в буфер обмена — пришлите её.")
 	label.add_theme_font_size_override("font_size", 26)
 	rows.add_child(label)
 	var close := Button.new()
@@ -780,10 +803,10 @@ func _show_probe_result(text: String) -> void:
 func _diagnostics() -> String:
 	var window := DisplayServer.window_get_size()
 	var safe := DisplayServer.get_display_safe_area()
-	return "%d FPS · окно %d×%d · холст %d×%d · безопасная область %d,%d %d×%d · %s · %s · графика: %s" % [
+	return L.t("%d FPS · окно %d×%d · холст %d×%d · безопасная область %d,%d %d×%d · %s · %s · графика: %s") % [
 		Engine.get_frames_per_second(), window.x, window.y, int(_root.size.x), int(_root.size.y),
 		safe.position.x, safe.position.y, safe.size.x, safe.size.y,
-		OS.get_model_name(), RenderingServer.get_video_adapter_name(), Graphics.preset["title"]]
+		OS.get_model_name(), RenderingServer.get_video_adapter_name(), L.t(Graphics.preset["title"])]
 
 
 func _fill_stamps(container: VBoxContainer, plot: Plot) -> Array[Label]:
@@ -829,7 +852,7 @@ func _fill_bureau() -> void:
 	_workshop_title.text = "Бюро находок"
 	var finds := get_tree().get_nodes_in_group("find")
 	var found := finds.filter(func(find: FindItem) -> bool: return find.is_collected()).size()
-	_workshop_coins.text = "Найдено вещей: %d из %d · Монеты: %d" % [found, finds.size(), GameState.coins]
+	_workshop_coins.text = L.t("Найдено вещей: %d из %d · Монеты: %d") % [found, finds.size(), GameState.coins]
 	var listed := 0
 	for find: FindItem in finds:
 		if find.owner_name == "" or not find.is_collected():
@@ -842,12 +865,13 @@ func _fill_bureau() -> void:
 		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(text)
 		var title := Label.new()
-		title.text = find.display_name.left(1).to_upper() + find.display_name.substr(1)
+		var find_name := L.t(find.display_name)
+		title.text = find_name.left(1).to_upper() + find_name.substr(1)
 		text.add_child(title)
 		var about := Label.new()
 		about.add_theme_font_size_override("font_size", 28)
 		about.modulate.a = 0.7
-		about.text = "Владелец: %s" % find.owner_name
+		about.text = L.t("Владелец: %s") % L.t(find.owner_name)
 		text.add_child(about)
 		if find.is_returned():
 			var done := Label.new()
@@ -857,7 +881,7 @@ func _fill_bureau() -> void:
 			row.add_child(done)
 			continue
 		var give := Button.new()
-		give.text = "Вернуть · +%d" % find.return_reward
+		give.text = L.t("Вернуть · +%d") % find.return_reward
 		give.focus_mode = Control.FOCUS_NONE
 		give.custom_minimum_size = Vector2(280.0, 0.0)
 		give.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -876,7 +900,7 @@ func _on_return_pressed(find: FindItem) -> void:
 	Sfx.play("coin")
 	Sfx.buzz(25)
 	if find.thanks != "":
-		show_toast("%s: %s" % [find.owner_name, find.thanks])
+		show_toast("%s: %s" % [L.t(find.owner_name), L.t(find.thanks)])
 	_fill_bureau()
 	Juice.punch(_workshop_coins, 0.2)
 
@@ -886,7 +910,7 @@ func _fill_workshop() -> void:
 	for child in _workshop_rows.get_children():
 		child.queue_free()
 	_workshop_title.text = "Мастерская"
-	_workshop_coins.text = "Монеты: %d" % GameState.coins
+	_workshop_coins.text = L.t("Монеты: %d") % GameState.coins
 	for id: String in GameState.UPGRADES:
 		var info: Dictionary = GameState.UPGRADES[id]
 		var level := GameState.upgrade_level(id)
@@ -899,16 +923,16 @@ func _fill_workshop() -> void:
 		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(text)
 		var title := Label.new()
-		title.text = "%s — уровень %d из %d" % [info["title"], level + 1, values.size()]
+		title.text = L.t("%s — уровень %d из %d") % [L.t(info["title"]), level + 1, values.size()]
 		text.add_child(title)
 		var about := Label.new()
 		about.add_theme_font_size_override("font_size", 28)
 		about.modulate.a = 0.7
 		if GameState.is_upgrade_maxed(id):
-			about.text = "%s: %s %s" % [info["about"], _number(values[level]), info["unit"]]
+			about.text = "%s: %s %s" % [L.t(info["about"]), _number(values[level]), L.t(info["unit"])]
 		else:
-			about.text = "%s: %s → %s %s" % [info["about"], _number(values[level]),
-					_number(values[level + 1]), info["unit"]]
+			about.text = "%s: %s → %s %s" % [L.t(info["about"]), _number(values[level]),
+					_number(values[level + 1]), L.t(info["unit"])]
 		text.add_child(about)
 
 		if GameState.is_upgrade_maxed(id):
@@ -920,7 +944,7 @@ func _fill_workshop() -> void:
 			continue
 		var cost := GameState.upgrade_cost(id)
 		var buy := Button.new()
-		buy.text = "%d монет" % cost
+		buy.text = L.t("%d монет") % cost
 		buy.focus_mode = Control.FOCUS_NONE
 		buy.custom_minimum_size = Vector2(240.0, 0.0)
 		buy.size_flags_vertical = Control.SIZE_SHRINK_CENTER

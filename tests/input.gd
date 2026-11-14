@@ -55,6 +55,9 @@ func _initialize() -> void:
 
 func _run() -> void:
 	var game_state := root.get_node("GameState")
+	# Проверки сверяют русские тексты; английский проверяется отдельно.
+	game_state.language = "ru"
+	game_state.apply_language()
 	game_state.clear()
 	for action: String in ["move_left", "move_right", "move_up", "move_down",
 			"interact", "zoom_in", "zoom_out", "pause"]:
@@ -287,6 +290,59 @@ func _run() -> void:
 	var wrong: Array = hud.safe_insets(Vector2(2400, 1080), Rect2(0, 0, 1080, 2400), Vector2(2400, 1080))
 	check(wrong == [0.0, 0.0, 0.0, 0.0], "safe area for the wrong orientation is ignored")
 	check(hud.get_node("%ActionButton").get_parent() == hud.get_node("%Margin"), "action button sits inside the safe margins")
+
+	# 11. Язык: у каждой русской строки игры есть английский перевод.
+	var strings: Dictionary = load("res://scripts/strings_en.gd").MESSAGES
+	var translate: GDScript = load("res://scripts/l.gd")
+	var cyrillic := RegEx.create_from_string("[А-Яа-яЁё]")
+	var literal := RegEx.create_from_string("\"((?:[^\"\\\\]|\\\\.)*)\"")
+	var missing: Array[String] = []
+	var sources: Array[String] = []
+	for file in DirAccess.get_files_at("res://scripts"):
+		if file.ends_with(".gd") and file != "strings_en.gd":
+			sources.append("res://scripts/" + file)
+	for file in ["hud.tscn", "plots/yard.tscn", "plots/garden.tscn", "plots/square.tscn", "plots/orchard.tscn"]:
+		sources.append("res://scenes/" + file)
+	for path in sources:
+		for line in FileAccess.get_file_as_string(path).split("\n"):
+			var code := line.strip_edges()
+			# Комментарии, предупреждения в журнал и названия групп инспектора не переводятся.
+			if code.begins_with("#") or code.contains("push_warning") or code.begins_with("@export_group"):
+				continue
+			for found in literal.search_all(line):
+				var text := found.get_string(1).c_unescape()
+				if cyrillic.search(text) and not strings.has(text) and not text in missing:
+					missing.append(text)
+	if not missing.is_empty():
+		print("no English for: ", missing)
+	check(missing.is_empty(), "every Russian string of the game has an English translation (%d checked)" % strings.size())
+	var broken: Array[String] = []
+	for source: String in strings:
+		if source.count("%") != (strings[source] as String).count("%"):
+			broken.append(source)
+	check(broken.is_empty(), "translations keep the same placeholders %s" % str(broken))
+
+	# 12. Переключение языка: интерфейс, участки и подписи становятся английскими.
+	check(game_state.get_language() == "ru" and translate.t("Играть") == "Играть", "Russian strings are shown as written")
+	game_state.set_language("en")
+	check(translate.t("Играть") == "Play" and translate.t("Монеты: %d") % 5 == "Coins: 5", "English strings come from the dictionary")
+	reload_current_scene()
+	await frames(8)
+	var english_hud = current_scene.get_node("HUD")
+	check(english_hud.get_node("%CoinsLabel").text == "Coins: 0" and english_hud.get_node("%ProgressLabel").text.begins_with("Yard:"), "the HUD is in English after the switch")
+	check(english_hud.get_node("%LanguageButton").text == "Language: English", "the language button names the language")
+	check(english_hud.get_node("%TitleLabel").text == "Cozy Grass Cut", "the title screen carries the game's name")
+	var english_yard = current_scene.get_node("Yard")
+	check(english_yard.fence.get("_sign_label").text == "Yard", "plot signs are in English")
+	check(english_yard.get_stamps()[0]["title"] == "Mowed", "stamps are in English")
+	var english_toasts: Array[String] = []
+	game_state.toast_requested.connect(func(t): english_toasts.append(t))
+	game_state.toast("Мешок полон — отвезите траву в компостный ящик")
+	check(english_toasts == ["The bag is full — take the grass to the compost bin"], "messages are translated where they are shown")
+	english_hud.call("_switch_language")
+	await frames(8)
+	check(game_state.get_language() == "ru" and current_scene.get_node("HUD").get_node("%CoinsLabel").text == "Монеты: 0", "the button switches back to Russian and reloads the scene")
+	game_state.language = ""
 
 	game_state.clear()
 	game_state.graphics_quality = -1

@@ -56,7 +56,7 @@ func shape_grass(field: MowField) -> void:
 
 
 func get_prompt() -> String:
-	return "Посадить цветы — %d компоста" % compost_cost
+	return L.t("Посадить цветы — %d компоста") % compost_cost
 
 
 func can_interact(_player: Player) -> bool:
@@ -66,7 +66,7 @@ func can_interact(_player: Player) -> bool:
 func interact(_player: Player) -> void:
 	if not GameState.spend_compost(compost_cost):
 		Sfx.play("deny")
-		GameState.toast("Не хватает компоста: нужно %d. Скосите траву и отвезите её в ящик" % compost_cost)
+		GameState.toast(L.t("Не хватает компоста: нужно %d. Скосите траву и отвезите её в ящик") % compost_cost)
 		return
 	GameState.set_flag(_flag())
 	_plant(true)

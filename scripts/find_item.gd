@@ -108,10 +108,10 @@ func _fly_to_player(progress: float, from: Vector3) -> void:
 func _collect() -> void:
 	_model.visible = false
 	Sfx.play("pop")
-	var text := "Найдено: %s" % display_name
+	var text := L.t("Найдено: %s") % L.t(display_name)
 	if coins_reward > 0:
 		GameState.add_coins(coins_reward, _model.global_position)
-		text += " (+%d монет)" % coins_reward
+		text += L.t(" (+%d монет)") % coins_reward
 		Sfx.play("coin")
 		Juice.floating_text(self, _model.global_position + Vector3.UP * 0.6, "+%d" % coins_reward,
 				Color(1.0, 0.86, 0.35))

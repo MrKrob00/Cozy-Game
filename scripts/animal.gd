@@ -58,7 +58,7 @@ func is_moved() -> bool:
 
 
 func get_prompt() -> String:
-	return "Перенести %s" % display_name
+	return L.t("Перенести %s") % L.t(display_name)
 
 
 func can_interact(_player: Player) -> bool:

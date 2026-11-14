@@ -82,12 +82,26 @@ var show_fps := false
 ## Сенсорное управление: 0 — джойстик закреплён слева внизу, 1 — джойстик
 ## появляется под пальцем и идёт за ним, 2 — косилка едет к пальцу.
 var touch_controls := 0
+## Язык: «ru», «en» или пусто — выбрать по языку устройства.
+var language := ""
+## Прежнее название игры (и её папки с сохранением на компьютере).
+const OLD_NAME := "Cozy Game"
+const LANGUAGES := {"ru": "Русский", "en": "English"}
+## Языки устройства, при которых игра стартует на русском.
+const RUSSIAN_LOCALES := ["ru", "uk", "be", "kk"]
 const TOUCH_CONTROLS := ["джойстик слева", "джойстик под пальцем", "вести пальцем"]
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# Английский перевод; русские строки — исходные, им перевод не нужен.
+	var english := Translation.new()
+	english.locale = "en"
+	for source: String in StringsEn.MESSAGES:
+		english.add_message(source, StringsEn.MESSAGES[source])
+	TranslationServer.add_translation(english)
 	load_game()
+	apply_language()
 
 
 func _notification(what: int) -> void:
@@ -223,7 +237,8 @@ func is_plot_completed(plot_id: String) -> bool:
 
 
 func toast(text: String) -> void:
-	toast_requested.emit(text)
+	# Целые сообщения переводятся здесь; с подстановкой — до неё (L.t).
+	toast_requested.emit(L.t(text))
 
 
 func set_music_enabled(enabled: bool) -> void:
@@ -257,6 +272,26 @@ func set_show_fps(enabled: bool) -> void:
 	save_game()
 
 
+## Действующий язык: выбранный игроком или язык устройства.
+func get_language() -> String:
+	if LANGUAGES.has(language):
+		return language
+	return "ru" if OS.get_locale_language() in RUSSIAN_LOCALES else "en"
+
+
+## Меняет язык. Уже показанные тексты обновятся после перезагрузки сцены
+## (её делает интерфейс).
+func set_language(code: String) -> void:
+	language = code
+	apply_language()
+	settings_changed.emit()
+	save_game()
+
+
+func apply_language() -> void:
+	TranslationServer.set_locale(get_language())
+
+
 func set_touch_controls(scheme: int) -> void:
 	touch_controls = posmod(scheme, TOUCH_CONTROLS.size())
 	settings_changed.emit()
@@ -283,6 +318,7 @@ func save_game() -> void:
 		"graphics_quality": graphics_quality,
 		"show_fps": show_fps,
 		"touch_controls": touch_controls,
+		"language": language,
 		"bag_fill": bag_fill,
 		"upgrade_levels": upgrade_levels,
 		"flags": flags,
@@ -290,7 +326,18 @@ func save_game() -> void:
 	})
 
 
+# Игра раньше называлась «Cozy Game», и на компьютере её сохранение лежит
+# в папке с этим именем: при первом запуске под новым именем забираем его.
+func _adopt_old_save() -> void:
+	if FileAccess.file_exists(SAVE_PATH):
+		return
+	var old := OS.get_user_data_dir().get_base_dir().path_join(OLD_NAME).path_join(SAVE_PATH.get_file())
+	if FileAccess.file_exists(old):
+		DirAccess.copy_absolute(old, ProjectSettings.globalize_path(SAVE_PATH))
+
+
 func load_game() -> void:
+	_adopt_old_save()
 	if not FileAccess.file_exists(SAVE_PATH):
 		return
 	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
@@ -309,6 +356,7 @@ func load_game() -> void:
 	graphics_quality = data.get("graphics_quality", -1)
 	show_fps = data.get("show_fps", false)
 	touch_controls = clampi(data.get("touch_controls", 0), 0, TOUCH_CONTROLS.size() - 1)
+	language = data.get("language", "")
 	bag_fill = data.get("bag_fill", 0.0)
 	upgrade_levels = data.get("upgrade_levels", {})
 	flags = data.get("flags", {})

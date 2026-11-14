@@ -31,7 +31,7 @@ func is_repaired() -> bool:
 
 
 func get_prompt() -> String:
-	return "Починить %s — %d монет" % [title, cost]
+	return L.t("Починить %s — %d монет") % [L.t(title), cost]
 
 
 func can_interact(_player: Player) -> bool:
@@ -44,7 +44,7 @@ func can_interact(_player: Player) -> bool:
 func interact(_player: Player) -> void:
 	if not GameState.spend_coins(cost):
 		Sfx.play("deny")
-		GameState.toast("Не хватает монет: нужно %d" % cost)
+		GameState.toast(L.t("Не хватает монет: нужно %d") % cost)
 		return
 	_repaired = true
 	GameState.set_flag(_flag())

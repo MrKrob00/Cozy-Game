@@ -27,24 +27,24 @@ func run() -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = 0
 	var view := get_tree().root
-	_lines.append("ЗАМЕР  %s  %s" % [OS.get_model_name(), RenderingServer.get_video_adapter_name()])
-	_lines.append("экран %d×%d, 3D ×%.2f, графика: %s" % [view.size.x, view.size.y, view.scaling_3d_scale,
-			Graphics.preset["title"]])
+	_lines.append(L.t("ЗАМЕР  %s  %s") % [OS.get_model_name(), RenderingServer.get_video_adapter_name()])
+	_lines.append(L.t("экран %d×%d, 3D ×%.2f, графика: %s") % [view.size.x, view.size.y, view.scaling_3d_scale,
+			L.t(Graphics.preset["title"])])
 	var base: float = await _measure()
-	_lines.append("вызовов отрисовки %d, треугольников %d" % [
+	_lines.append(L.t("вызовов отрисовки %d, треугольников %d") % [
 			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
 			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)])
-	_lines.append("кадр %.1f мс (%d к/с)%s" % [base, int(1000.0 / maxf(base, 0.1)),
-			"  (возможно, упёрлись в частоту экрана)" if base < 16.9 else ""])
-	_lines.append("сколько стоит слой (кадр без него дешевле на столько):")
+	_lines.append(L.t("кадр %.1f мс (%d к/с)%s") % [base, int(1000.0 / maxf(base, 0.1)),
+			L.t("  (возможно, упёрлись в частоту экрана)") if base < 16.9 else ""])
+	_lines.append(L.t("сколько стоит слой (кадр без него дешевле на столько):"))
 	for case: Array in _cases():
-		status = "Замер: %s…" % case[0]
+		status = L.t("Замер: %s…") % L.t(case[0])
 		var toggle: Callable = case[1]
 		toggle.call(false)
 		var off: float = await _measure()
 		toggle.call(true)
 		var on: float = await _measure()
-		_lines.append("%-22s %+5.1f мс" % [case[0], (base + on) * 0.5 - off])
+		_lines.append(L.t("%-22s %+5.1f мс") % [L.t(case[0]), (base + on) * 0.5 - off])
 		base = on
 	DisplayServer.window_set_vsync_mode(vsync)
 	Engine.max_fps = max_fps

@@ -53,7 +53,7 @@ func interact(_player: Player) -> void:
 	Sfx.play("dump")
 	Sfx.buzz(20)
 	if gained > 0:
-		Juice.floating_text(self, global_position + Vector3.UP * 1.6, "+%d компоста" % gained,
+		Juice.floating_text(self, global_position + Vector3.UP * 1.6, L.t("+%d компоста") % gained,
 				Color(0.8, 1.0, 0.55))
 	GameState.save_game()
 

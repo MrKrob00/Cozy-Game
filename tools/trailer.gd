@@ -47,10 +47,14 @@ func frames(count: int) -> void:
 
 func _run() -> void:
 	_state = root.get_node("GameState")
-	Engine.set_meta("baking_map", false)
+	# Как при запекании карты: сохранение игрока трейлер не трогает.
+	Engine.set_meta("baking_map", true)
 	_state.clear()
 	_state.title_seen = true
 	_state.graphics_quality = 2
+	# Трейлер на английском: и подписи, и интерфейс игры.
+	_state.language = "en"
+	_state.apply_language()
 	_state.music_enabled = true
 	_state.sound_enabled = true
 	change_scene_to_file("res://scenes/village.tscn")
@@ -100,7 +104,7 @@ func _run() -> void:
 		var swing := i / 96.0
 		_chase_camera(Vector3(2.9 - 1.0 * swing, 1.5 + 0.7 * swing, -4.6 + 0.4 * swing), Vector3(0.0, 0.75, -0.7))
 		if i == 14:
-			_say("Преврати заросли в уютный сад")
+			_say("Turn the overgrown into a cozy garden")
 		await process_frame
 
 	# 2. Цикл покоса: вид как в игре, двор покрывается полосами, находки.
@@ -110,9 +114,9 @@ func _run() -> void:
 	for i in 138:
 		_advance(8.5, yard)
 		if i == 20:
-			_say("Коси полосу за полосой")
+			_say("Mow it stripe by stripe")
 		if i == 84:
-			_say("Находи потерянное в траве")
+			_say("Find lost things in the grass")
 		await process_frame
 
 	# 3. Двор выкошен: конфетти, облёт, награда.
@@ -120,13 +124,13 @@ func _run() -> void:
 	_player.set("_current_speed", 0.0)
 	yard.field.mow(yard.field.global_position, Vector3.FORWARD, 40.0, 40.0)
 	await frames(8)
-	_say("Двор выкошен!")
+	_say("The yard is mowed!")
 	await frames(76)
 
 	# 4. Камера едет к новой калитке, и она открывается.
 	_hud.call("_reveal_next_plot")
 	await frames(16)
-	_say("Открывай новые участки")
+	_say("Open up new places")
 	await frames(88)
 
 	# 5. Дорога через деревню по стрелкам.
@@ -138,7 +142,7 @@ func _run() -> void:
 	for i in 92:
 		_advance(5.2, null)
 		if i == 12:
-			_say("Маленькая деревня оживает")
+			_say("A little village wakes up")
 		await process_frame
 
 	# 6а. Улучшения: новая косилка в саду бабушки.
@@ -155,7 +159,7 @@ func _run() -> void:
 		_advance(3.0, garden)
 		_chase_camera(Vector3(-3.0, 1.9, -4.2), Vector3(0.0, 0.75, -0.6))
 		if i == 6:
-			_say("Улучшай косилку")
+			_say("Upgrade your mower")
 		await process_frame
 
 	# 6б. Площадь: бурьян и широкий нож.
@@ -171,7 +175,7 @@ func _run() -> void:
 	for i in 44:
 		_advance(5.5, square)
 		if i == 6:
-			_say("Одолей бурьян")
+			_say("Tame the weeds")
 		await process_frame
 
 	# 6в. Фруктовый сад: деревья, пруд, лягушки.
@@ -187,7 +191,7 @@ func _run() -> void:
 	for i in 44:
 		_advance(6.0, orchard)
 		if i == 6:
-			_say("Четыре участка — у каждого свой характер")
+			_say("Every garden has its own charm")
 		await process_frame
 
 	# 7. Финал: праздник в деревне и название.
@@ -216,6 +220,7 @@ func _run() -> void:
 	print("TRAILER_END ", Engine.get_frames_drawn())
 	_state.clear()
 	_state.graphics_quality = -1
+	_state.language = ""
 	quit()
 
 
@@ -417,15 +422,15 @@ func _show_title() -> void:
 	column.add_theme_constant_override("separation", 12)
 	_overlay.add_child(column)
 	var title := Label.new()
-	title.text = "Cozy Game"
+	title.text = "Cozy Grass Cut"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 190)
+	title.add_theme_font_size_override("font_size", 170)
 	title.add_theme_color_override("font_color", Color(1.0, 0.97, 0.88))
 	title.add_theme_color_override("font_outline_color", Color(0.33, 0.24, 0.12))
 	title.add_theme_constant_override("outline_size", 40)
 	column.add_child(title)
 	var tagline := Label.new()
-	tagline.text = "Выкоси. Найди. Оживи деревню."
+	tagline.text = "One cozy stripe at a time"
 	tagline.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tagline.add_theme_font_size_override("font_size", 64)
 	tagline.add_theme_color_override("font_color", Color(1.0, 0.92, 0.6))
