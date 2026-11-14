@@ -79,6 +79,8 @@ func _run() -> void:
 	_hud.get_node("%ActionButton").self_modulate.a = 0.0
 	_hud.get_node("%ActionButton").add_theme_color_override("font_color", Color(0, 0, 0, 0))
 	_player.set_physics_process(false)
+	# Калитку трейлер показывает сам, в своём кадре.
+	_hud.auto_reveal = false
 	_build_overlay()
 	var yard: Node3D = _village.get_node("Yard")
 	var garden: Node3D = _village.get_node("Garden")

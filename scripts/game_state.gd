@@ -236,6 +236,12 @@ func is_plot_completed(plot_id: String) -> bool:
 	return plots.has(plot_id) and plots[plot_id].get("completed", false)
 
 
+## Открыл ли участок дорогу на следующий: для этого хватает выкосить его
+## большую часть (Plot.open_next_at), не дожидаясь завершения.
+func has_plot_opened_next(plot_id: String) -> bool:
+	return plots.has(plot_id) and (plots[plot_id].get("next_opened", false) or plots[plot_id].get("completed", false))
+
+
 func toast(text: String) -> void:
 	# Целые сообщения переводятся здесь; с подстановкой — до неё (L.t).
 	toast_requested.emit(L.t(text))

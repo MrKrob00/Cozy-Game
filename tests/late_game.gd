@@ -94,6 +94,8 @@ func _run() -> void:
 	var toasts: Array[String] = []
 	gs.toast_requested.connect(func(t): toasts.append(t))
 
+	# Показ калиток камерой проверяет tests/village.gd; здесь он выключен.
+	hud.auto_reveal = false
 	# 1. Цепочка открытия: двор → сад → площадь → фруктовый сад.
 	check(not square.is_unlocked() and not orchard.is_unlocked(), "square and orchard start locked")
 	await mow_all(yard)

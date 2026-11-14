@@ -101,16 +101,14 @@ func _process(delta: float) -> void:
 			Sfx.play(CHIRPS.pick_random(), randf_range(-16.0, -10.0), 1.0, 0.12)
 
 
-## Куда идти дальше: первый по цепочке участок, калитка которого открыта,
-## а трава не выкошена. null — пока игрок занят своим участком (двор в начале
-## игры, или новый участок, на котором он уже косит) и когда выкошено всё.
+## Куда идти дальше: самый дальний по цепочке участок, калитка которого уже
+## открыта, а косить на нём ещё не начинали. null — когда такого нет: игра
+## только началась, игрок уже косит на новом участке или выкошено всё.
 func next_goal() -> Plot:
-	for plot in _plots:
-		if plot.is_unlocked() and not plot.reveal_pending and not plot.is_completed():
-			if plot.requires_plot == "":
-				return null
-			if current_plot == plot and plot.get_progress() > 0.0:
-				return null
+	for i in range(_plots.size() - 1, -1, -1):
+		var plot := _plots[i]
+		if plot.requires_plot != "" and plot.is_unlocked() and not plot.reveal_pending \
+				and not plot.is_completed() and plot.get_progress() <= 0.0:
 			return plot
 	return null
 

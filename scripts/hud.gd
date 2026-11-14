@@ -14,6 +14,8 @@ const COMPLETION_DELAY := 5.0
 const FLIGHT_TIME := 0.85
 ## Секунд на букву в реплике жителя.
 const TYPE_SPEED := 0.028
+## Пауза между «скошено 80 %» и показом новой калитки, секунд.
+const REVEAL_DELAY := 0.7
 ## Где в своей части экрана стоит закреплённый джойстик (доли ширины и высоты).
 const FIXED_STICK_AT := Vector2(0.36, 0.62)
 
@@ -97,6 +99,10 @@ var _fps_timer := 0.0
 var _new_game_armed := false
 var _title_bob: Tween
 var _touch_pad: TouchPad
+## Показывать ли новую калитку камерой сразу, как она открылась (в проверках
+## и при съёмке трейлера это выключают и показывают сами).
+var auto_reveal := true
+var _revealing := false
 ## Замер кадра (FrameProbe), если он идёт сейчас.
 var _probe: FrameProbe
 ## Игра идёт (не титульный экран): сенсорное управление включено.
@@ -139,6 +145,7 @@ func _ready() -> void:
 
 	for plot: Plot in get_tree().get_nodes_in_group("plot"):
 		plot.completed.connect(_on_plot_completed.bind(plot))
+		plot.next_opened.connect(_on_next_opened)
 		plot.milestone.connect(_on_milestone.bind(plot))
 	var village := get_tree().get_first_node_in_group("village") as Village
 	if village:
@@ -648,6 +655,9 @@ func _on_plot_completed(plot: Plot) -> void:
 # Камера едет к калитке участка, который только что открылся, калитка
 # распахивается, и камера возвращается. Игрок в это время стоит.
 func _reveal_next_plot() -> void:
+	if _revealing:
+		return
+	_revealing = true
 	for plot: Plot in get_tree().get_nodes_in_group("plot"):
 		if not plot.reveal_pending:
 			continue
@@ -661,6 +671,16 @@ func _reveal_next_plot() -> void:
 		await camera.reveal_finished
 		if _player and not _title_panel.visible:
 			_player.controls_enabled = true
+	_revealing = false
+
+
+# Участок выкошен настолько, что открылся следующий: чуть погодя камера
+# показывает его калитку.
+func _on_next_opened() -> void:
+	if not auto_reveal:
+		return
+	await get_tree().create_timer(REVEAL_DELAY).timeout
+	_reveal_next_plot()
 
 
 func _kill_stamp_tweens() -> void:

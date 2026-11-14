@@ -8,6 +8,8 @@ extends Node3D
 
 ## Участок выкошен (один раз, в момент пересечения порога).
 signal completed
+## Скошено достаточно, чтобы открылся следующий участок (один раз).
+signal next_opened
 ## Калитка участка открылась.
 signal unlocked
 ## Скошена очередная четверть участка (25, 50 или 75 %).
@@ -27,6 +29,9 @@ signal milestone(percent: int)
 @export var locked_text := ""
 ## Доля покоса, при которой участок считается выкошенным.
 @export_range(0.5, 1.0) var complete_at := 0.95
+## Доля покоса, при которой открывается следующий участок: ждать, пока этот
+## будет докошен до травинки, не нужно.
+@export_range(0.3, 1.0) var open_next_at := 0.8
 ## Доля покоса, с которой остатки травы подсвечиваются светлячками.
 @export_range(0.5, 1.0) var hints_from := 0.9
 
@@ -82,6 +87,7 @@ func _ready() -> void:
 	if _state.has("mask") and not field.set_state(_state["mask"]):
 		push_warning("Сохранённый покос участка «%s» не подошёл и сброшен" % plot_id)
 	field.progress_changed.connect(_on_progress_changed)
+	field.leftovers_cleared.connect(_on_leftovers_cleared)
 	GameState.saving.connect(_store_state)
 	GameState.day_started.connect(_on_day_started)
 	_build_hints()
@@ -89,7 +95,7 @@ func _ready() -> void:
 	if requires_plot != "":
 		for other: Plot in get_tree().get_nodes_in_group("plot"):
 			if other.plot_id == requires_plot:
-				other.completed.connect(_on_required_plot_completed)
+				other.next_opened.connect(_on_required_plot_opened)
 	if fence:
 		fence.set_gate_open(is_unlocked(), false)
 	if is_completed():
@@ -118,7 +124,7 @@ func is_completed() -> bool:
 
 
 func is_unlocked() -> bool:
-	return requires_plot == "" or GameState.is_plot_completed(requires_plot)
+	return requires_plot == "" or GameState.has_plot_opened_next(requires_plot)
 
 
 func get_progress() -> float:
@@ -208,12 +214,19 @@ func _on_progress_changed(ratio: float) -> void:
 				reached.append(percent)
 				_state["milestones"] = reached
 				milestone.emit(percent)
+	if ratio >= minf(open_next_at, complete_at) and not _state.get("next_opened", false):
+		_state["next_opened"] = true
+		# Мелкие клочки по всему участку убираются сами: докашивать легче.
+		_sweep_leftovers()
+		next_opened.emit()
+		GameState.save_game()
 	if ratio >= complete_at and not is_completed():
 		_state["completed"] = true
 		_state["tidy"] = true
 		GameState.add_coins(reward_coins, _player_position())
 		_celebrate()
 		completed.emit()
+		_sweep_leftovers()
 		GameState.save_game()
 	elif ratio >= complete_at and not _state.get("tidy", true):
 		# Трава отросла, и её снова подстригли: небольшая благодарность.
@@ -228,6 +241,18 @@ func _on_progress_changed(ratio: float) -> void:
 		GameState.toast("Идеально! Ни травинки не осталось")
 		Sfx.play("find", -4.0, 1.2)
 		GameState.save_game()
+
+
+# Убирает мелкие остатки травы по всему участку: поле обходит себя само,
+# понемногу за кадр, а срезанное идёт в мешок.
+func _sweep_leftovers() -> void:
+	field.sweep_leftovers(GameState.upgrade_level("blade") >= 1)
+
+
+func _on_leftovers_cleared(units: float, spots: PackedVector3Array) -> void:
+	GameState.add_grass(units)
+	for spot in spots:
+		Juice.sparkle(self, spot + Vector3.UP * 0.2, Color(0.72, 0.95, 0.42), 5)
 
 
 # Птицы на газоне: появляются, когда скошена половина участка, и улетают,
@@ -254,9 +279,10 @@ func _player_position() -> Vector3:
 	return player.global_position + Vector3.UP * 1.4 if player else global_position
 
 
-# Калитку открывает не сам участок, а показ: интерфейс закрывает окно
-# завершения, камера едет к калитке, и она распахивается на глазах у игрока.
-func _on_required_plot_completed() -> void:
+# Предыдущий участок выкошен на open_next_at. Калитку открывает не сам
+# участок, а показ: камера едет к калитке, и она распахивается на глазах
+# у игрока (его запускает интерфейс).
+func _on_required_plot_opened() -> void:
 	reveal_pending = true
 
 

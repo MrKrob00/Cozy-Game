@@ -173,31 +173,24 @@ func _run() -> void:
 	hud.close_workshop()
 	check(not paused and not hud.get_node("%WorkshopPanel").visible, "workshop window closes")
 
-	# 5. Двор выкошен — сад открывается, возвращается Мастер.
+	# 5. Двор скошен на 80 % — сад открывается, хотя двор ещё не докошен;
+	# камера сама показывает калитку. Потом двор докашивается.
 	var master = yard.get_node("Master")
 	check(not master.is_present() and not master.visible, "master is away at first")
 	player.global_position = Vector3(0, 0, 3.0)
 	await frames(3)
-	yard.field.mow(yard.global_position, Vector3.FORWARD, 30.0, 30.0)
-	await frames(5)
-	check(yard.is_completed() and garden.is_unlocked(), "mowing the yard unlocks the garden")
-	var birds: Array = yard.get("_birds")
-	check(birds.size() == 2 and yard.field.is_open_lawn(birds[0].global_position), "birds land on the mowed lawn")
-	check(garden.get("_birds").is_empty(), "and not on an overgrown plot")
-	var sounds = root.get_node("Sfx")
-	check(sounds.call("_variants", "coin").size() == 2 and sounds.call("_variants", "gate").size() == 2 and sounds.call("_variants", "stamp").size() == 3, "coins, the gate and stamps have real recorded sounds")
-	check(garden.reveal_pending and garden.get_walk_rects().size() == 1, "the gate stays shut until the player is shown it")
+	var camera = village.get_node("Camera")
 	var trail = village.get_node("GuideTrail")
+	yard.field.mow(yard.global_position + Vector3(-1.4, 0, 0), Vector3.FORWARD, 11.2, 30.0)
+	await frames(5)
+	print("yard progress after the partial mow: %.2f" % yard.get_progress())
+	check(yard.get_progress() >= 0.8 and yard.get_progress() < 0.95 and not yard.is_completed(), "most of the yard is mowed, but not all")
+	check(garden.is_unlocked(), "80 % of the yard opens the garden before the yard is finished")
+	check(garden.reveal_pending and garden.get_walk_rects().size() == 1, "the gate stays shut until the player is shown it")
 	check(village.next_goal() == null and trail.mark_count() == 0, "no trail before the gate is shown")
 	check(garden.get_progress() == 0.0, "mowing the yard does not touch the garden")
-	for i in 460:
-		await process_frame
-	check(master.is_present() and master.visible, "master returns after the yard is mowed")
-	# Окно завершения закрыто: камера едет к калитке сада, и она открывается.
-	var camera = village.get_node("Camera")
-	hud.get_node("%Completion").visible = false
-	await frames(2)
-	check(camera.is_revealing() and not player.controls_enabled, "the camera goes to show the new gate, the player waits")
+	await frames(55)
+	check(camera.is_revealing() and not player.controls_enabled, "the camera goes to show the new gate by itself, the player waits")
 	await frames(110)
 	var gate_at: Vector3 = garden.fence.get_gate_position()
 	check(not garden.reveal_pending and garden.get_walk_rects().size() == 2, "garden gate passage appears")
@@ -230,6 +223,46 @@ func _run() -> void:
 	for i in path.size() - 1:
 		length += path[i].distance_to(path[i + 1])
 	check(length < 45.0, "the way to the next plot is short (%.0f m)" % length)
+
+	# Мелкие остатки травы убираются сами. Второй проход оставляет между
+	# собой и первым полоску в 30 см; большой нескошенный кусок остаётся.
+	var field = yard.field
+	field.mow(yard.global_position + Vector3(5.8, 0, -3.5), Vector3.FORWARD, 2.6, 4.0)
+	var before_tidy: float = field.get_progress()
+	var sliver: Vector3 = yard.global_position + Vector3(4.35, 0, -5.0)
+	var sliver_far: Vector3 = yard.global_position + Vector3(4.35, 0, -2.0)
+	var block: Vector3 = yard.global_position + Vector3(5.6, 0, 2.5)
+	print("sliver: height %.2f, progress %.3f" % [field.get_height_at(sliver), before_tidy])
+	check(field.get_height_at(sliver) > 0.0 and field.get_height_at(sliver_far) > 0.0 and before_tidy < 0.95, "a narrow strip of grass is left between two passes")
+	var cleared: Dictionary = field.clear_leftovers(sliver, 2.0, false)
+	check(cleared["units"] > 0.0 and field.get_height_at(sliver) == 0.0, "the strip near the mower is cleared by itself and goes into the bag")
+	check(field.get_height_at(sliver_far) > 0.0, "farther away the strip stays until the mower comes near")
+	check(field.get_height_at(block) > 0.0, "a big unmowed patch next to it is not touched")
+	gs.empty_bag()
+	player.global_position = yard.global_position + Vector3(3.4, 0, -0.3)
+	player.rotation = Vector3.ZERO
+	Input.action_press("move_up"); Input.action_press("move_right")
+	await frames(60)
+	Input.action_release("move_up"); Input.action_release("move_right")
+	await frames(20)
+	check(field.get_height_at(sliver_far) == 0.0 and gs.bag_fill > 0.0, "driving past clears the leftovers along the way")
+	check(field.get_height_at(block) > 0.0 and not yard.is_completed(), "the big patch still has to be mowed")
+
+	# Двор докошен: награда, птицы, Мастер; второй раз калитку не показывают.
+	yard.field.mow(yard.global_position, Vector3.FORWARD, 30.0, 30.0)
+	await frames(5)
+	check(yard.is_completed(), "the yard is completed at 95 %")
+	var birds: Array = yard.get("_birds")
+	check(birds.size() == 2 and yard.field.is_open_lawn(birds[0].global_position), "birds land on the mowed lawn")
+	check(garden.get("_birds").is_empty(), "and not on an overgrown plot")
+	var sounds = root.get_node("Sfx")
+	check(sounds.call("_variants", "coin").size() == 2 and sounds.call("_variants", "gate").size() == 2 and sounds.call("_variants", "stamp").size() == 3, "coins, the gate and stamps have real recorded sounds")
+	for i in 460:
+		await process_frame
+	check(master.is_present() and master.visible, "master returns after the yard is mowed")
+	hud.get_node("%Completion").visible = false
+	await frames(5)
+	check(not camera.is_revealing() and player.controls_enabled, "the gate is not shown a second time")
 
 	# 6. Заходим в сад через калитку и косим.
 	gs.empty_bag()

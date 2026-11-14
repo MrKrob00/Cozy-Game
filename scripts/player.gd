@@ -53,6 +53,11 @@ const HERO_OFFSET := Vector3(0.0, 0.0, 0.12)
 ## Шляпа: во сколько раз тулья уже головы и насколько она надета, метры.
 const HAT_FIT := 0.86
 const HAT_SINK := 0.1
+## Как часто и как далеко вокруг героя сами убираются мелкие остатки травы.
+const TIDY_INTERVAL := 0.4
+const TIDY_RADIUS := 1.3
+const TIDY_INTERVAL_IDLE := 1.0
+const TIDY_RADIUS_IDLE := 2.0
 ## Радиус колеса косилки (tools/make_models.py), метры.
 const WHEEL_RADIUS := 0.15
 
@@ -83,6 +88,7 @@ var _tall_cut := 0.0
 var _weed_cut := 0.0
 var _grass_ahead := 0.0
 var _last_cut_time := -1.0
+var _tidy_timer := 0.0
 var _engine_top := 0.0
 var _mower_root: Node3D
 var _mower: Node3D
@@ -229,6 +235,7 @@ func _physics_process(delta: float) -> void:
 	_cutting = _time - _last_cut_time < 0.2
 	_clippings.emitting = _cutting
 	_grass_life(_grass_ahead if _cutting else 0.0, _current_speed * delta)
+	_tidy_leftovers(delta)
 	_update_interaction(delta)
 
 
@@ -319,6 +326,31 @@ func _check_bump(target_speed: float, at_border: bool) -> void:
 		Sfx.play("bonk", -5.0, 1.0, 0.1)
 		Sfx.buzz(12)
 	_in_contact = contact
+
+
+# Мелкие клочки травы, оставшиеся рядом с косилкой (между полосами, у края,
+# у предметов), убираются сами: выцеливать каждую травинку не нужно.
+# Пока косилка режет — часто и вплотную к ножу (остатки появляются там);
+# когда просто едет по участку — реже, зато шире.
+func _tidy_leftovers(delta: float) -> void:
+	_tidy_timer -= delta
+	if _tidy_timer > 0.0 or _current_speed < 0.1 or GameState.is_bag_full():
+		return
+	var field := _field_at(global_position)
+	if field == null:
+		_tidy_timer = TIDY_INTERVAL
+		return
+	var cleared: Dictionary
+	if _cutting:
+		_tidy_timer = TIDY_INTERVAL
+		cleared = field.clear_leftovers(get_blade_position(), TIDY_RADIUS, can_cut_weeds())
+	else:
+		_tidy_timer = TIDY_INTERVAL_IDLE
+		cleared = field.clear_leftovers(global_position, TIDY_RADIUS_IDLE, can_cut_weeds())
+	if cleared["units"] > 0.0:
+		GameState.add_grass(cleared["units"])
+		for spot: Vector3 in cleared["spots"]:
+			Juice.sparkle(get_parent(), spot + Vector3.UP * 0.2, Color(0.72, 0.95, 0.42), 5)
 
 
 # Живность в траве: из высокой травы изредка выпрыгивают кузнечики, из

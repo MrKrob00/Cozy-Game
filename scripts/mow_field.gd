@@ -11,6 +11,8 @@ extends Node3D
 ## pave_* и grow_tall_* помечают ячейки.
 
 signal progress_changed(ratio: float)
+## Обход всего поля (sweep_leftovers) убрал мелкие остатки травы.
+signal leftovers_cleared(units: float, spots: PackedVector3Array)
 
 const GRASS_SHADER := preload("res://shaders/grass.gdshader")
 const GROUND_SHADER := preload("res://shaders/ground.gdshader")
@@ -46,6 +48,13 @@ const BORDER_RAMP := 0.7
 ## Кромка газона за каймой: на столько метров он растворяется в луге.
 const SKIRT_WIDTH := 1.5
 const SKIRT_STEP := 0.7
+## Остатки травы, которые убираются сами: клочок не больше стольких ячеек
+## (около 0,45 м²) либо полоска не шире стольких ячеек (0,375 м) любой длины.
+const LEFTOVER_CELLS := 28
+const LEFTOVER_RUN := 3
+## Обход всего поля: сторона окна в ячейках и сколько окон за кадр.
+const SWEEP_WINDOW := 28
+const SWEEP_PER_FRAME := 1
 
 ## Размер поля в метрах (X, Z). Центр — в начале координат узла.
 @export var size := Vector2(24.0, 24.0)
@@ -84,6 +93,9 @@ var _ground_material: ShaderMaterial
 var _grass_nodes: Array[MultiMeshInstance3D] = []
 ## Шум, по которому гуляет край травы вокруг предметов.
 var _edge_noise: FastNoiseLite
+var _sweeping := false
+var _sweep_at := Vector2i.ZERO
+var _sweep_weeds := false
 var _lod_timer := 0.0
 
 
@@ -113,6 +125,10 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if _sweeping:
+		for i in SWEEP_PER_FRAME:
+			if _sweeping:
+				_sweep_step()
 	_lod_timer -= delta
 	if _lod_timer <= 0.0:
 		_lod_timer = LOD_INTERVAL
@@ -215,6 +231,197 @@ func get_height_at(world_position: Vector3) -> float:
 	if cell == -1:
 		return 0.0
 	return _data[cell * CHANNELS] / 255.0
+
+
+## Убирает мелкие остатки травы рядом с точкой: узкие полоски и клочки в
+## квадрате radius вокруг неё. Бурьян трогает, только если cut_weeds.
+## Возвращает {units — трава в единицах мешка, spots — где убрано}.
+func clear_leftovers(world_center: Vector3, radius: float, cut_weeds: bool) -> Dictionary:
+	var center := _to_field(world_center)
+	var last := _resolution - Vector2i.ONE
+	var from := Vector2i(((center - Vector2.ONE * radius) / cell_size).floor()).clamp(Vector2i.ZERO, last)
+	var to := Vector2i(((center + Vector2.ONE * radius) / cell_size).floor()).clamp(Vector2i.ZERO, last)
+	return _clear_leftovers_in(from, to, cut_weeds)
+
+
+## Убирает мелкие остатки по всему полю. Не разом, а окнами по нескольку за
+## кадр (иначе на телефоне игра замирала бы): об убранном сообщает сигнал
+## leftovers_cleared.
+func sweep_leftovers(cut_weeds: bool) -> void:
+	_sweep_weeds = cut_weeds
+	_sweep_at = Vector2i.ZERO
+	_sweeping = true
+
+
+## То же, но сразу и целиком (для проверок).
+func clear_all_leftovers(cut_weeds: bool) -> Dictionary:
+	return _clear_leftovers_in(Vector2i.ZERO, _resolution - Vector2i.ONE, cut_weeds)
+
+
+# Очередное окно обхода всего поля. Окна перекрываются наполовину, чтобы
+# клочок на границе двух окон целиком попал в третье.
+func _sweep_step() -> void:
+	var from := _sweep_at * (SWEEP_WINDOW / 2)
+	var to := (from + Vector2i.ONE * (SWEEP_WINDOW - 1)).clamp(Vector2i.ZERO, _resolution - Vector2i.ONE)
+	var cleared := _clear_leftovers_in(from, to, _sweep_weeds)
+	if cleared["units"] > 0.0:
+		leftovers_cleared.emit(cleared["units"], cleared["spots"])
+	_sweep_at.x += 1
+	if _sweep_at.x * (SWEEP_WINDOW / 2) >= _resolution.x:
+		_sweep_at.x = 0
+		_sweep_at.y += 1
+		if _sweep_at.y * (SWEEP_WINDOW / 2) >= _resolution.y:
+			_sweeping = false
+
+
+# Срезает в прямоугольнике ячеек мелкие остатки травы:
+#   узкие полоски — трава, которая тянется не шире LEFTOVER_RUN ячеек хотя бы
+#     по одной из осей (такие остаются между проходами косилки);
+#   клочки — связные пятна не больше LEFTOVER_CELLS ячеек, целиком лежащие
+#     в прямоугольнике.
+# Край большого нескошенного массива под правила не попадает и сам не тает.
+# Написано без вызовов функций на ячейку: это выполняется прямо во время покоса.
+func _clear_leftovers_in(from: Vector2i, to: Vector2i, cut_weeds: bool) -> Dictionary:
+	# Копия окна с запасом по краям: 0 — пусто, 1 — трава, 2 — бурьян, который нельзя трогать.
+	const M := LEFTOVER_RUN + 1
+	var gx0 := from.x - M
+	var gy0 := from.y - M
+	var gw := to.x - from.x + 1 + 2 * M
+	var gh := to.y - from.y + 1 + 2 * M
+	var res_x := _resolution.x
+	var res_y := _resolution.y
+	var grid := PackedByteArray()
+	grid.resize(gw * gh)
+	var any := false
+	for gy in gh:
+		var y := gy0 + gy
+		if y < 0 or y >= res_y:
+			continue
+		var field_row := y * res_x
+		var grid_row := gy * gw
+		for gx in gw:
+			var x := gx0 + gx
+			if x < 0 or x >= res_x:
+				continue
+			var cell := field_row + x
+			if _blocked[cell] == 0:
+				var grass := _data[cell * CHANNELS]
+				if grass > 0:
+					grid[grid_row + gx] = 2 if grass > HEIGHT_TALL and not cut_weeds else 1
+					any = true
+	var removed := PackedInt32Array()
+	var spots := PackedVector3Array()
+	if not any:
+		return {"units": 0.0, "spots": spots}
+
+	# 1. Узкие полоски: отрезки травы по строкам и по столбцам. Отрезок,
+	# упирающийся в край копии, неизвестной длины — его не трогаем.
+	var mark := PackedByteArray()
+	mark.resize(gw * gh)
+	for gy in range(M, gh - M):
+		var grid_row := gy * gw
+		var start := -1
+		for gx in gw + 1:
+			if gx < gw and grid[grid_row + gx] != 0:
+				if start == -1:
+					start = gx
+			elif start != -1:
+				if gx - start <= LEFTOVER_RUN and start > 0 and gx < gw:
+					for k in range(start, gx):
+						mark[grid_row + k] = 1
+				start = -1
+	for gx in range(M, gw - M):
+		var start := -1
+		for gy in gh + 1:
+			if gy < gh and grid[gy * gw + gx] != 0:
+				if start == -1:
+					start = gy
+			elif start != -1:
+				if gy - start <= LEFTOVER_RUN and start > 0 and gy < gh:
+					for k in range(start, gy):
+						mark[k * gw + gx] = 1
+				start = -1
+	for gy in range(M, gh - M):
+		for gx in range(M, gw - M):
+			var index := gy * gw + gx
+			if mark[index] == 1 and grid[index] == 1:
+				grid[index] = 0
+				removed.append((gy0 + gy) * res_x + gx0 + gx)
+				if removed.size() % 14 == 1:
+					spots.append(_cell_world(gx0 + gx, gy0 + gy))
+
+	# 2. Мелкие клочки. Обход пятна обрывается, как только оно оказалось
+	# большим или вышло за окно; такие пятна помечаются (2), чтобы не обходить их снова.
+	var seen := mark
+	seen.fill(0)
+	var steps: Array[int] = [-1, 1, -gw, gw]
+	for gy in range(M, gh - M):
+		for gx in range(M, gw - M):
+			var first := gy * gw + gx
+			if grid[first] == 0 or seen[first] != 0:
+				continue
+			var cells := PackedInt32Array([first])
+			seen[first] = 1
+			var head := 0
+			var big := false
+			var weeds := false
+			while head < cells.size() and not big:
+				var index := cells[head]
+				head += 1
+				if grid[index] == 2:
+					weeds = true
+				var cx := index % gw
+				var cy := index / gw
+				if cx < M or cx >= gw - M or cy < M or cy >= gh - M:
+					big = true
+					break
+				for step in steps:
+					var next := index + step
+					if grid[next] == 0:
+						continue
+					if seen[next] == 2:
+						big = true
+						break
+					if seen[next] == 0:
+						seen[next] = 1
+						cells.append(next)
+				if cells.size() > LEFTOVER_CELLS:
+					big = true
+			if big:
+				for index in cells:
+					seen[index] = 2
+				continue
+			if weeds:
+				continue
+			var sum := Vector2.ZERO
+			for index in cells:
+				var cx := gx0 + index % gw
+				var cy := gy0 + index / gw
+				sum += Vector2(cx, cy)
+				removed.append(cy * res_x + cx)
+			var middle := sum / cells.size()
+			spots.append(_cell_world(int(middle.x), int(middle.y)))
+	return {"units": _cut_cells_list(removed), "spots": spots}
+
+
+# Срезает перечисленные ячейки; возвращает траву в единицах мешка.
+func _cut_cells_list(cells: PackedInt32Array) -> float:
+	var units := 0.0
+	var cell_area := cell_size * cell_size
+	for cell in cells:
+		var i := cell * CHANNELS
+		if _data[i] == 0:
+			continue
+		units += cell_area * _units_per_area(_data[i])
+		_data[i] = 0
+		_cut_cells += 1
+		_dirty = true
+	return units
+
+
+func _cell_world(x: int, y: int) -> Vector3:
+	var local := _cell_center(x, y) - size * 0.5
+	return to_global(Vector3(local.x, 0.0, local.y))
 
 
 ## Открытый выкошенный газон в точке: внутри поля, не занято предметом,

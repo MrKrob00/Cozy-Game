@@ -217,7 +217,8 @@ func _run() -> void:
 		if h.visible:
 			hints_visible += 1
 	check(hints_visible == 0 if field.get_progress() < 0.9 else hints_visible > 0, "fireflies match progress (visible=%d)" % hints_visible)
-	field.mow(Vector3(0, 0, 4.5), Vector3.FORWARD, 14.0, 1.0)
+	# Ещё кусок нижней полосы — половина ширины, чтобы до 95 % не дошло.
+	field.mow(Vector3(-3.5, 0, 4.5), Vector3.FORWARD, 7.0, 1.0)
 	await frames(5)
 	for i in 60:
 		await process_frame
@@ -227,7 +228,7 @@ func _run() -> void:
 		if h.visible:
 			hints_visible += 1
 	check(field.get_progress() >= 0.9 and hints_visible > 0, "fireflies mark leftovers above 90 %% (visible=%d)" % hints_visible)
-	field.mow(Vector3(0, 0, 5.4), Vector3.FORWARD, 14.0, 0.5)
+	field.mow(Vector3(0, 0, 4.7), Vector3.FORWARD, 14.0, 1.6)
 	await frames(5)
 	check(done[0] == 1 and plot.is_completed(), "plot completes at 95 %")
 	print("milestones: ", milestones)
