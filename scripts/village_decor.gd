@@ -67,6 +67,43 @@ func get_walk_blockers() -> Array:
 
 func _ready() -> void:
 	set_process(false)
+	var village := get_tree().get_first_node_in_group("village") as Village
+	if village:
+		village.festival_started.connect(_on_festival_started)
+	# Окружение запечено заранее (tools/bake_map.gd): игра его только
+	# загружает. Без запечённого файла строим по правилам, как при запекании.
+	if MapBake.is_available():
+		_load_baked()
+	else:
+		_generate()
+
+
+# Загружает запечённое окружение и ставит ему живые материалы игры.
+func _load_baked() -> void:
+	var base: Node3D = (load(MapBake.BASE) as PackedScene).instantiate()
+	add_child(base)
+	_adopt(base)
+	_lamp_runs = base.get_meta("lamp_runs", [])
+	_windmill_fan = base.find_child("WindmillFan", true, false) as MeshInstance3D
+	set_process(_windmill_fan != null)
+	var scatter_path := MapBake.SCATTER % GameState.get_quality()
+	if ResourceLoader.exists(scatter_path):
+		var scatter: Node3D = (load(scatter_path) as PackedScene).instantiate()
+		add_child(scatter)
+		_adopt(scatter)
+	Graphics.casters_changed.emit.call_deferred()
+
+
+func _adopt(baked: Node3D) -> void:
+	for node in baked.find_children("*", "MeshInstance3D", true, false):
+		var instance := node as MeshInstance3D
+		instance.material_override = Placeholder.vertex_material(instance.get_meta("receives", false))
+		if instance.get_meta("caster", false):
+			instance.add_to_group("shadow_caster")
+
+
+# Строит окружение по правилам (при запекании и если запечённого файла нет).
+func _generate() -> void:
 	# Окружение склеивается по клеткам: одна модель на клетку, но далёкие
 	# клетки за кадром всё равно отсекаются.
 	set_meta("bake_cell", BAKE_CELL)
@@ -90,7 +127,13 @@ func _ready() -> void:
 	_build_trees(area.grow(-4.0), rng)
 	_build_bushes(rng)
 	_collect_obstacles()
-	Meadow.scatter(self, area.grow(-6.0), _is_free, _trees, random_seed + 5, _terrain)
+	# Россыпи луга — отдельным узлом: их густота зависит от набора графики,
+	# и запекаются они по файлу на набор.
+	var scatter := Node3D.new()
+	scatter.name = "Scatter"
+	scatter.set_meta("bake_cell", BAKE_CELL)
+	add_child(scatter)
+	Meadow.scatter(scatter, area.grow(-6.0), _is_free, _trees, random_seed + 5, _terrain)
 	var index := 0
 	for node in get_tree().get_nodes_in_group("plot"):
 		var plot := node as Plot
@@ -98,13 +141,9 @@ func _ready() -> void:
 			continue
 		var corners := plot.fence.get_corners()
 		for i in corners.size():
-			Meadow.line_clumps(self, corners[i], corners[(i + 1) % corners.size()], _is_free,
+			Meadow.line_clumps(scatter, corners[i], corners[(i + 1) % corners.size()], _is_free,
 					random_seed + 20 + index, _terrain)
 			index += 1
-
-	var village := get_tree().get_first_node_in_group("village") as Village
-	if village:
-		village.festival_started.connect(_on_festival_started)
 
 
 func _process(delta: float) -> void:
@@ -252,6 +291,7 @@ func _build_windmill() -> void:
 			at + Vector3(0.0, WINDMILL_PIVOT.y, WINDMILL_PIVOT.z).rotated(Vector3.UP, WINDMILL_YAW) * WINDMILL_SCALE,
 			WINDMILL_SCALE, WINDMILL_YAW, false)
 	_windmill_fan.set_meta("no_bake", true)
+	_windmill_fan.name = "WindmillFan"
 	set_process(true)
 
 

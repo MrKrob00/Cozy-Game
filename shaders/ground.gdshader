@@ -11,9 +11,18 @@ uniform vec3 overgrown_color : source_color = vec3(0.14, 0.38, 0.19);
 uniform vec3 bare_color : source_color = vec3(0.66, 0.54, 0.38);
 
 varying vec2 v_world_xz;
+// Земля ровная: свет без тени и доля, которую снимает тень, одинаковы для
+// всех её точек и считаются на вершинах.
+varying vec3 v_light;
+varying vec3 v_drop;
+varying float v_haze;
 
 void vertex() {
-	v_world_xz = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xz;
+	vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	v_world_xz = world.xz;
+	v_light = day_light(vec3(0.0, 1.0, 0.0), 0.0);
+	v_drop = day_shadow(vec3(0.0, 1.0, 0.0)) * shade_strength;
+	v_haze = day_haze(distance(world, CAMERA_POSITION_WORLD));
 }
 
 void fragment() {
@@ -26,6 +35,6 @@ void fragment() {
 	float cut = 1.0 - smoothstep(0.0, 0.25, mask.r);
 	vec3 surface = mix(cut_color(mask.g), bare_color, mask.b);
 	vec3 color = mix(overgrown_color, surface, cut);
-	vec3 lit = day_grade(color * day_light(vec3(0.0, 1.0, 0.0), shade_at(v_world_xz)));
-	ALBEDO = mix(lit, haze_color, day_haze(distance(vec3(v_world_xz.x, 0.0, v_world_xz.y), CAMERA_POSITION_WORLD)));
+	vec3 lit = day_grade(color * (v_light - v_drop * shade_raw(v_world_xz)));
+	ALBEDO = mix(lit, haze_color, v_haze);
 }

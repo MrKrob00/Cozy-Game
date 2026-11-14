@@ -29,6 +29,15 @@ vec3 day_light(vec3 n, float shade) {
 	return fill + day_sun * sunlit + day_glow * rim * (1.0 - shade * 0.7);
 }
 
+// Сколько света снимает полная тень с поверхности с нормалью n:
+// day_light(n, shade) == day_light(n, 0.0) - shade * day_shadow(n).
+vec3 day_shadow(vec3 n) {
+	float ndl = dot(n, -day_dir);
+	float facing = smoothstep(-0.02, 0.06, ndl);
+	float rim = smoothstep(-0.3, 0.0, ndl) * (1.0 - smoothstep(0.0, 0.35, ndl));
+	return day_sun * facing + day_glow * rim * 0.7;
+}
+
 // Доля дымки для точки на расстоянии distance от камеры.
 float day_haze(float distance) {
 	return smoothstep(haze_range.x, haze_range.y, distance) * haze_max;

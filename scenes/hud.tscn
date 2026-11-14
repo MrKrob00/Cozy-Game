@@ -338,6 +338,12 @@ layout_mode = 2
 focus_mode = 0
 text = "Управление: джойстик слева"
 
+[node name="ProbeButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Замер кадра (полминуты)"
+
 [node name="ResetButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
 unique_name_in_owner = true
 layout_mode = 2

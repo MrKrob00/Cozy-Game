@@ -44,7 +44,8 @@ const CLEARANCE_MAX := 0.95
 @export var cell_size := 0.125
 ## Пучков травы на квадратный метр. Главная настройка качества.
 @export_range(4.0, 80.0) var density := 36.0
-@export var chunk_size := 8.0
+## Куски мелкие: то, что за кадром, отсекается целиком и не нагружает телефон.
+@export var chunk_size := 4.0
 ## Высота пучка высокой травы в метрах.
 @export var blade_height := 0.75
 ## Направление «от камеры»: проход вдоль него даёт светлую полосу.
@@ -236,6 +237,16 @@ func get_uncut_positions(max_count: int) -> PackedVector3Array:
 		result.append(to_global(Vector3(p.x, 0.0, p.y)))
 		at += step
 	return result
+
+
+## Показывает или прячет слой поля: «grass» — траву, «ground» — землю
+## (для замера кадра, см. FrameProbe).
+func set_layer_visible(layer: String, on: bool) -> void:
+	if layer == "grass":
+		for node in _grass_nodes:
+			node.visible = on
+	else:
+		(get_node("Ground") as Node3D).visible = on
 
 
 ## Состояние покоса для сохранения.
@@ -432,6 +443,10 @@ func _build_materials() -> void:
 	_ground_material.shader = GROUND_SHADER
 	Graphics.track(_grass_material, true)
 	Graphics.track(_ground_material, true)
+	# Порядок отрисовки: трава раньше земли. Тогда земля под высокой травой
+	# не закрашивается зря (телефон платит за каждый закрашенный пиксель).
+	_grass_material.render_priority = -1
+	_ground_material.render_priority = 1
 	for mat: ShaderMaterial in [_grass_material, _ground_material]:
 		mat.set_shader_parameter("mow_mask", _texture)
 		mat.set_shader_parameter("field_center", Vector2(global_position.x, global_position.z))
@@ -445,6 +460,9 @@ func _build_materials() -> void:
 func _build_ground() -> void:
 	var plane := PlaneMesh.new()
 	plane.size = size + Vector2.ONE * apron * 2.0
+	# Дымка считается на вершинах: плоскость делится, чтобы она шла плавно.
+	plane.subdivide_width = 7
+	plane.subdivide_depth = 7
 	var ground := MeshInstance3D.new()
 	ground.name = "Ground"
 	ground.mesh = plane

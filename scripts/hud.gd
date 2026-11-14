@@ -49,6 +49,7 @@ const FIXED_STICK_AT := Vector2(0.36, 0.62)
 @onready var _fps_label: Label = %FpsLabel
 @onready var _joystick: VirtualJoystick = $VirtualJoystick
 @onready var _controls_button: Button = %ControlsButton
+@onready var _probe_button: Button = %ProbeButton
 @onready var _reset_button: Button = %ResetButton
 @onready var _quit_button: Button = %QuitButton
 @onready var _workshop_panel: Control = %WorkshopPanel
@@ -94,6 +95,8 @@ var _fps_timer := 0.0
 var _new_game_armed := false
 var _title_bob: Tween
 var _touch_pad: TouchPad
+## Замер кадра (FrameProbe), если он идёт сейчас.
+var _probe: FrameProbe
 ## Игра идёт (не титульный экран): сенсорное управление включено.
 var _controls_live := true
 
@@ -175,6 +178,7 @@ func _ready() -> void:
 	_controls_button.pressed.connect(func() -> void:
 		GameState.set_touch_controls(GameState.touch_controls + 1)
 		_update_settings_buttons())
+	_probe_button.pressed.connect(_run_probe)
 	# Выбор сенсорной схемы нужен только там, где есть сенсорный экран.
 	_controls_button.visible = _touch
 	_reset_button.pressed.connect(_on_reset_pressed)
@@ -193,7 +197,7 @@ func _ready() -> void:
 	_quit_button.visible = not (OS.has_feature("mobile") or OS.has_feature("web"))
 	_update_settings_buttons()
 	for button: Button in [_action_button, _pause_button, _resume_button, _sound_button,
-			_music_button, _graphics_button, _fps_button, _controls_button, _reset_button, _quit_button, _continue_button,
+			_music_button, _graphics_button, _fps_button, _controls_button, _probe_button, _reset_button, _quit_button, _continue_button,
 			_workshop_close]:
 		button.pressed.connect(_on_any_button_pressed.bind(button))
 
@@ -230,6 +234,9 @@ func _process(delta: float) -> void:
 		_fps_label.text = "%d FPS" % Engine.get_frames_per_second()
 	if _pause_panel.visible:
 		_diag_label.text = _diagnostics()
+	if _probe and _probe.status != "":
+		_toast_label.text = _probe.status
+		_toast.visible = true
 
 
 func is_title_shown() -> bool:
@@ -720,6 +727,53 @@ func _update_settings_buttons() -> void:
 	_graphics_button.text = "Графика: %s" % Graphics.preset["title"]
 	_fps_button.text = "Счётчик FPS: включён" if GameState.show_fps else "Счётчик FPS: выключен"
 	_fps_label.visible = GameState.show_fps
+
+
+# Замер кадра: игра снимается с паузы, слои картинки по очереди выключаются,
+# таблица с ценой каждого показывается в меню паузы и копируется в буфер.
+func _run_probe() -> void:
+	if _probe:
+		return
+	_set_paused(false)
+	if _player:
+		_player.controls_enabled = false
+	_probe = FrameProbe.new()
+	add_child(_probe)
+	_probe.finished.connect(func(text: String) -> void:
+		_probe.queue_free()
+		_probe = null
+		_toast.visible = false
+		if _player:
+			_player.controls_enabled = true
+		_set_paused(true)
+		_show_probe_result(text))
+	_probe.run()
+
+
+# Окно с таблицей замера поверх меню паузы.
+func _show_probe_result(text: String) -> void:
+	var shade := ColorRect.new()
+	shade.name = "ProbeResult"
+	shade.color = Color(0.0, 0.0, 0.0, 0.55)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_root.add_child(shade)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	shade.add_child(center)
+	var panel := PanelContainer.new()
+	center.add_child(panel)
+	var rows := VBoxContainer.new()
+	rows.add_theme_constant_override("separation", 16)
+	panel.add_child(rows)
+	var label := Label.new()
+	label.text = text + "\n\nТаблица скопирована в буфер обмена — пришлите её."
+	label.add_theme_font_size_override("font_size", 26)
+	rows.add_child(label)
+	var close := Button.new()
+	close.text = "Закрыть"
+	close.focus_mode = Control.FOCUS_NONE
+	close.pressed.connect(shade.queue_free)
+	rows.add_child(close)
 
 
 # Сведения об устройстве: помогают разобраться, если на телефоне что-то не так.

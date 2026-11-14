@@ -264,6 +264,9 @@ func set_touch_controls(scheme: int) -> void:
 
 
 func save_game() -> void:
+	# При запекании карты (tools/bake_map.gd) сохранение игрока не трогаем.
+	if MapBake.is_baking():
+		return
 	saving.emit()
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file == null:

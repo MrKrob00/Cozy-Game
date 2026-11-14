@@ -82,6 +82,10 @@ static func _make(shader: Shader, color: Color, receives := false) -> ShaderMate
 	var mat := ShaderMaterial.new()
 	mat.shader = shader
 	mat.set_shader_parameter("albedo", color)
+	# Земля, дороги и дорожки рисуются после моделей и травы: то, что ими
+	# закрыто, не закрашивается зря.
+	if receives:
+		mat.render_priority = 1
 	return Graphics.track(mat, receives)
 
 

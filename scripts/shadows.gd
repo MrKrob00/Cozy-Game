@@ -158,6 +158,17 @@ func _render_final() -> void:
 	_final_view.render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
+## Включает или выключает тени целиком (для замера кадра, см. FrameProbe).
+func set_enabled(on: bool) -> void:
+	set_process(on)
+	if on:
+		# Окно ставится заново, картинки перерисовываются.
+		_center = Vector2(INF, INF)
+		_shift = Shift.NONE
+	else:
+		Graphics.set_shade(_final_view.get_texture(), Vector4.ZERO)
+
+
 ## Сколько моделей отбрасывают тень (для проверок).
 func caster_count() -> int:
 	return get_tree().get_nodes_in_group("shadow_caster").size()

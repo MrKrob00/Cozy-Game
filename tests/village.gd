@@ -97,6 +97,14 @@ func _run() -> void:
 	check(hud.get_node("%ProgressLabel").text.begins_with("Двор"), "HUD shows the yard")
 	check(yard.is_unlocked() and not garden.is_unlocked(), "garden is locked until the yard is mowed")
 	check(garden.global_position.y > yard.global_position.y + 1.0, "each next plot sits higher")
+	# Окружение запечено заранее и не строится при запуске.
+	var map_bake = load("res://scripts/map_bake.gd")
+	check(ResourceLoader.exists(map_bake.BASE) and village.get_node_or_null("Decor/Decor") != null, "the game loads the baked map instead of building it")
+	var baked_scene: Node = load(map_bake.BASE).instantiate()
+	check(baked_scene.get_meta("bake_key", "") == map_bake.source_key(), "the baked map is up to date (else run tools/bake_map.gd)")
+	baked_scene.free()
+	for quality in 3:
+		check(ResourceLoader.exists(map_bake.SCATTER % quality), "meadow scatter is baked for graphics preset %d" % quality)
 	# Карта — «звезда»: поляна в середине, от неё к каждой калитке своя дорога.
 	var terrain = village.get_node("Terrain")
 	check(terrain.roads.size() == 5 and terrain.roads[0].get("green", false), "the village is a green with a road to each plot")

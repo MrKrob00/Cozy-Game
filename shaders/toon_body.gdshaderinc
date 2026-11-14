@@ -22,13 +22,16 @@ uniform float pusher_radius = 0.8;
 // Ветер для склеенных моделей: сила — в альфе цвета вершины (листва, кочки).
 uniform float sway_strength = 0.0;
 
-varying vec3 v_normal;
 #ifdef RECEIVE_SHADE
+// Свет считается на вершинах в двух частях: без тени и «сколько снимает
+// тень». Пикселю остаётся одно чтение картинки теней и одно умножение.
+varying vec3 v_lit;
+varying vec3 v_drop;
 varying vec3 v_world;
 #else
-// Низ предмета темнее (как градиент палитры у Alba): мягкая тень у земли.
-varying float v_ground_shade;
-varying float v_haze;
+// Объёмные модели: весь цвет (свет, градиент у земли, насыщенность, дымка)
+// считается на вершинах, пиксель его только выводит.
+varying vec3 v_color;
 #endif
 
 void vertex() {
@@ -49,14 +52,19 @@ void vertex() {
 		VERTEX.x += reach * gust;
 		VERTEX.z += reach * 0.6 * cos(TIME * 1.1 + at.z * 0.4);
 	}
-	v_normal = (MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz;
+	vec3 normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 #ifdef RECEIVE_SHADE
 	v_world = world;
+	vec3 base = albedo * COLOR.rgb;
+	v_lit = base * day_light(normal, 0.0);
+	v_drop = base * day_shadow(normal) * shade_strength;
 #else
+	// Низ предмета темнее (как градиент палитры у Alba): мягкая тень у земли.
 	// Траву и цветы (у них есть качание) не затемняем: они сами у земли.
-	v_ground_shade = COLOR.a > 0.0 ? 1.0 : mix(0.74, 1.0, smoothstep(0.0, 0.7, world.y));
-	v_haze = day_haze(distance(world, CAMERA_POSITION_WORLD));
+	float ground_shade = COLOR.a > 0.0 ? 1.0 : mix(0.74, 1.0, smoothstep(0.0, 0.7, world.y));
+	vec3 color = day_grade(albedo * COLOR.rgb * ground_shade * day_light(normal, 0.0));
+	v_color = mix(color, haze_color, day_haze(distance(world, CAMERA_POSITION_WORLD)));
 #endif
 }
 
@@ -77,10 +85,9 @@ void fragment() {
 #endif
 #ifdef RECEIVE_SHADE
 	// Плоские поверхности большие и с редкими вершинами: дымка — на пиксель.
-	vec3 color = day_grade(albedo * COLOR.rgb * day_light(normalize(v_normal), shade_at(v_world.xz)));
+	vec3 color = day_grade(v_lit - v_drop * shade_raw(v_world.xz));
 	ALBEDO = mix(color, haze_color, day_haze(distance(v_world, CAMERA_POSITION_WORLD)));
 #else
-	vec3 color = day_grade(albedo * COLOR.rgb * v_ground_shade * day_light(normalize(v_normal), 0.0));
-	ALBEDO = mix(color, haze_color, v_haze);
+	ALBEDO = v_color;
 #endif
 }
