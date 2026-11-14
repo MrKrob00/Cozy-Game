@@ -86,9 +86,11 @@ func _run() -> void:
 
 	# 2. Сенсорный джойстик: касание и перетаскивание вправо.
 	var before: Vector3 = player.global_position
-	touch(0, Vector2(400, 700), true)
+	var fixed_stick = current_scene.get_node("HUD/VirtualJoystick")
+	var stick_at: Vector2 = fixed_stick.global_position + fixed_stick.size * fixed_stick.initial_offset_ratio
+	touch(0, stick_at, true)
 	await frames(2)
-	drag(0, Vector2(580, 700), Vector2(180, 0))
+	drag(0, stick_at + Vector2(130, 0), Vector2(130, 0))
 	await frames(3)
 	check(move_vector().x > 0.5 and absf(move_vector().y) < 0.2, "touch joystick drives move actions")
 	await frames(90)
@@ -105,7 +107,7 @@ func _run() -> void:
 	await frames(30)
 	check(player.velocity.length() < 0.5, "player halts while pinching")
 	touch(1, Vector2(1100, 700), false)
-	touch(0, Vector2(580, 700), false)
+	touch(0, stick_at + Vector2(130, 0), false)
 	await frames(20)
 	check(move_vector() == Vector2.ZERO, "joystick released")
 
@@ -113,9 +115,10 @@ func _run() -> void:
 	var hud_node = current_scene.get_node("HUD")
 	var stick = hud_node.get_node("VirtualJoystick")
 	var pad = hud_node.get_node("TouchPad")
-	check(stick.joystick_mode == 2 and stick.visible and not pad.visible, "by default the joystick follows the finger")
+	check(stick.joystick_mode == 0 and stick.visibility_mode == 0 and stick.visible and not pad.visible, "by default the joystick is fixed and always shown")
+	check(stick.anchor_right < 0.5 and stick.size.x < root.get_visible_rect().size.x * 0.5, "the fixed joystick listens only on the left of the screen")
 	game_state.set_touch_controls(1)
-	check(stick.joystick_mode == 0 and stick.visibility_mode == 0 and stick.visible, "second scheme: a fixed joystick that is always shown")
+	check(stick.joystick_mode == 2 and stick.visibility_mode == 1 and stick.size.x > root.get_visible_rect().size.x * 0.9, "second scheme: a joystick that follows the finger anywhere")
 	game_state.set_touch_controls(2)
 	check(not stick.visible and pad.visible and player.touch_pad == pad, "third scheme: lead with a finger")
 	player.global_position = Vector3(0, 0, 3.0)
@@ -133,7 +136,7 @@ func _run() -> void:
 	await frames(30)
 	check(not pad.held and player.velocity.length() < 0.05, "lifting the finger stops the mower")
 	game_state.set_touch_controls(0)
-	check(stick.joystick_mode == 2 and stick.visible and not pad.visible and player.touch_pad == null, "back to the following joystick")
+	check(stick.joystick_mode == 0 and stick.visible and not pad.visible and player.touch_pad == null, "back to the fixed joystick")
 
 	# 3c. Разворот: направление за спиной — косилка доворачивает в одну сторону.
 	player.global_position = Vector3(0, 0, 3.0)
@@ -268,7 +271,7 @@ func _run() -> void:
 
 	# 10. Звук: мотора нет, музыка играет.
 	var sfx = root.get_node("Sfx")
-	check(sfx.call("_variants", "mower_loop").is_empty() and sfx.call("_variants", "swish").size() == 3, "no motor loop, three grass swishes")
+	check(sfx.call("_variants", "mower_loop").is_empty() and sfx.call("_variants", "swish").is_empty(), "the mower is silent: no motor loop, no cutting sound")
 	check(sfx.get("_playlist").size() == 4 and sfx.current_track() != "", "music playlist is playing")
 	game_state.set_music_enabled(false)
 	check(AudioServer.is_bus_mute(AudioServer.get_bus_index("Music")) and not AudioServer.is_bus_mute(AudioServer.get_bus_index("SFX")), "music can be muted on its own")

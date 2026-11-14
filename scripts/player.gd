@@ -46,8 +46,6 @@ const REACH_OFFSET := 0.9
 ## Сколько секунд нужно пробыть рядом, чтобы простое действие выполнилось само.
 const AUTO_INTERACT_DELAY := 0.4
 const CHARACTER_SCALE := 1.15
-## Через сколько метров покоса звучит очередной «вжух».
-const SWISH_STEP := 0.55
 ## Положение правой ладони в координатах персонажа.
 const HAND := Vector3(0.26, 0.82, -0.36)
 
@@ -71,8 +69,6 @@ var _character: Node3D
 var _mower_root: Node3D
 var _mower: Node3D
 var _engine_cap: MeshInstance3D
-## Сколько метров проехано с последнего «вжуха» срезаемой травы.
-var _swish_distance := 0.0
 var _was_moving := false
 var _idle_time := 0.0
 var _exhaust: CPUParticles3D
@@ -252,12 +248,8 @@ func _process(delta: float) -> void:
 	_bag.scale = Vector3(1.0 + wobble, height - wobble, depth)
 	_bag.position = Vector3(0.0, 0.2 + 0.2 * height, 0.31 + 0.16 * depth)
 
-	# Мотора не слышно: только мягкий «вжух» травы, пока она режется.
-	if _cutting:
-		_swish_distance += _current_speed * delta
-		if _swish_distance >= SWISH_STEP:
-			_swish_distance = 0.0
-			Sfx.play("swish", -9.0, 1.0, 0.15)
+	# Косилка беззвучна: ни мотора, ни звука среза. О покосе говорят летящая
+	# трава и полосы на газоне (повторяющийся звук игроку мешал).
 
 
 ## Центр ножа в мировых координатах.

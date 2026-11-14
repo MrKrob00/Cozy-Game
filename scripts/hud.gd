@@ -14,6 +14,8 @@ const COMPLETION_DELAY := 5.0
 const FLIGHT_TIME := 0.85
 ## Секунд на букву в реплике жителя.
 const TYPE_SPEED := 0.028
+## Где в своей части экрана стоит закреплённый джойстик (доли ширины и высоты).
+const FIXED_STICK_AT := Vector2(0.36, 0.62)
 
 @onready var _root: Control = %Root
 @onready var _margin: MarginContainer = %Margin
@@ -196,7 +198,7 @@ func _ready() -> void:
 		button.pressed.connect(_on_any_button_pressed.bind(button))
 
 	if _touch:
-		_hint_label.text = "Коснитесь экрана и тяните, чтобы косить"
+		_hint_label.text = "Ведите джойстиком слева, чтобы косить"
 	else:
 		_hint_label.text = "WASD или зажмите левую кнопку мыши, чтобы косить"
 	_hint_hidden = GameState.bag_fill > 0.0 or GameState.grass_banked > 0.0
@@ -687,16 +689,23 @@ func _apply_touch_controls() -> void:
 	var stick := _controls_live and scheme != 2
 	_joystick.visible = stick
 	_joystick.process_mode = Node.PROCESS_MODE_PAUSABLE if stick else Node.PROCESS_MODE_DISABLED
-	if scheme == 1:
-		# Закреплённый джойстик виден всегда и стоит слева внизу.
+	if scheme == 0:
+		# Закреплённый джойстик: всегда виден, стоит слева внизу и никуда не
+		# уезжает. Слушает касания только в своей части экрана.
 		_joystick.joystick_mode = VirtualJoystick.JOYSTICK_FIXED
 		_joystick.visibility_mode = VirtualJoystick.VISIBILITY_ALWAYS
-		_joystick.initial_offset_ratio = Vector2(0.14, 0.74)
+		_joystick.anchor_left = 0.0
+		_joystick.anchor_top = 0.3
+		_joystick.anchor_right = 0.45
+		_joystick.anchor_bottom = 1.0
+		_joystick.initial_offset_ratio = FIXED_STICK_AT
 	else:
-		# Джойстик появляется под пальцем и идёт за ним: палец не «уезжает»
-		# с джойстика, а сменить направление можно коротким движением.
+		# Джойстик появляется под пальцем в любом месте экрана и идёт за ним.
 		_joystick.joystick_mode = VirtualJoystick.JOYSTICK_FOLLOWING
 		_joystick.visibility_mode = VirtualJoystick.VISIBILITY_WHEN_TOUCHED
+		_joystick.set_anchors_preset(Control.PRESET_FULL_RECT)
+	for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
+		_joystick.set_offset(side, 0.0)
 	_touch_pad.visible = _controls_live and scheme == 2
 	if _player:
 		_player.touch_pad = _touch_pad if scheme == 2 else null

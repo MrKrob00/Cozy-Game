@@ -32,9 +32,11 @@ const TONE_NEUTRAL := 128
 ## Значения _blocked: ячейка занята, земля в ней голая или под газоном.
 const BLOCKED_BARE := 1
 const BLOCKED_LAWN := 2
-## Полоса стриженого газона вокруг каждого предмета на поле, метры: вплотную
+## Полоса стриженого газона вокруг каждого предмета на поле: вплотную
 ## к стволу или скамейке косилкой не подлезть, поэтому трава там не растёт.
-const CLEARANCE := 0.55
+## Край полосы неровный, волнами — от CLEARANCE_MIN до CLEARANCE_MAX метров.
+const CLEARANCE_MIN := 0.35
+const CLEARANCE_MAX := 0.95
 
 ## Размер поля в метрах (X, Z). Центр — в начале координат узла.
 @export var size := Vector2(24.0, 24.0)
@@ -70,6 +72,8 @@ var _cut_cells := 0
 var _grass_material: ShaderMaterial
 var _ground_material: ShaderMaterial
 var _grass_nodes: Array[MultiMeshInstance3D] = []
+## Шум, по которому гуляет край травы вокруг предметов.
+var _edge_noise: FastNoiseLite
 var _lod_timer := 0.0
 
 
@@ -79,6 +83,10 @@ func _enter_tree() -> void:
 
 func _ready() -> void:
 	_resolution = Vector2i(ceili(size.x / cell_size), ceili(size.y / cell_size))
+	_edge_noise = FastNoiseLite.new()
+	_edge_noise.seed = random_seed + 77
+	_edge_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	_edge_noise.frequency = 0.55
 	_build_mask()
 	# Траву формируют только объекты того же участка (или сцены, если участка нет).
 	var owner_node := get_parent()
@@ -260,7 +268,10 @@ func set_state(state: PackedByteArray) -> bool:
 ## В круге ничего не растёт: ствол дерева, столб. Если bare выключен,
 ## земля в круге выглядит как стриженый газон, а не как голая почва.
 func block_circle(world_center: Vector3, radius: float, bare := true) -> void:
-	_clear_cells(_cells_in_circle(world_center, radius + CLEARANCE))
+	var center := _to_field(world_center)
+	for cell in _cells_in_circle(world_center, radius + CLEARANCE_MAX):
+		var at := _cell_center(cell % _resolution.x, cell / _resolution.x)
+		_clear_cell(cell, at, at.distance_to(center) - radius)
 	for cell in _cells_in_circle(world_center, radius):
 		_blocked[cell] = BLOCKED_BARE if bare else BLOCKED_LAWN
 
@@ -268,17 +279,30 @@ func block_circle(world_center: Vector3, radius: float, bare := true) -> void:
 ## В прямоугольнике ничего не растёт: скамейка, клумба, стена.
 ## yaw — поворот объекта в мире (global_rotation.y).
 func block_rect(world_center: Vector3, rect_size: Vector2, yaw := 0.0) -> void:
-	_clear_cells(_cells_in_rect(world_center, rect_size + Vector2.ONE * CLEARANCE * 2.0,
-			yaw - global_rotation.y))
-	for cell in _cells_in_rect(world_center, rect_size, yaw - global_rotation.y):
+	var local_yaw := yaw - global_rotation.y
+	var center := _to_field(world_center)
+	var axis_x := Vector2(cos(local_yaw), -sin(local_yaw))
+	var axis_z := Vector2(sin(local_yaw), cos(local_yaw))
+	var half := rect_size * 0.5
+	for cell in _cells_in_rect(world_center, rect_size + Vector2.ONE * CLEARANCE_MAX * 2.0, local_yaw):
+		var at := _cell_center(cell % _resolution.x, cell / _resolution.x)
+		var offset := at - center
+		# Расстояние от ячейки до прямоугольника предмета.
+		var outside := Vector2(absf(offset.dot(axis_x)) - half.x, absf(offset.dot(axis_z)) - half.y)
+		_clear_cell(cell, at, Vector2(maxf(outside.x, 0.0), maxf(outside.y, 0.0)).length())
+	for cell in _cells_in_rect(world_center, rect_size, local_yaw):
 		_blocked[cell] = BLOCKED_BARE
 
 
 # Полоса вокруг предмета: травы нет, земля выглядит как стриженый газон.
-func _clear_cells(cells: PackedInt32Array) -> void:
-	for cell in cells:
-		if _blocked[cell] == 0:
-			_blocked[cell] = BLOCKED_LAWN
+# distance — расстояние от ячейки до предмета; ширина полосы гуляет по шуму,
+# поэтому край травы вокруг предмета волнистый, а не ровный круг или рамка.
+func _clear_cell(cell: int, at: Vector2, distance: float) -> void:
+	if _blocked[cell] != 0:
+		return
+	var wave := 0.5 + 0.5 * _edge_noise.get_noise_2dv(at)
+	if distance <= lerpf(CLEARANCE_MIN, CLEARANCE_MAX, wave):
+		_blocked[cell] = BLOCKED_LAWN
 
 
 ## Под травой в круге — не газон, а камень или земля: после покоса стерни не остаётся.

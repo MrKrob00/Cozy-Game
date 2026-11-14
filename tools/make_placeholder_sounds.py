@@ -104,22 +104,6 @@ def save(name, signal, peak):
     print(f"{name}.wav  {len(signal) / RATE:.2f} с")
 
 
-def swish(seed):
-    """Мягкий короткий «вжух» срезаемой травы: шорох средних частот, быстро гаснет."""
-    local = np.random.default_rng(seed)
-    duration = 0.16
-    n = int(RATE * duration)
-    spectrum = np.fft.rfft(local.standard_normal(n))
-    freqs = np.fft.rfftfreq(n, 1 / RATE)
-    # Полоса 700–3500 Гц с мягкими краями: без резкого шипения верхов.
-    centre = 1500 + 300 * seed
-    gain = np.exp(-((np.log(freqs + 1) - np.log(centre)) ** 2) / 0.35)
-    noise = np.fft.irfft(spectrum * gain, n)
-    t = np.arange(n) / RATE
-    shape = np.clip(t / 0.02, 0, 1) * np.exp(-t / 0.045)
-    return noise * shape
-
-
 def find():
     notes = ["E6", "G#6", "B6", "E7"]
     return mix([(0.07 * i, bell(note(n), 0.6)) for i, n in enumerate(notes)], 0.85)
@@ -222,9 +206,6 @@ SOUNDS = {
     "blip": (lambda: blip(880), 0.25),
     "chime": (chime, 0.5),
     "stamp": (stamp, 0.55),
-    "swish_1": (lambda: swish(1), 0.35),
-    "swish_2": (lambda: swish(2), 0.35),
-    "swish_3": (lambda: swish(3), 0.35),
     "find": (find, 0.6),
     "coin": (coin, 0.5),
     "dump": (dump, 0.7),
