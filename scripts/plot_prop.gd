@@ -26,6 +26,11 @@ const LEAVES_LIGHT := Color(0.44, 0.74, 0.36)
 ## Масштаб готовых моделей: дом около 4,5 м в ширину и 5,5 м в высоту.
 const MODEL_SCALE := {"house_a": 5.8, "house_c": 5.8, "house_b": 4.6, "house_d": 4.6,
 		"blacksmith": 2.5, "well": 2.7, "well_blue": 2.7}
+## Масштаб модели фонтана: чаша около 3,8 м в поперечнике.
+const FOUNTAIN_SCALE := 1.9
+## Радиус чаши фонтана и высота воды в ней, метры.
+const FOUNTAIN_BASIN := 1.42
+const FOUNTAIN_WATER := 0.4
 ## Масштаб модели скамейки: около 1,5 м в ширину.
 const BENCH_SCALE := 1.9
 const POND_RADIUS := 2.8
@@ -325,47 +330,48 @@ func set_repaired(_animated: bool) -> void:
 	_fountain_fixed.visible = true
 
 
+# Фонтан — модель Kenney Fantasy Town Kit (CC0) в двух видах: заброшенный
+# (сухая чаша во мху, обломки) и починенный (вода и струя).
 func _build_fountain() -> void:
 	const OLD_STONE := Color(0.56, 0.55, 0.52)
-	const NEW_STONE := Color(0.86, 0.84, 0.8)
-	const WATER := Color(0.42, 0.72, 0.92)
-	const MOSS := Color(0.36, 0.5, 0.3)
-
-	# Заброшенный: тёмный камень, сухая чаша во мху, покосившаяся верхушка.
 	_fountain_broken = Node3D.new()
 	add_child(_fountain_broken)
-	Placeholder.part(_fountain_broken, Placeholder.cylinder(1.8, 0.5), OLD_STONE, Vector3(0.0, 0.25, 0.0))
-	Placeholder.part(_fountain_broken, Placeholder.cylinder(1.5, 0.04), MOSS, Vector3(0.0, 0.5, 0.0))
-	Placeholder.part(_fountain_broken, Placeholder.cylinder(0.3, 1.1), OLD_STONE, Vector3(0.0, 0.9, 0.0))
-	Placeholder.part(_fountain_broken, Placeholder.cylinder(0.3, 0.2, 0.7), OLD_STONE,
-			Vector3(0.12, 1.5, 0.0), Vector3(0.0, 0.0, -16.0))
-	Placeholder.part(_fountain_broken, Placeholder.box(Vector3(0.5, 0.3, 0.4)), OLD_STONE,
-			Vector3(1.1, 0.62, 0.5), Vector3(20.0, 30.0, 10.0))
+	Models.place(_fountain_broken, "fountain_dry", Vector3.ZERO, FOUNTAIN_SCALE)
+	# В сухой чаше — мох и палая листва.
+	Placeholder.part(_fountain_broken, Placeholder.cylinder(FOUNTAIN_BASIN, 0.04, FOUNTAIN_BASIN, 16),
+			Color(0.36, 0.50, 0.30), Vector3(0.0, FOUNTAIN_WATER - 0.12, 0.0))
+	for item: Array in [[Vector3(0.7, 0.0, 0.5), Color(0.72, 0.52, 0.26)], [Vector3(-0.8, 0.0, -0.2), Color(0.62, 0.44, 0.24)],
+			[Vector3(0.1, 0.0, -0.9), Color(0.76, 0.62, 0.30)], [Vector3(-0.3, 0.0, 0.95), Color(0.56, 0.60, 0.28)]]:
+		Placeholder.part(_fountain_broken, Placeholder.box(Vector3(0.22, 0.02, 0.14)), item[1],
+				item[0] + Vector3(0.0, FOUNTAIN_WATER - 0.08, 0.0), Vector3(0.0, item[0].x * 140.0, 0.0))
+	# Отколовшиеся камни у чаши.
+	for item: Array in [[Vector3(1.5, 0.16, 1.3), Vector3(0.5, 0.3, 0.4), Vector3(20.0, 30.0, 10.0)],
+			[Vector3(-1.75, 0.1, 0.6), Vector3(0.34, 0.2, 0.3), Vector3(0.0, 55.0, 14.0)],
+			[Vector3(0.5, 0.12, -1.9), Vector3(0.4, 0.22, 0.26), Vector3(8.0, -20.0, 0.0)]]:
+		Placeholder.part(_fountain_broken, Placeholder.box(item[1]), OLD_STONE, item[0], item[2])
 
-	# Починенный: светлый камень, вода, струя.
 	_fountain_fixed = Node3D.new()
 	_fountain_fixed.visible = false
 	add_child(_fountain_fixed)
-	Placeholder.part(_fountain_fixed, Placeholder.cylinder(1.8, 0.5), NEW_STONE, Vector3(0.0, 0.25, 0.0))
-	Placeholder.part(_fountain_fixed, Placeholder.cylinder(1.55, 0.04), WATER, Vector3(0.0, 0.5, 0.0))
-	Placeholder.part(_fountain_fixed, Placeholder.cylinder(0.3, 1.1), NEW_STONE, Vector3(0.0, 0.9, 0.0))
-	Placeholder.part(_fountain_fixed, Placeholder.cylinder(0.3, 0.2, 0.75), NEW_STONE, Vector3(0.0, 1.5, 0.0))
-	Placeholder.part(_fountain_fixed, Placeholder.cylinder(0.62, 0.03), WATER, Vector3(0.0, 1.6, 0.0))
+	Models.place(_fountain_fixed, "fountain", Vector3.ZERO, FOUNTAIN_SCALE)
+	var water := Placeholder.part(_fountain_fixed, Placeholder.cylinder(FOUNTAIN_BASIN, 0.04, FOUNTAIN_BASIN, 16),
+			Color(0.42, 0.72, 0.92), Vector3(0.0, FOUNTAIN_WATER, 0.0))
+	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var jet := CPUParticles3D.new()
-	jet.position = Vector3(0.0, 1.65, 0.0)
+	jet.position = Vector3(0.0, 0.95, 0.0)
 	jet.amount = 60
-	jet.lifetime = 1.1
+	jet.lifetime = 1.0
 	jet.mesh = Placeholder.sphere(0.05)
 	var drops := StandardMaterial3D.new()
 	drops.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	drops.albedo_color = Color(0.75, 0.9, 1.0)
+	drops.albedo_color = Color(0.78, 0.92, 1.0)
 	jet.material_override = drops
 	jet.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	jet.direction = Vector3.UP
-	jet.spread = 14.0
-	jet.initial_velocity_min = 3.6
-	jet.initial_velocity_max = 4.4
-	jet.gravity = Vector3(0.0, -8.0, 0.0)
+	jet.spread = 16.0
+	jet.initial_velocity_min = 3.4
+	jet.initial_velocity_max = 4.2
+	jet.gravity = Vector3(0.0, -8.5, 0.0)
 	_fountain_fixed.add_child(jet)
 
 	var shape := CollisionShape3D.new()

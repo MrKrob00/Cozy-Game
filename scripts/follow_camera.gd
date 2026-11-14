@@ -112,7 +112,7 @@ func set_menu(on: bool) -> void:
 ## Показывает точку вдали от игрока (калитку нового участка): камера едет
 ## к ней, задерживается и возвращается. on_arrive вызывается, когда камера
 ## на месте; в конце — сигнал reveal_finished.
-func show_point(point: Vector3, on_arrive := Callable(), hold := 1.9) -> void:
+func show_point(point: Vector3, on_arrive := Callable(), hold := 1.4) -> void:
 	if _reveal:
 		_reveal.kill()
 	_reveal_point = point

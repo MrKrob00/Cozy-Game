@@ -127,6 +127,17 @@ func is_unlocked() -> bool:
 	return requires_plot == "" or GameState.has_plot_opened_next(requires_plot)
 
 
+## Ждёт ли покоса этого участка следующий: есть участок, который откроется,
+## когда здесь будет скошено open_next_at, и он ещё не открыт.
+func has_next_to_open() -> bool:
+	if _state.get("next_opened", false):
+		return false
+	for other: Plot in get_tree().get_nodes_in_group("plot"):
+		if other.requires_plot == plot_id:
+			return true
+	return false
+
+
 func get_progress() -> float:
 	return field.get_progress()
 

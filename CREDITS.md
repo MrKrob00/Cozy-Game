@@ -26,7 +26,8 @@ Kevin MacLeod ([incompetech.com](https://incompetech.com)), лицензия [Cr
 
 - [Mini Characters](https://kenney.nl/assets/mini-characters) — герой, Мастер, Бабушка, Почтальон, со своими анимациями;
 - [Cube Pets](https://kenney.nl/assets/cube-pets) — кот и цыплята на выкошенных газонах;
-- [Graveyard Kit](https://kenney.nl/assets/graveyard-kit) — садовая скамейка (переведена в цвет вершин тем же скриптом).
+- [Graveyard Kit](https://kenney.nl/assets/graveyard-kit) — садовая скамейка (переведена в цвет вершин тем же скриптом);
+- [Fantasy Town Kit](https://kenney.nl/assets/fantasy-town-kit) — фонтан на площади.
 
 Модели [Quaternius](https://quaternius.com), лицензия CC0:
 
@@ -34,7 +35,7 @@ Kevin MacLeod ([incompetech.com](https://incompetech.com)), лицензия [Cr
 
 Свои модели (`tools/make_models.py` → `assets/models/mower_*.gltf`, `straw_hat.gltf`): газонокосилка по частям (корпус трёх уровней, мотор, колёса, ручка, мешок) и соломенная шляпа. Готовой бесплатной косилки в подходящем стиле не нашлось.
 
-Пока из примитивов: ёжик, забор, клумбы, фонтан, находки.
+Пока из примитивов: ёжик, забор, клумбы, находки.
 
 ## Звуки
 

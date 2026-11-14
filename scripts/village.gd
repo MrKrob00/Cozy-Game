@@ -31,6 +31,8 @@ const FESTIVAL_FLAG := "festival"
 const AMBIENT := Color(0.50, 0.56, 0.74)
 ## Пауза между покосом последнего участка и праздником, секунд.
 const FESTIVAL_DELAY := 11.0
+## Сколько залпов салюта на празднике.
+const FIREWORKS := 9
 
 var current_plot: Plot
 
@@ -152,6 +154,19 @@ func _on_plot_completed() -> void:
 		for i in 3:
 			Juice.confetti(self, _player.global_position + Vector3(i * 1.5 - 1.5, 1.4, 0.0), 60)
 	GameState.save_game()
+	_fireworks()
+
+
+# Салют над деревней: несколько залпов конфетти высоко над игроком.
+func _fireworks() -> void:
+	for i in FIREWORKS:
+		await get_tree().create_timer(randf_range(0.7, 1.3)).timeout
+		if _player == null:
+			return
+		var at := _player.global_position + Vector3(randf_range(-7.0, 7.0), randf_range(4.5, 6.5), randf_range(-6.0, 4.0))
+		Juice.confetti(self, at, 55)
+		Juice.sparkle(self, at, Color(1.0, 0.92, 0.6), 24)
+		Sfx.play("pop", -8.0, randf_range(0.7, 1.1))
 
 
 func _update_current_plot() -> void:

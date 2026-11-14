@@ -14,6 +14,7 @@ KayKit раскрашивает модели одной текстурой-па�
   https://github.com/KayKit-Game-Assets/KayKit-City-Builder-Bits-1.0
   https://github.com/KayKit-Game-Assets/KayKit-Halloween-Bits-1.0
   Kenney Graveyard Kit (папка graveyard с .glb и Textures): https://kenney.nl/assets/graveyard-kit
+  Kenney Fantasy Town Kit (папка fantasy-town): https://kenney.nl/assets/fantasy-town-kit
 """
 
 import base64
@@ -33,6 +34,7 @@ PACKS = {
     "city": ("kaykit-city-builder-bits-1.0", "addons/kaykit_city_builder_bits/Assets/gltf"),
     "halloween": ("kaykit-halloween-bits-1.0", "addons/kaykit_halloween_bits/Assets/gltf"),
     "graveyard": ("graveyard", ""),
+    "fantasy-town": ("fantasy-town", ""),
 }
 
 # (файл в наборе hex или «набор:файл», имя у нас, качание: None — нет, число —
@@ -86,6 +88,9 @@ MODELS = [
     ("halloween:pumpkin_orange_small.gltf", "pumpkin_small", None),
     # Садовая скамейка — Kenney Graveyard Kit.
     ("graveyard:bench.glb", "bench", None),
+    # Фонтан — Kenney Fantasy Town Kit: починенный (светлый камень) и заброшенный.
+    ("fantasy-town:fountain-round-detail.glb", "fountain", None, "-ignore", "new"),
+    ("fantasy-town:fountain-round-detail.glb", "fountain_dry", None, "-ignore", "old"),
 ]
 
 COMPONENT = {5120: "b", 5121: "B", 5122: "h", 5123: "H", 5125: "I", 5126: "f"}
@@ -152,6 +157,19 @@ def harmonize(rgb):
     return np.clip(rgb, 0.0, 1.0)
 
 
+def old_stone(rgb):
+    """Заброшенный фонтан: потемневший, чуть зеленоватый камень."""
+    return np.clip(rgb * np.array([0.84, 0.88, 0.80]), 0.0, 1.0)
+
+
+def new_stone(rgb):
+    """Починенный фонтан: светлый тёплый камень."""
+    return np.clip(rgb * np.array([1.30, 1.27, 1.20]) + 0.04, 0.0, 1.0)
+
+
+TINTS = {"old": old_stone, "new": new_stone}
+
+
 def srgb_to_linear(c):
     return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
 
@@ -182,7 +200,7 @@ def load_gltf(path):
     return gltf, [open(os.path.join(folder, b["uri"]), "rb").read() for b in gltf["buffers"]]
 
 
-def convert(roots, source, name, sway_from, part=""):
+def convert(roots, source, name, sway_from, part="", tint=""):
     path = pack_path(roots, source)
     folder = os.path.dirname(path)
     gltf, buffers = load_gltf(path)
@@ -220,6 +238,8 @@ def convert(roots, source, name, sway_from, part=""):
                 py = np.clip((uv[:, 1] % 1.0) * height, 0, height - 1).astype(int)
                 # В sRGB, как есть: Godot сам переводит цвета вершин в линейные.
                 rgb = harmonize(palette[py, px].copy())
+                if tint:
+                    rgb = TINTS[tint](rgb)
                 start = sum(len(p) for p in positions)
                 positions.append(pos)
                 normals.append(nrm)

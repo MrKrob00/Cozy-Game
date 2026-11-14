@@ -58,6 +58,8 @@ const TIDY_INTERVAL := 0.4
 const TIDY_RADIUS := 1.3
 const TIDY_INTERVAL_IDLE := 1.0
 const TIDY_RADIUS_IDLE := 2.0
+## Через сколько метров пути по дороге из-под колёс вылетает облачко пыли.
+const ROAD_DUST_STEP := 1.1
 ## Радиус колеса косилки (tools/make_models.py), метры.
 const WHEEL_RADIUS := 0.15
 
@@ -89,6 +91,7 @@ var _weed_cut := 0.0
 var _grass_ahead := 0.0
 var _last_cut_time := -1.0
 var _tidy_timer := 0.0
+var _dust_distance := 0.0
 var _engine_top := 0.0
 var _mower_root: Node3D
 var _mower: Node3D
@@ -236,6 +239,12 @@ func _physics_process(delta: float) -> void:
 	_clippings.emitting = _cutting
 	_grass_life(_grass_ahead if _cutting else 0.0, _current_speed * delta)
 	_tidy_leftovers(delta)
+	# На дороге косилка катится быстро: из-под колёс вылетает пыль.
+	if _road_boost > 0.6 and _current_speed > speed * 1.2:
+		_dust_distance += _current_speed * delta
+		if _dust_distance >= ROAD_DUST_STEP:
+			_dust_distance = 0.0
+			Juice.dust(get_parent(), global_position - global_basis.z * 0.55 + Vector3.UP * 0.08, 3)
 	_update_interaction(delta)
 
 

@@ -8,6 +8,8 @@ const GREEN := Color(0.38, 0.64, 0.30)
 const GREEN_DARK := Color(0.29, 0.52, 0.24)
 const ORANGE := Color(0.95, 0.56, 0.20)
 const TOAST_TIME := 3.2
+const TOAST_TIME_BUSY := 1.7
+const MAX_WAITING_TOASTS := 2
 ## Пауза перед окном завершения участка, секунд.
 const COMPLETION_DELAY := 5.0
 ## Сколько летят значки награды до счётчика, секунд.
@@ -99,6 +101,7 @@ var _fps_timer := 0.0
 var _new_game_armed := false
 var _title_bob: Tween
 var _touch_pad: TouchPad
+var _goal_mark: ColorRect
 ## Показывать ли новую калитку камерой сразу, как она открылась (в проверках
 ## и при съёмке трейлера это выключают и показывают сами).
 var auto_reveal := true
@@ -346,6 +349,9 @@ func _input(event: InputEvent) -> void:
 
 ## Показывает короткое сообщение; несколько подряд встают в очередь.
 func show_toast(text: String) -> void:
+	# Очередь короткая: если сообщений накопилось, старые уже не ко времени.
+	while _toasts.size() >= MAX_WAITING_TOASTS:
+		_toasts.pop_front()
 	_toasts.append(L.t(text))
 	if not _toast_busy:
 		_next_toast()
@@ -439,7 +445,8 @@ func _next_toast() -> void:
 	_toast_label.text = _toasts.pop_front()
 	Juice.pop_in(_toast)
 	var tween := create_tween()
-	tween.tween_interval(TOAST_TIME)
+	# Если следом ждут другие, это сообщение висит меньше.
+	tween.tween_interval(TOAST_TIME if _toasts.is_empty() else TOAST_TIME_BUSY)
 	tween.tween_property(_toast, "modulate:a", 0.0, 0.35)
 	tween.tween_callback(func() -> void:
 		_toast.visible = false
@@ -460,8 +467,29 @@ func _show_plot(plot: Plot) -> void:
 	if _bar_tween:
 		_bar_tween.kill()
 	_plot_bar.value = _plot.get_progress()
+	_update_goal_mark()
 	if not first:
 		Juice.punch(_progress_label, 0.15)
+
+
+# Отметка на полосе прогресса: докуда косить, чтобы открылся следующий участок.
+func _update_goal_mark() -> void:
+	if _goal_mark == null:
+		_goal_mark = ColorRect.new()
+		_goal_mark.name = "GoalMark"
+		_goal_mark.color = Color(1.0, 0.80, 0.25)
+		_goal_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_plot_bar.add_child(_goal_mark)
+	_goal_mark.visible = _plot != null and _plot.has_next_to_open()
+	if _goal_mark.visible:
+		_goal_mark.anchor_left = _plot.open_next_at
+		_goal_mark.anchor_right = _plot.open_next_at
+		_goal_mark.anchor_top = 0.0
+		_goal_mark.anchor_bottom = 1.0
+		_goal_mark.offset_left = -3.0
+		_goal_mark.offset_right = 3.0
+		_goal_mark.offset_top = -5.0
+		_goal_mark.offset_bottom = 5.0
 
 
 func _on_progress_changed(ratio: float) -> void:
@@ -677,6 +705,9 @@ func _reveal_next_plot() -> void:
 # Участок выкошен настолько, что открылся следующий: чуть погодя камера
 # показывает его калитку.
 func _on_next_opened() -> void:
+	_update_goal_mark()
+	Juice.punch(_plot_bar, 0.25, 0.4)
+	Sfx.play("chime", -6.0)
 	if not auto_reveal:
 		return
 	await get_tree().create_timer(REVEAL_DELAY).timeout
