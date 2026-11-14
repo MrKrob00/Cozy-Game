@@ -14,6 +14,7 @@ signal progress_changed(ratio: float)
 
 const GRASS_SHADER := preload("res://shaders/grass.gdshader")
 const GROUND_SHADER := preload("res://shaders/ground.gdshader")
+const SKIRT_SHADER := preload("res://shaders/lawn_skirt.gdshader")
 
 ## Детализация травы: ближе LOD_NEAR метров от игрока рисуются все пучки,
 ## дальше LOD_FAR — только доля LOD_FAR_SHARE.
@@ -37,6 +38,14 @@ const BLOCKED_LAWN := 2
 ## Край полосы неровный, волнами — от CLEARANCE_MIN до CLEARANCE_MAX метров.
 const CLEARANCE_MIN := 0.35
 const CLEARANCE_MAX := 0.95
+## Край поля не ровный прямоугольник: полоса газона вдоль него гуляет по
+## шуму от BORDER_MIN до BORDER_MAX метров, а за ней трава сначала низкая.
+const BORDER_MIN := 0.1
+const BORDER_MAX := 1.25
+const BORDER_RAMP := 0.7
+## Кромка газона за каймой: на столько метров он растворяется в луге.
+const SKIRT_WIDTH := 1.5
+const SKIRT_STEP := 0.7
 
 ## Размер поля в метрах (X, Z). Центр — в начале координат узла.
 @export var size := Vector2(24.0, 24.0)
@@ -94,9 +103,11 @@ func _ready() -> void:
 	for shaper in get_tree().get_nodes_in_group("grass_shaper"):
 		if owner_node == null or owner_node.is_ancestor_of(shaper):
 			shaper.shape_grass(self)
+	_soften_border()
 	_finish_mask()
 	_build_materials()
 	_build_ground()
+	_build_skirt()
 	_build_grass()
 	Graphics.quality_changed.connect(_rebuild_grass)
 
@@ -422,6 +433,35 @@ func _build_mask() -> void:
 			_data[i + 2] = 0
 
 
+# Неровный край поля: у самой границы травы нет (газон), ширина этой полосы
+# гуляет по шуму; сразу за ней трава низкая, и только потом — в полный рост.
+# Так поле не выглядит коробкой с травой.
+func _soften_border() -> void:
+	var reach := int(ceilf((BORDER_MAX + BORDER_RAMP) / cell_size)) + 1
+	for y in _resolution.y:
+		for x in _resolution.x:
+			var edge := mini(mini(x, _resolution.x - 1 - x), mini(y, _resolution.y - 1 - y))
+			if edge > reach:
+				continue
+			var cell := y * _resolution.x + x
+			if _blocked[cell] != 0:
+				continue
+			var at := _cell_center(x, y)
+			var distance := minf(minf(at.x, size.x - at.x), minf(at.y, size.y - at.y))
+			# Крупные волны и мелкая рябь поверх них.
+			var wave := 0.5 + 0.38 * _edge_noise.get_noise_2dv(at * 0.8 + Vector2(31.0, 17.0)) \
+					+ 0.2 * _edge_noise.get_noise_2dv(at * 2.6 - Vector2(9.0, 4.0))
+			var width := lerpf(BORDER_MIN, BORDER_MAX, clampf(wave, 0.0, 1.0))
+			if distance < width:
+				_blocked[cell] = BLOCKED_LAWN
+			elif distance < width + BORDER_RAMP:
+				# Трава поднимается ступенями: низкая, обычная, а дальше — как выросла.
+				var i := cell * CHANNELS
+				var step := (distance - width) / BORDER_RAMP
+				var low := HEIGHT_SHORT if step < 0.4 else (HEIGHT_SHORT + HEIGHT_NORMAL) / 2 if step < 0.7 else HEIGHT_NORMAL
+				_data[i] = mini(_data[i], low)
+
+
 func _finish_mask() -> void:
 	_mowable_cells = 0
 	_cut_cells = 0
@@ -476,6 +516,75 @@ func _build_ground() -> void:
 	ground.material_override = _ground_material
 	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(ground)
+
+
+# Кромка газона за каймой: полоса вокруг участка, которая плавно (альфа в
+# вершинах) растворяется в луге; внешний край неровный. Над дорогой её нет.
+func _build_skirt() -> void:
+	if apron <= 0.0:
+		return
+	var terrain := Terrain.of(self)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = random_seed + 5
+	var half := size * 0.5 + Vector2.ONE * apron
+	# Точки по кругу вокруг каймы: [точка на её краю, направление наружу].
+	var ring: Array = []
+	var corners := [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]
+	for c in 4:
+		var from: Vector2 = corners[c] * half
+		var to: Vector2 = corners[(c + 1) % 4] * half
+		var along := (to - from).normalized()
+		var out := Vector2(along.y, -along.x)
+		# Угол — веером, сторона — с шагом.
+		for k in 4:
+			var angle := -PI * 0.5 * (1.0 - k / 4.0)
+			ring.append([from, out.rotated(angle)])
+		var count := maxi(int(from.distance_to(to) / SKIRT_STEP), 1)
+		for k in range(0, count):
+			ring.append([from.lerp(to, float(k) / count), out])
+	var vertices := PackedVector3Array()
+	var colors := PackedColorArray()
+	var indices := PackedInt32Array()
+	for entry: Array in ring:
+		var inner: Vector2 = entry[0]
+		var direction: Vector2 = entry[1]
+		var width := SKIRT_WIDTH * rng.randf_range(0.55, 1.0)
+		for layer in 3:
+			var local := inner + direction * width * layer * 0.5
+			var world := to_global(Vector3(local.x, 0.0, local.y))
+			var at := Vector2(world.x, world.z)
+			var lift := 0.0 if layer == 0 else 0.04
+			var alpha := [1.0, 0.55, 0.0][layer] as float
+			if terrain:
+				if layer > 0:
+					lift += terrain.height_at(at) - global_position.y
+				# Над дорогой газона нет.
+				alpha *= smoothstep(0.0, 0.5, -terrain.dirt_depth(at, Meadow.ROAD_GROW))
+			vertices.append(Vector3(local.x, lift, local.y))
+			colors.append(Color(1.0, 1.0, 1.0, alpha))
+	var points := ring.size()
+	for i in points:
+		var next := (i + 1) % points
+		for layer in 2:
+			var a := i * 3 + layer
+			var b := next * 3 + layer
+			indices.append_array([a, b, a + 1, a + 1, b, b + 1])
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_COLOR] = colors
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var material := ShaderMaterial.new()
+	material.shader = SKIRT_SHADER
+	Graphics.track(material, true)
+	var skirt := MeshInstance3D.new()
+	skirt.name = "Skirt"
+	skirt.mesh = mesh
+	skirt.material_override = material
+	skirt.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(skirt)
 
 
 # Качество графики сменилось: пучки травы создаются заново с новой плотностью.

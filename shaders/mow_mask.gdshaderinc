@@ -17,6 +17,16 @@ vec2 mow_uv(vec2 world_xz) {
 	return vec2(dot(offset, field_x), dot(offset, field_z)) / field_size + 0.5;
 }
 
+// Тон газона, по которому ещё не ездили (как TONE_NEUTRAL в маске).
+const float LAWN_TONE = 0.502;
+
+// Лёгкая неоднородность газона: мягкие пятна в мировых координатах, чтобы
+// стриженая трава не была ровной заливкой. Без текстур.
+float lawn_mottle(vec2 xz) {
+	return 0.07 * sin(xz.x * 1.31 + xz.y * 0.73) * sin(xz.y * 1.17 - xz.x * 0.49)
+			+ 0.03 * sin(xz.x * 3.7 - xz.y * 2.9);
+}
+
 vec3 cut_color(float tone) {
 	return mix(cut_color_dark, cut_color_light, tone);
 }

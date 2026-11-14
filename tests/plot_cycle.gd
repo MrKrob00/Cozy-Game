@@ -58,7 +58,8 @@ func _run() -> void:
 	gs.toast_requested.connect(func(t): toasts.append(t))
 	var mowable: int = field.get("_mowable_cells")
 	print("mowable cells=%d (%.1f m2)" % [mowable, mowable * 0.125 * 0.125])
-	check(mowable > 10000 and mowable < 10752, "field has blocked cells under bench and tree")
+	# 10752 ячейки — всё поле; часть занята предметами и неровной каймой газона по краю.
+	check(mowable > 7000 and mowable < 9500, "the field has no grass under objects and along its wavy border")
 	check(plot.members("find").size() == 3 and plot.members("animal").size() == 1, "3 finds and 1 animal in the yard")
 	check(plot.get_stamps().size() == 5, "5 stamps listed")
 	check(not hud.get_node("%ActionButton").visible, "action button hidden at start")

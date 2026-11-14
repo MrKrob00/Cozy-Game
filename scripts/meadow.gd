@@ -17,9 +17,14 @@ const DRY := Color(0.74, 0.70, 0.38)
 const SLOPE := Color(0.50, 0.58, 0.32)
 const DIRT := Color(0.60, 0.47, 0.32)
 const WORN := Color(0.56, 0.60, 0.36)
-const ROAD := Color(0.84, 0.70, 0.48)
-const ROAD_RUT := Color(0.68, 0.53, 0.36)
-const ROAD_EDGE := Color(0.60, 0.58, 0.36)
+## Дорога: утоптанный светлый грунт, чуть темнее пятнами и у обочины.
+const ROAD := Color(0.86, 0.74, 0.54)
+const ROAD_PATCH := Color(0.80, 0.67, 0.47)
+const ROAD_EDGE := Color(0.70, 0.66, 0.44)
+## Стриженый газон участков (средний тон полос, см. shaders/mow_mask.gdshaderinc)
+## и на сколько метров от участка луг ещё светлеет до него.
+const LAWN := Color(0.52, 0.775, 0.315)
+const LAWN_REACH := 4.5
 const TUFTS := [Color(0.40, 0.66, 0.32), Color(0.52, 0.76, 0.36), Color(0.34, 0.58, 0.32),
 		Color(0.66, 0.76, 0.38)]
 const PETALS := [Color(1.0, 0.98, 0.94), Color(1.0, 0.86, 0.32), Color(1.0, 0.58, 0.68),
@@ -63,14 +68,23 @@ static func ground_color(at: Vector2, terrain: Terrain, noise: FastNoiseLite,
 	color = color.lerp(DIRT, smoothstep(0.42, 0.6, spots.get_noise_2dv(at)) * 0.85)
 	var to_road := -terrain.road_depth(at, ROAD_GROW)
 	color = color.lerp(WORN, clampf(1.0 - to_road / 1.8, 0.0, 1.0) * 0.65)
+	# У участков луг светлеет до цвета их стриженого газона: газон не
+	# обрывается у забора, а плавно переходит в дикую траву.
+	color = color.lerp(LAWN, (1.0 - smoothstep(0.3, LAWN_REACH, terrain.plot_distance(at))) * 0.8)
 	return color
 
 
 ## Дороги: одна сетка на всю сеть дорог (на перекрёстках ничего не
-## накладывается), с колеями, крапинами и рваными краями.
+## накладывается). Ровный светлый грунт с мягкими пятнами; обочина темнее,
+## а самый край окрашен как трава под ним — дорога не обрезана, а врастает в луг.
 static func build_roads(parent: Node3D, seed: int, terrain: Terrain) -> void:
-	const STEP := 0.8
-	var noise := _noise(seed + 3, 0.6)
+	const STEP := 0.5
+	# Ширина обочины: от края дороги до чистого грунта, метры.
+	const VERGE := 1.0
+	var patches_noise := _noise(seed + 3, 0.16)
+	var noise := _noise(seed, 0.06)
+	var patches := _noise(seed + 1, 0.13)
+	var spots := _noise(seed + 2, 0.2)
 	var area := Rect2()
 	for rect in terrain.road_rects():
 		area = rect if area.size == Vector2.ZERO else area.merge(rect)
@@ -94,15 +108,16 @@ static func build_roads(parent: Node3D, seed: int, terrain: Terrain) -> void:
 		var depth := terrain.dirt_depth(at, ROAD_GROW)
 		var rng := RandomNumberGenerator.new()
 		rng.seed = hash(key) + seed
+		# Край дороги неровный: крайние вершины гуляют в стороны.
+		if depth < STEP:
+			at += Vector2(rng.randf_range(-0.2, 0.2), rng.randf_range(-0.2, 0.2))
 		var height := terrain.height_at(at) + 0.03
-		# Края дороги неровные: крайние вершины гуляют в стороны.
-		if depth < STEP * 0.75:
-			at += Vector2(rng.randf_range(-0.3, 0.3), rng.randf_range(-0.3, 0.3))
-		# Две колеи идут на постоянном расстоянии от края.
-		var rut := _bump(depth, 1.7, 0.32)
-		var color := ROAD.lerp(ROAD_RUT, rut * 0.8)
-		color = color.lerp(ROAD_RUT, maxf(noise.get_noise_2dv(at), 0.0) * 0.5)
-		color = color.lerp(ROAD_EDGE, 1.0 - smoothstep(0.0, 0.7, depth))
+		var color := ROAD.lerp(ROAD_PATCH, smoothstep(-0.1, 0.5, patches_noise.get_noise_2dv(at)) * 0.7)
+		color = ROAD_EDGE.lerp(color, smoothstep(VERGE * 0.35, VERGE, depth))
+		# Самый край — цвета травы под ним: шва между дорогой и лугом нет.
+		var grass := ground_color(at, terrain, noise, patches, spots)
+		grass = grass.lerp(SLOPE, clampf((1.0 - terrain.normal_at(at).y) * 4.0, 0.0, 0.45))
+		color = grass.lerp(color, smoothstep(0.0, VERGE * 0.45, depth))
 		vertices.append(Vector3(at.x, height, at.y))
 		colors.append(color)
 		vertex_at[key] = vertices.size() - 1
@@ -118,6 +133,27 @@ static func build_roads(parent: Node3D, seed: int, terrain: Terrain) -> void:
 			var d: int = vertex.call(column + 1, row + 1)
 			indices.append_array([a, b, c, c, b, d])
 	_add_mesh(parent, "Roads", vertices, colors, indices)
+
+
+## Мелочи по обочинам дорог: камешки и кочки ломают ровный край.
+static func road_details(parent: Node3D, seed: int, terrain: Terrain) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed
+	var area := Rect2()
+	for rect in terrain.road_rects():
+		area = rect if area.size == Vector2.ZERO else area.merge(rect)
+	area = area.grow(ROAD_GROW + 1.0)
+	for i in int(area.get_area() * 0.55):
+		var at := _random_point(area, rng)
+		var depth := terrain.dirt_depth(at, ROAD_GROW)
+		var ground := Vector3(at.x, terrain.height_at(at), at.y)
+		# Камешки — на обочине (по самой дороге ходит игрок), кочки — сразу за краем.
+		if depth > 0.1 and depth < 0.75 and terrain.road_depth(at) < -0.15:
+			if rng.randf() < 0.3:
+				rock(parent, ground + Vector3(0.0, 0.02, 0.0), rng.randf_range(0.035, 0.075), rng)
+		elif depth > -0.55 and depth <= 0.1 and terrain.plot_distance(at) > 1.2:
+			if rng.randf() < 0.42:
+				tuft(parent, ground, rng, rng.randf_range(0.7, 1.1))
 
 
 ## Россыпи: кочки, цветы, камни, грибы. free_at(точка) говорит, можно ли там.

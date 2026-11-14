@@ -28,12 +28,11 @@ void vertex() {
 void fragment() {
 	vec2 uv = mow_uv(v_world_xz);
 	vec3 mask = texture(mow_mask, uv).rgb;
-	// Кайма вокруг поля (до забора): стриженый газон с едва заметными полосами.
+	// Кайма вокруг поля (до забора) — такой же стриженый газон, как внутри.
 	vec2 within = step(vec2(0.0), uv) * step(uv, vec2(1.0));
-	float apron_tone = 0.42 + 0.1 * sin((v_world_xz.x + v_world_xz.y) * 2.4);
-	mask = mix(vec3(0.0, apron_tone, 0.0), mask, within.x * within.y);
+	mask = mix(vec3(0.0, LAWN_TONE, 0.0), mask, within.x * within.y);
 	float cut = 1.0 - smoothstep(0.0, 0.25, mask.r);
-	vec3 surface = mix(cut_color(mask.g), bare_color, mask.b);
+	vec3 surface = mix(cut_color(clamp(mask.g + lawn_mottle(v_world_xz), 0.0, 1.0)), bare_color, mask.b);
 	vec3 color = mix(overgrown_color, surface, cut);
 	vec3 lit = day_grade(color * (v_light - v_drop * shade_raw(v_world_xz)));
 	ALBEDO = mix(lit, haze_color, v_haze);

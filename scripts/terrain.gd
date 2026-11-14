@@ -133,6 +133,16 @@ func _rect_depth(area: Rect2, at: Vector2, margin: float) -> float:
 	return inside
 
 
+## Расстояние от точки до ближайшего участка (до его террасы), метры; 0 — на нём.
+func plot_distance(at: Vector2) -> float:
+	_cache_plots()
+	var nearest := INF
+	for plot in _plots:
+		var rect := _plot_rect(plot)
+		nearest = minf(nearest, at.distance_to(at.clamp(rect.position, rect.end)))
+	return nearest
+
+
 ## Высота земли в точке (x, z) — для игрока, земли и россыпей.
 func height_at(at: Vector2) -> float:
 	_cache_plots()

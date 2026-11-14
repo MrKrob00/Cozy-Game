@@ -134,6 +134,7 @@ func _generate() -> void:
 	scatter.set_meta("bake_cell", BAKE_CELL)
 	add_child(scatter)
 	Meadow.scatter(scatter, area.grow(-6.0), _is_free, _trees, random_seed + 5, _terrain)
+	Meadow.road_details(scatter, random_seed + 9, _terrain)
 	var index := 0
 	for node in get_tree().get_nodes_in_group("plot"):
 		var plot := node as Plot
