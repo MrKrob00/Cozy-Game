@@ -158,6 +158,12 @@ func _run() -> void:
 	check(is_equal_approx(player.blade_width, 1.0) and gs.bag_capacity == 150.0 and is_equal_approx(player.speed, 3.5), "max mower stats")
 	check(gs.coins == 830 - 220 - 200 - 240, "second tier costs")
 	check(gs.is_upgrade_maxed("blade") and not gs.buy_upgrade("blade") and gs.upgrade_cost("blade") == -1, "maxed upgrade cannot be bought")
+	# Руки героя лежат на рукоятках и после смены косилки.
+	var hands = player.get("_hands")
+	var placed: int = hands.updates
+	await frames(6)
+	check(hands.grips.size() == 2 and hands.updates > placed and hands.last_miss < 0.02,
+			"the hero's hands stay on the mower handle (%.3f m off)" % hands.last_miss)
 
 	# 4. Мастерская: закрыта без ключа, открывается с ключом.
 	var workshop = yard.get_node("Workshop")

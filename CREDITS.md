@@ -45,4 +45,4 @@ Kevin MacLeod ([incompetech.com](https://incompetech.com)), лицензия [Cr
 - [Impact Sounds](https://kenney.nl/assets/impact-sounds) — штамп, удар косилки о препятствие;
 - [RPG Audio](https://kenney.nl/assets/rpg-audio) — монеты, высыпание травы, калитка.
 
-Мелодичные звуки (завершение участка, отметки прогресса, птицы, «голоса» жителей) синтезированы скриптом `tools/make_placeholder_sounds.py`. Косилка беззвучна.
+Мелодичные звуки (завершение участка, отметки прогресса, птицы, «голоса» жителей) и «вжух» для смены кадров в трейлере синтезированы скриптом `tools/make_placeholder_sounds.py`. Косилка беззвучна.

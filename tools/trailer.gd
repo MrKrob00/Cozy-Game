@@ -1,5 +1,5 @@
 extends SceneTree
-## Снимает трейлер игры: сценарий ведёт героя, камеру и подписи покадрово.
+## Снимает трейлер игры: сценарий ведёт героя, камеру, подписи и звук покадрово.
 ##
 ## Запуск (нужен экран или xvfb; кадры пишет сам Godot):
 ##   tools/make_trailer.sh
@@ -7,22 +7,64 @@ extends SceneTree
 ## кадры и звук в docs/trailer.mp4.
 ##
 ## Построение по советам монтажёров трейлеров (Derek Lieu): геймплей с первой
-## секунды и сразу «крючок» — приятная полоса в высокой траве; затем понятно,
-## что это за игра (цикл покоса); дальше содержимое по нарастанию: находки,
-## новые участки, деревня, улучшения, праздник; название — в самом конце.
-## «Показывай мечту, а не работу»: никаких меню.
+## секунды и сразу «крючок» — приятная полоса в высокой траве и ёжик на пути;
+## затем понятно, что это за игра (цикл покоса); дальше содержимое по
+## нарастанию: находки, новые участки, деревня, улучшения, праздник;
+## название — в самом конце. «Показывай мечту, а не работу»: никаких меню.
+##
+## Монтаж идёт по музыке. Трек чуть ускорен, чтобы доля длилась ровно BEAT
+## кадров; смены кадра стоят на сильных долях и на границах фраз (каждые
+## 16 долей), подписи, прыжки ёжика, калитка, залпы и название — на долях.
+## Шаги героя тоже в темпе: цикл анимации равен одной доле.
+##
+## Проверка без записи: TRAILER_PREVIEW=<папка> — каждый шестой кадр
+## сохраняется картинкой, в журнал пишутся кадры событий.
 ##
 ## Игровые классы не используются как типы: скрипт компилируется раньше,
 ## чем регистрируются автозагрузки.
 
 const FPS := 30.0
 const CUT_LENGTH := 0.4
+## Кадров на долю: 120 ударов в минуту.
+const BEAT := 15
+const MUSIC := "res://assets/music/pleasant_porridge.ogg"
+## Доля в записи трека, секунд (119 уд/мин): трек ускоряется до BEAT кадров.
+const MUSIC_BEAT := 0.50422
+const MUSIC_VOLUME_DB := -4.0
+## Свои голоса для звуков: игровые звуки в трейлере заглушены (при смене
+## кадра и подготовке сцен игра выдаёт их пачками и невпопад), а трейлер
+## ставит нужные сам — по долям и по событиям в кадре.
+const VOICES := 10
+## Скорость героя, при которой цикл шагов длится ровно долю (и вдвое чаще).
+const WALK_PACE := 2.5333
+const RUN_PACE := 3.8
+## Вспышка на смене кадра: прозрачность по кадрам от самой смены.
+const FLASH := {-2: 0.3, -1: 0.65, 0: 0.85, 1: 0.55, 2: 0.3, 3: 0.12}
+const FLASH_COLOR := Color(1.0, 0.97, 0.88)
+## «Вжух» начинается раньше смены кадра, чтобы его пик пришёлся на неё.
+const WHOOSH_LEAD := 8
+## Дальше этой черты (мировая z) камера крючка не идёт: там забор двора.
+const HOOK_CAMERA_STOP := -5.2
+## Прыжок ёжика: полдоли.
+const HOP_FRAMES := 7.5
+
+# Кадры смен: всё кратно доле, крупные смены — на границах фраз.
+const AT_LAPSE := 120
+const AT_DONE := 240
+const AT_GATE := 300
+const AT_ROAD := 360
+const AT_SQUARE := 480
+const AT_ORCHARD := 600
+const AT_FESTIVAL := 720
+const AT_TITLE := 780
+const AT_END := 870
 
 var _village: Node3D
 var _player: CharacterBody3D
 var _camera: Camera3D
 var _hud: CanvasLayer
 var _state: Node
+var _sfx: Node
 var _terrain: Node
 var _placeholder: GDScript
 var _juice: GDScript
@@ -30,10 +72,31 @@ var _fields: Array = []
 var _caption: PanelContainer
 var _caption_label: Label
 var _overlay: CanvasLayer
+var _flash: ColorRect
+var _music: AudioStreamPlayer
+var _voices: Array[AudioStreamPlayer] = []
+var _next_voice := 0
+# Находки, о которых звук уже был, и до какого кадра находки не озвучиваются
+# (подготовка сцены открывает их пачкой).
+var _found: Dictionary = {}
+var _quiet_until := 0
+# Кадр ролика (0 — первый) и дела, назначенные на кадры.
+var _frame := 0
+var _cues: Dictionary = {}
+var _cuts: Array[int] = []
+var _walk_pace := WALK_PACE
 # Маршрут героя: точки (x, z) и пройденный по нему путь.
 var _route := PackedVector2Array()
 var _route_at := 0.0
 var _route_length := 0.0
+# Ёжик, уходящий с дороги.
+var _hog: Node3D
+var _hog_path: Array[Vector3] = []
+var _hog_hops: Array[int] = []
+var _hog_start := 0
+# Проверка без записи.
+var _preview := ""
+var _seen: Dictionary = {}
 
 
 func _initialize() -> void:
@@ -46,7 +109,9 @@ func frames(count: int) -> void:
 
 
 func _run() -> void:
+	_preview = OS.get_environment("TRAILER_PREVIEW")
 	_state = root.get_node("GameState")
+	_sfx = root.get_node("Sfx")
 	# Как при запекании карты: сохранение игрока трейлер не трогает.
 	Engine.set_meta("baking_map", true)
 	_state.clear()
@@ -55,8 +120,12 @@ func _run() -> void:
 	# Трейлер на английском: и подписи, и интерфейс игры.
 	_state.language = "en"
 	_state.apply_language()
-	_state.music_enabled = true
 	_state.sound_enabled = true
+	# Музыку ведёт сам трейлер (один трек, с нужного места и в нужном темпе).
+	_state.music_enabled = false
+	_state.settings_changed.emit()
+	AudioServer.set_bus_mute(AudioServer.get_bus_index("Music"), true)
+	AudioServer.set_bus_mute(AudioServer.get_bus_index("SFX"), true)
 	change_scene_to_file("res://scenes/village.tscn")
 	await frames(12)
 	_village = current_scene
@@ -82,122 +151,160 @@ func _run() -> void:
 	# Калитку трейлер показывает сам, в своём кадре.
 	_hud.auto_reveal = false
 	_build_overlay()
+	_music = AudioStreamPlayer.new()
+	_music.stream = load(MUSIC)
+	_music.pitch_scale = MUSIC_BEAT / (BEAT / FPS)
+	_music.volume_db = MUSIC_VOLUME_DB
+	root.add_child(_music)
+	for i in VOICES:
+		var voice := AudioStreamPlayer.new()
+		root.add_child(voice)
+		_voices.append(voice)
 	var yard: Node3D = _village.get_node("Yard")
 	var garden: Node3D = _village.get_node("Garden")
 	var square: Node3D = _village.get_node("Square")
 	var orchard: Node3D = _village.get_node("Orchard")
+	var hedgehog: Node3D = yard.get_node("Hedgehog")
+	# Ёжика трейлер ведёт сам, по долям: игра его «замечать» не должна.
+	hedgehog.set("_noticed", true)
 
-	# Заготовка: пара полос уже скошена, герой — в начале третьей.
-	var lanes: Array[float] = [0.6, 1.35, 2.1, 2.85, 3.6, 4.35, 5.1, 5.85]
-	_set_route(_serpentine(yard, [lanes[0], lanes[1]], 5.6, -5.6))
+	# Расписание: смены кадра, подписи и звуки — всё по долям.
+	for cut: int in [AT_LAPSE, AT_DONE, AT_ROAD, AT_SQUARE, AT_ORCHARD, AT_FESTIVAL]:
+		_cut_at(cut)
+	_caption_at(BEAT, "Turn the overgrown into a cozy garden")
+	_caption_at(AT_LAPSE + BEAT, "Mow it stripe by stripe")
+	_caption_at(AT_LAPSE + BEAT * 4, "Find lost things in the grass")
+	_caption_at(AT_DONE, "The yard is mowed!")
+	_caption_at(AT_GATE, "Open up new places")
+	_caption_at(AT_ROAD + BEAT, "A little village wakes up")
+	_caption_at(AT_SQUARE + BEAT, "Upgrade your mower")
+	_caption_at(AT_SQUARE + BEAT * 4, "Tame the weeds")
+	_caption_at(AT_ORCHARD + BEAT, "Every garden has its own charm")
+	for cut: int in [AT_LAPSE, AT_DONE, AT_ROAD, AT_SQUARE, AT_ORCHARD, AT_FESTIVAL]:
+		_at(cut, _say.bind(""))
+	# Двор выкошен: мелодия на сильную долю, монеты награды — по долям.
+	_at(AT_DONE, _play.bind("complete", -4.0))
+	for i in 3:
+		_at(AT_DONE + BEAT * (i + 1), _play.bind("coin", -11.0, 1.0 + 0.08 * i))
+	_at(AT_GATE, _play.bind("gate", -5.0))
+
+	# Заготовка: пара полос уже скошена, герой — в начале следующей, на ней
+	# в высокой траве сидит ёжик.
+	_set_route(_serpentine(yard, [2.1, 2.85], 5.6, -5.6))
 	while _advance(40.0, yard):
 		pass
-	_set_route(_serpentine(yard, lanes.slice(2), 5.6, -5.6))
+	# Крючок рассчитан от ёжика: на 4-й доле косилка в 2,75 м от него.
+	var notice_at := BEAT * 4
+	var blade_start: float = hedgehog.position.z + 2.75 + WALK_PACE * notice_at / FPS
+	_set_route(_serpentine(yard, [hedgehog.position.x, 4.35, 5.1, 5.85], blade_start, -5.6))
+	_advance(0.01, yard)
+	_teleport()
 	_advance(0.01, yard)
 	_set_hud(false)
 	_camera.set_process(false)
-	_chase_camera(Vector3(2.9, 1.5, -4.6), Vector3(0.0, 0.75, -0.7))
+	_hook_camera(0.0)
+	_hog_cues(hedgehog, notice_at, notice_at + BEAT)
 	await frames(40)
 	print("TRAILER_START ", Engine.get_frames_drawn())
+	_music.play(0.0)
+	_sync_steps(WALK_PACE)
+	_fire()
 
-	# 1. Крючок: косилка идёт сквозь высокую траву, за ней ровная полоса.
-	for i in 96:
-		_advance(2.7, yard)
-		var swing := i / 96.0
-		_chase_camera(Vector3(2.9 - 1.0 * swing, 1.5 + 0.7 * swing, -4.6 + 0.4 * swing), Vector3(0.0, 0.75, -0.7))
-		if i == 14:
-			_say("Turn the overgrown into a cozy garden")
-		await process_frame
+	# 1. Крючок: косилка идёт сквозь высокую траву, за ней ровная полоса;
+	# на пути ёжик — он пугается и прыжками уходит в свой уголок.
+	while _frame < AT_LAPSE:
+		_advance(WALK_PACE, yard)
+		_hook_camera(_frame / float(AT_LAPSE))
+		await _next()
 
 	# 2. Цикл покоса: вид как в игре, двор покрывается полосами, находки.
-	_say("")
 	_set_hud(true)
 	_follow_camera(1)
-	for i in 138:
-		_advance(8.5, yard)
-		if i == 20:
-			_say("Mow it stripe by stripe")
-		if i == 84:
-			_say("Find lost things in the grass")
-		await process_frame
+	_sync_steps(RUN_PACE)
+	while _frame < AT_DONE:
+		# Темп подогнан так, чтобы монетки нашлись ровно на 12-й доле,
+		# а ключ — на 14-й.
+		var pace := 8.5
+		if not _state.has_flag("find_yard_coins"):
+			pace = 8.36
+		elif not _state.has_flag("find_shed_key"):
+			pace = 7.93
+		_advance(pace, yard)
+		await _next()
 
-	# 3. Двор выкошен: конфетти, облёт, награда.
-	_say("")
+	# 3. Двор выкошен: конфетти, герой прыгает; камера уходит к новой калитке.
 	_player.set("_current_speed", 0.0)
+	_hush()
 	yard.field.mow(yard.field.global_position, Vector3.FORWARD, 40.0, 40.0)
-	await frames(8)
-	_say("The yard is mowed!")
-	await frames(76)
-
-	# 4. Камера едет к новой калитке, и она открывается.
-	_hud.call("_reveal_next_plot")
-	await frames(16)
-	_say("Open up new places")
-	await frames(88)
+	var gate: Vector3 = garden.fence.get_gate_position() + Vector3.UP * 0.8
+	_camera.set("_reveal_point", gate)
+	var glide := BEAT * 2
+	while _frame < AT_ROAD:
+		var weight := smoothstep(0.0, 1.0, (_frame - (AT_GATE - glide)) / float(glide))
+		_camera.set("_reveal_weight", weight)
+		# 4. Калитка открывается ровно на сильную долю.
+		if _frame == AT_GATE:
+			garden.reveal()
+		await _next()
 
 	# 5. Дорога через деревню по стрелкам.
-	_say("")
-	_follow_camera(2)
+	var flyover = _camera.get("_flyover")
+	if flyover:
+		flyover.kill()
+	_camera.set("_reveal_weight", 0.0)
+	_camera.set("_yaw_offset", 0.0)
+	_camera.set("_distance_offset", 0.0)
 	_set_route(PackedVector2Array([Vector2(0.0, 9.8), Vector2(0.0, 19.5), Vector2(-2.6, 22.6),
 			Vector2(-4.2, 25.4), Vector2(-9.0, 26.0), Vector2(-15.4, 26.0)]))
 	_teleport()
-	for i in 92:
+	_follow_camera(2)
+	_sync_steps(RUN_PACE)
+	while _frame < AT_SQUARE:
 		_advance(5.2, null)
-		if i == 12:
-			_say("A little village wakes up")
-		await process_frame
+		await _next()
 
-	# 6а. Улучшения: новая косилка в саду бабушки.
-	_say("")
+	# 6. Площадь: улучшенная косилка идёт сквозь бурьян. Один длинный кадр
+	# вместо трёх коротких — видно и новую косилку, и что она умеет.
+	_hush()
 	_complete_silently(yard)
 	garden.reveal()
+	_complete_silently(garden)
 	_state.upgrade_levels = {"blade": 2, "bag": 1, "motor": 2}
 	_state.upgrades_changed.emit()
-	_set_hud(false)
-	_set_route(_serpentine(garden, [-1.2, -0.2], 5.8, -5.8))
-	_teleport()
-	_camera.set_process(false)
-	for i in 46:
-		_advance(3.0, garden)
-		_chase_camera(Vector3(-3.0, 1.9, -4.2), Vector3(0.0, 0.75, -0.6))
-		if i == 6:
-			_say("Upgrade your mower")
-		await process_frame
-
-	# 6б. Площадь: бурьян и широкий нож.
-	_say("")
-	_complete_silently(garden)
 	square.fence.set_gate_open(true, false)
 	square.fence.call("_update_sign", square)
-	_premow(square, 0.45)
-	_set_hud(true)
-	_set_route(_serpentine(square, [7.0, 8.0, 9.0], 8.4, 2.6))
+	_premow(square, 0.49)
+	_set_hud(false)
+	# Начало маршрута подобрано так, чтобы ключ в бурьяне нашёлся на долю.
+	_set_route(PackedVector2Array([_local(square, -0.54, -5.6), _local(square, 10.4, -5.6)]))
 	_teleport()
-	_follow_camera(1)
-	for i in 44:
-		_advance(5.5, square)
-		if i == 6:
-			_say("Tame the weeds")
-		await process_frame
+	_advance(0.01, square)
+	_camera.set_process(false)
+	_sync_steps(WALK_PACE)
+	while _frame < AT_ORCHARD:
+		_advance(WALK_PACE, square)
+		var along := (_frame - AT_SQUARE) / float(AT_ORCHARD - AT_SQUARE)
+		_chase_camera(Vector3(-3.3 + 0.5 * along, 2.1 + 0.5 * along, -4.6 - 0.5 * along), Vector3(0.0, 0.75 + 0.2 * along, -1.2))
+		await _next()
 
-	# 6в. Фруктовый сад: деревья, пруд, лягушки.
-	_say("")
+	# 7. Фруктовый сад: деревья, пруд, полосы — вид как в игре.
+	_hush()
 	_complete_silently(square)
 	square.get_node("Fountain").set_repaired(false)
 	orchard.fence.set_gate_open(true, false)
 	orchard.fence.call("_update_sign", orchard)
-	_premow(orchard, 0.5)
-	_set_route(_serpentine(orchard, [-7.4, -6.4, -5.4], 2.6, -8.6))
+	_premow(orchard, 0.43)
+	_set_hud(true)
+	_set_route(_serpentine(orchard, [-1.6, -0.6, 0.4], 8.0, -0.6))
 	_teleport()
 	_follow_camera(2)
-	for i in 44:
+	_sync_steps(RUN_PACE)
+	while _frame < AT_FESTIVAL:
 		_advance(6.0, orchard)
-		if i == 6:
-			_say("Every garden has its own charm")
-		await process_frame
+		await _next()
 
-	# 7. Финал: праздник в деревне и название.
-	_say("")
+	# 8. Финал: праздник в деревне, залпы по долям и название.
+	_hush()
 	_complete_silently(orchard)
 	_set_hud(false)
 	_set_route(PackedVector2Array([Vector2(1.5, 29.6), Vector2(1.5, 29.0)]))
@@ -210,20 +317,173 @@ func _run() -> void:
 	_camera.zoom_index = 2
 	_camera.set("_distance", 24.0)
 	_camera.call("set_menu", true)
-	_camera.set("_distance_offset", 3.0)
+	_camera.set("_distance_offset", -2.0)
 	_camera.set("_yaw_offset", -24.0)
-	for i in 3:
-		_juice.confetti(_village, Vector3(-4.0 + i * 4.0, 2.6, 24.0 + (i % 2) * 3.0), 70)
-	await frames(26)
-	_show_title()
-	for i in 3:
-		_juice.confetti(_village, Vector3(-3.0 + i * 3.0, 3.0, 27.0), 60)
-	await frames(94)
+	_camera.pitch_degrees = 34.0
+	var volley := 0
+	while _frame < AT_END:
+		if _frame % (BEAT * 2) == 0:
+			# Залп: на сильные доли — большой, название — самый большой.
+			var big := _frame == AT_TITLE
+			for i in (3 if big else 2):
+				var at := Vector3(-5.0 + ((volley * 5 + i * 4) % 11), 2.6 + (volley % 2) * 0.6, 23.0 + ((volley * 3 + i * 2) % 6))
+				_juice.confetti(_village, at, 70 if big else 55)
+				_juice.sparkle(_village, at, Color(1.0, 0.92, 0.6), 24)
+			_play("pop", -5.0 if big else -9.0, 0.8 + 0.1 * (volley % 3))
+			volley += 1
+		if _frame == AT_TITLE:
+			_show_title()
+			_play("stamp", -4.0, 0.9)
+		if _frame >= AT_END - BEAT * 3:
+			_music.volume_db = lerpf(MUSIC_VOLUME_DB, -40.0, (_frame - (AT_END - BEAT * 3)) / float(BEAT * 3))
+		await _next()
 	print("TRAILER_END ", Engine.get_frames_drawn())
 	_state.clear()
 	_state.graphics_quality = -1
 	_state.language = ""
 	quit()
+
+
+# --- Кадры и расписание ---
+
+# Дело на кадр ролика.
+func _at(frame: int, action: Callable) -> void:
+	if not _cues.has(frame):
+		_cues[frame] = []
+	_cues[frame].append(action)
+
+
+# Следующий кадр: ждёт отрисовки текущего и выполняет дела нового.
+func _next() -> void:
+	if _preview != "" and _frame % 6 == 0:
+		await RenderingServer.frame_post_draw
+		root.get_texture().get_image().save_jpg("%s/p%04d.jpg" % [_preview, _frame], 0.8)
+	await process_frame
+	_frame += 1
+	_fire()
+
+
+func _fire() -> void:
+	for action: Callable in _cues.get(_frame, []):
+		action.call()
+	var alpha := 0.0
+	for cut in _cuts:
+		alpha = maxf(alpha, FLASH.get(_frame - cut, 0.0))
+	_flash.color.a = alpha
+	_move_hog()
+	# Находка выпрыгнула из травы — её звук (кроме подготовки сцен).
+	for flag: String in _state.flags:
+		if flag.begins_with("find_") and not _found.has(flag):
+			_found[flag] = true
+			if _frame >= _quiet_until:
+				_play("find", -6.0)
+	if _preview != "":
+		_log_events()
+
+
+# Смена кадра: короткая светлая вспышка и «вжух» с пиком на самой смене.
+func _cut_at(frame: int) -> void:
+	_cuts.append(frame)
+	_at(frame - WHOOSH_LEAD, _play.bind("whoosh", -8.0))
+
+
+func _caption_at(frame: int, text: String) -> void:
+	_at(frame, func() -> void:
+		_say(text)
+		_play("pop", -10.0, 1.25))
+
+
+# Звук трейлера: имя как у игры (assets/audio), громкость и высота.
+func _play(sound: String, volume_db := 0.0, pitch := 1.0) -> void:
+	var variants: Array = _sfx.call("_variants", sound)
+	if variants.is_empty():
+		return
+	var voice := _voices[_next_voice]
+	_next_voice = (_next_voice + 1) % VOICES
+	# Вариант — по кадру, чтобы каждая запись звучала одинаково.
+	voice.stream = variants[_frame % variants.size()]
+	voice.volume_db = volume_db
+	voice.pitch_scale = pitch
+	voice.play()
+	if _preview != "":
+		print("SOUND %d %s %.0f dB" % [_frame, sound, volume_db])
+
+
+# Подготовка сцены: находки, открытые ею разом, не озвучиваются.
+func _hush() -> void:
+	_quiet_until = _frame + 4
+
+
+# Шаги героя с начала цикла и в темпе музыки.
+func _sync_steps(pace: float) -> void:
+	_walk_pace = pace
+	var hero = _player.get("_hero")
+	hero.play("push-walk", pace / 1.9, 0.0)
+	hero.animation.seek(0.0, true)
+
+
+# Журнал для подгонки: на каком кадре что случилось.
+func _log_events() -> void:
+	var now := {}
+	for flag: String in ["find_shed_key", "find_yard_coins", "find_yard_duck", "find_square_key"]:
+		now[flag] = _state.has_flag(flag)
+	for plot_name: String in ["Yard", "Garden"]:
+		now[plot_name + " completed"] = _village.get_node(plot_name).is_completed()
+	now["garden gate"] = not _village.get_node("Garden").reveal_pending and _frame > AT_DONE
+	for key: String in now:
+		if now[key] and not _seen.has(key):
+			_seen[key] = true
+			print("EVENT %d %s" % [_frame, key])
+
+
+# --- Ёжик ---
+
+# Ёжик замечает косилку («!» и прыжок на месте), а долей позже прыжками
+# уходит в свой уголок: по прыжку на полдоли.
+func _hog_cues(animal: Node3D, notice_frame: int, leave_frame: int) -> void:
+	# Вбок с дороги косилки — на уже скошенную полосу, где его хорошо видно, —
+	# и дальше по ней. (В игре он уходит в свой уголок; тут это за кадром.)
+	var aside := animal.global_position + Vector3(-1.5, 0.0, -0.5)
+	_hog_path = [animal.global_position, aside, aside + Vector3(0.4, 0.0, -2.5)]
+	_hog_hops = [2, 3]
+	_hog_start = leave_frame
+	_at(notice_frame, func() -> void:
+		_play("squeak", -5.0)
+		_play("hop", -9.0)
+		_juice.floating_text(animal, animal.global_position + Vector3.UP * 0.9, "!", Color(1.0, 0.9, 0.4))
+		animal.call("_hop_in_place"))
+	_at(leave_frame, func() -> void:
+		_hog = animal
+		animal.set("_moved", true)
+		animal.set("_busy", true)
+		_state.set_flag("animal_" + animal.animal_id)
+		animal.get("_body").process_mode = Node.PROCESS_MODE_DISABLED
+		_play("squeak", -7.0, 1.15))
+	var hops := 0
+	for count in _hog_hops:
+		hops += count
+	for i in hops:
+		_at(leave_frame + roundi(i * HOP_FRAMES), _play.bind("hop", -9.0, 1.0 + 0.05 * i))
+
+
+func _move_hog() -> void:
+	if _hog == null:
+		return
+	var hop := (_frame - _hog_start) / HOP_FRAMES
+	for part in _hog_hops.size():
+		var hops := _hog_hops[part]
+		var last := part == _hog_hops.size() - 1
+		if hop < hops or last:
+			var from := _hog_path[part]
+			var to := _hog_path[part + 1]
+			_hog.look_at(Vector3(to.x, _hog.global_position.y, to.z) + (to - from) * 0.01, Vector3.UP)
+			_hog.call("_travel", minf(hop / hops, 1.0), from, to, hops)
+			if last and hop >= hops:
+				_hog.set("_busy", false)
+				_juice.sparkle(_hog, _hog.global_position + Vector3.UP * 0.4, Color(1.0, 0.75, 0.8))
+				_hog = null
+			return
+		hop -= hops
 
 
 # --- Герой ---
@@ -289,7 +549,7 @@ func _advance(speed: float, plot) -> bool:
 	for field in _fields:
 		field.set_pusher_position(pusher)
 	_placeholder.set_pusher(pusher)
-	_player.set("_current_speed", minf(speed, 3.4))
+	_player.set("_current_speed", _walk_pace)
 	_player.set("_cutting", cutting)
 	var clippings = _player.get("_clippings")
 	if is_instance_valid(clippings):
@@ -361,6 +621,21 @@ func _chase_camera(offset: Vector3, look: Vector3) -> void:
 	_camera.look_at(origin + basis * look, Vector3.UP)
 
 
+# Камера крючка: сначала рядом с героем, затем отходит вперёд и опускает
+# взгляд на траву перед косилкой — туда, где сидит ёжик. along — 0…1.
+func _hook_camera(along: float) -> void:
+	var swing := smoothstep(0.1, 0.5, along)
+	var look := Vector3(0.0, 0.75, -0.7).lerp(Vector3(0.0, 0.4, -2.3), swing)
+	_chase_camera(Vector3(2.9, 1.5, -4.6).lerp(Vector3(3.0, 2.1, -5.7), swing), look)
+	# У дальнего забора камера останавливается, и герой подходит к ней сам;
+	# взгляд при этом возвращается с травы на косилку.
+	var past := HOOK_CAMERA_STOP - _camera.global_position.z
+	if past > 0.0:
+		_camera.global_position.z = HOOK_CAMERA_STOP
+		look = look.lerp(Vector3(0.0, 0.65, -0.9), smoothstep(0.0, 2.5, past))
+		_camera.look_at(_player.global_position + _player.global_basis * look, Vector3.UP)
+
+
 # Обычная игровая камера на ступени масштаба zoom.
 func _follow_camera(zoom: int) -> void:
 	_camera.zoom_index = zoom
@@ -397,6 +672,11 @@ func _build_overlay() -> void:
 	_caption.add_child(_caption_label)
 	_caption.visible = false
 	_overlay.add_child(_caption)
+	_flash = ColorRect.new()
+	_flash.color = Color(FLASH_COLOR, 0.0)
+	_flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_overlay.add_child(_flash)
 
 
 # Подпись внизу экрана; пустая строка её убирает.

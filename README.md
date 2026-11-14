@@ -149,7 +149,7 @@ godot --headless --path . --script tools/bake_map.gd
 
 ![Кадр из трейлера](docs/trailer.jpg)
 
-[docs/trailer.mp4](docs/trailer.mp4) — 26 секунд геймплея на английском (музыка — Kevin MacLeod, CC BY 4.0). Снимается самим движком по сценарию `tools/trailer.gd`:
+[docs/trailer.mp4](docs/trailer.mp4) — 29 секунд геймплея на английском (музыка — «Pleasant Porridge», Kevin MacLeod, CC BY 4.0). Монтаж идёт по музыке: трек чуть ускорен (119 → 120 ударов в минуту), чтобы доля длилась ровно 15 кадров; смены кадра стоят на границах музыкальных фраз, подписи, прыжки ёжика, калитка, залпы и название — на долях, шаги героя — в том же темпе. Снимается самим движком по сценарию `tools/trailer.gd` (с `TRAILER_PREVIEW=<папка>` — быстрый прогон с кадрами-картинками вместо записи):
 
 ```bash
 tools/make_trailer.sh

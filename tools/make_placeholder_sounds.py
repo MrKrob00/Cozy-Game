@@ -139,6 +139,25 @@ def complete():
     return mix(parts, 1.9)
 
 
+def whoosh(duration=0.5, peak_at=0.55):
+    """Мягкий «вжух» для смены кадра в трейлере: шум, полоса которого
+    плывёт вверх и обратно; громче всего в момент peak_at (доля длины)."""
+    n = int(RATE * duration)
+    size, step = 512, 128
+    noise = rng.standard_normal(n + size)
+    out = np.zeros(n + size)
+    window = np.hanning(size)
+    freqs = np.fft.rfftfreq(size, 1 / RATE)
+    for start in range(0, n, step):
+        where = start / n
+        rise = np.exp(-(((where - peak_at) / 0.3) ** 2))
+        center = 500.0 + 2600.0 * rise
+        gain = np.exp(-((np.log2((freqs + 1.0) / center) / 0.7) ** 2))
+        out[start:start + size] += np.fft.irfft(np.fft.rfft(noise[start:start + size] * window) * gain) * window
+    shape = np.exp(-(((np.arange(n) / n - peak_at) / 0.22) ** 2))
+    return envelope(out[:n] * shape, 0.02, 0.08)
+
+
 def chirp(pattern):
     """Птичья трель: pattern — [(пауза до, частота от, частота до, длительность)]."""
     parts, at = [], 0.0
@@ -158,6 +177,7 @@ SOUNDS = {
     "hop": (hop, 0.45),
     "squeak": (squeak, 0.35),
     "complete": (complete, 0.7),
+    "whoosh": (whoosh, 0.5),
     "chirp_1": (lambda: chirp([(0, 3200, 4600, 0.07), (0.05, 3400, 4800, 0.07), (0.05, 3600, 5200, 0.1)]), 0.3),
     "chirp_2": (lambda: chirp([(0, 5200, 3900, 0.09), (0.09, 5200, 3900, 0.09)]), 0.3),
     "chirp_3": (lambda: chirp([(0, 2800, 3500, 0.05)] + [(0.035, 4200, 4500, 0.04)] * 4), 0.28),

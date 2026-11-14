@@ -62,6 +62,8 @@ const TIDY_RADIUS_IDLE := 2.0
 const ROAD_DUST_STEP := 1.1
 ## Радиус колеса косилки (tools/make_models.py), метры.
 const WHEEL_RADIUS := 0.15
+## Рукоятка косилки в её координатах (как в tools/make_models.py, handle).
+const GRIP := Vector3(0.23, 0.8, 0.58)
 
 var interaction_target: Interactable
 ## Сенсорная схема «вести пальцем» (ставит интерфейс; null — джойстик).
@@ -84,6 +86,7 @@ var _clippings: CPUParticles3D
 var _bag: MeshInstance3D
 var _character: Node3D
 var _hero: CharacterModel
+var _hands: HandsOnHandle
 var _wheels: Array[MeshInstance3D] = []
 var _wheel_turn := 0.0
 ## До какого момента (по _time) герой радуется и не держит ручку косилки.
@@ -259,7 +262,10 @@ func _process(delta: float) -> void:
 
 	# Герой катит косилку: шаги — анимация модели в темпе хода, в повороты
 	# он слегка наклоняется.
-	if _time < _cheer_until:
+	var cheering := _time < _cheer_until
+	# Пока герой прыгает от радости, руки свободны; потом снова на ручке.
+	_hands.influence = move_toward(_hands.influence, 0.0 if cheering else 1.0, delta * 6.0)
+	if cheering:
 		pass
 	elif pace > 0.06:
 		_hero.play("push-walk", clampf(_current_speed / 1.9, 0.5, 2.2))
@@ -544,6 +550,9 @@ func _build_character() -> void:
 	var hat := Models.place(_hero.attach("head"), "straw_hat",
 			Vector3(0.0, head.end.y - _hero.bone_height("head") - HAT_SINK, 0.0), hat_scale, 0.0, false)
 	hat.set_meta("no_bake", true)
+	_hands = HandsOnHandle.new()
+	_hands.name = "HandsOnHandle"
+	_hero.skeleton.add_child(_hands)
 
 
 # Косилка из своих моделей (tools/make_models.py): корпус по уровню ножа,
@@ -565,6 +574,13 @@ func _build_mower() -> void:
 	var deck_width := blade_width + 0.1
 	Models.place(_mower, "mower_deck_%d" % level, Vector3.ZERO, 1.0)
 	Models.place(_mower, "mower_handle", Vector3.ZERO, 1.0)
+	# Рукоятки: за них держатся руки героя (HandsOnHandle).
+	_hands.grips.clear()
+	for side: float in [-1.0, 1.0]:
+		var grip := Node3D.new()
+		grip.position = Vector3(GRIP.x * side, GRIP.y, GRIP.z)
+		_mower.add_child(grip)
+		_hands.grips.append(grip)
 	Models.place(_mower, "mower_engine", Vector3(0.0, 0.44, -0.06), engine)
 	_engine_top = 0.44 + 0.3 * engine
 	_engine_cap = Models.place(_mower, "mower_cap", Vector3(0.0, _engine_top, -0.06), engine, 0.0, false)
