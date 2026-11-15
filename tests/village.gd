@@ -172,6 +172,15 @@ func _run() -> void:
 	await frames(3)
 	check(workshop.can_interact(player), "key opens the workshop")
 	check(not yard.get_node("Shed").get("_padlock").visible, "padlock is gone")
+	# Камера сама показывает открывшуюся мастерскую и объясняет, что это.
+	await frames(40)
+	check(village.get_node("Camera").is_revealing(), "the camera goes to show the opened workshop")
+	for i in 600:
+		if not hud.get("_revealing"):
+			break
+		await process_frame
+	check(toasts.any(func(t): return t.begins_with("Ключ подошёл к сараю")), "and says what it is for")
+	check(not hud.get("_revealing") and player.controls_enabled, "after the workshop is shown the player moves again")
 	workshop.interact(player)
 	await frames(2)
 	check(paused and hud.get_node("%WorkshopPanel").visible, "workshop window opens and pauses the game")

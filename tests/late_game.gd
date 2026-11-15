@@ -175,6 +175,7 @@ func _run() -> void:
 	check(not repair.can_interact(player), "fountain cannot be repaired before the square is mowed")
 	await mow_all(square)
 	check(square.is_completed() and orchard.is_unlocked(), "square completes and unlocks the orchard")
+	check(gs.has_flag("bureau_shown"), "the opened Lost & Found is shown by the camera once")
 	check(repair.can_interact(player), "fountain can be repaired after mowing")
 	coins = gs.coins
 	repair.interact(player)

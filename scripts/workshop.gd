@@ -39,4 +39,6 @@ func _unlock(announce: bool) -> void:
 		shed.set_unlocked(announce)
 	if announce:
 		Sfx.play("plant", -4.0)
-		GameState.toast("Ключ подошёл к сараю! Там мастерская — можно улучшить косилку")
+		# Камера едет к сараю, сообщение объясняет, что это и зачем.
+		get_tree().call_group("hud", "show_place", global_position + Vector3.UP * 0.8,
+				L.t("Ключ подошёл к сараю! Там мастерская — можно улучшить косилку"))

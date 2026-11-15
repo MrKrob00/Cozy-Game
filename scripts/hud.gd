@@ -12,6 +12,8 @@ const TOAST_TIME_BUSY := 1.7
 const MAX_WAITING_TOASTS := 2
 ## Пауза перед окном завершения участка, секунд.
 const COMPLETION_DELAY := 1.8
+## Сколько секунд камера показывает открывшееся место (мастерская, бюро).
+const PLACE_HOLD := 3.2
 ## Сколько летят значки награды до счётчика, секунд.
 const FLIGHT_TIME := 0.85
 ## Значок каждого улучшения в мастерской.
@@ -760,8 +762,9 @@ func _on_plot_completed(plot: Plot) -> void:
 # Камера едет к калитке участка, который только что открылся, калитка
 # распахивается, и камера возвращается. Игрок в это время стоит.
 func _reveal_next_plot() -> void:
-	if _revealing:
-		return
+	# Камера занята другим показом (мастерская, бюро) — калитка подождёт.
+	while _revealing:
+		await get_tree().create_timer(0.3).timeout
 	_revealing = true
 	for plot: Plot in get_tree().get_nodes_in_group("plot"):
 		if not plot.reveal_pending:
@@ -776,6 +779,26 @@ func _reveal_next_plot() -> void:
 		await camera.reveal_finished
 		if _player and not _title_panel.visible:
 			_player.controls_enabled = true
+	_revealing = false
+
+
+## Показывает новое место (открылась мастерская, бюро находок): камера едет
+## к нему, сообщение объясняет, что это и зачем, и камера возвращается.
+## Ждёт, пока закроется окно итогов участка и закончится другой показ.
+func show_place(point: Vector3, text: String) -> void:
+	while _completion.visible or _revealing or _title_panel.visible:
+		await get_tree().create_timer(0.3).timeout
+	var camera := get_viewport().get_camera_3d() as FollowCamera
+	if camera == null:
+		GameState.toast(text)
+		return
+	_revealing = true
+	if _player:
+		_player.controls_enabled = false
+	camera.show_point(point, GameState.toast.bind(text), PLACE_HOLD)
+	await camera.reveal_finished
+	if _player and not _title_panel.visible:
+		_player.controls_enabled = true
 	_revealing = false
 
 

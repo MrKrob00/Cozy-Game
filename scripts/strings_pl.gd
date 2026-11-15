@@ -179,4 +179,5 @@ const MESSAGES := {
 	"Посылка с воздушного шара: +%d монет": "Paczka z balonu: +%d monet",
 	"В траве клевер-четырёхлистник! Скосите его, пока не завял": "W trawie czterolistna koniczyna! Skoś ją, zanim zwiędnie",
 	"Четырёхлистник — на удачу! +%d монет": "Koniczyna na szczęście! +%d monet",
+	"Бюро находок открыто! Несите сюда вещи, найденные в траве, — хозяева отблагодарят монетами": "Biuro rzeczy znalezionych otwarte! Przynoś tu rzeczy znalezione w trawie — właściciele odwdzięczą się monetami",
 }
