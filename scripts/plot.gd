@@ -39,6 +39,9 @@ signal milestone(percent: int)
 const WALK_MARGIN := 1.1
 const MILESTONES := [25, 50, 75]
 const MAX_HINTS := 10
+## Один светлячок на столько квадратных метров нескошенной травы: чем меньше
+## её осталось, тем меньше их (над последним пучком — один).
+const HINT_AREA := 0.35
 ## Птицы прилетают на газон, когда скошена эта доля участка; сколько их.
 const BIRDS_FROM := 0.5
 const BIRD_COUNT := 2
@@ -110,7 +113,8 @@ func _process(delta: float) -> void:
 		_hint_timer = HINT_REFRESH
 		_refresh_hints()
 	for i in _hints.size():
-		_hints[i].position.y = 0.7 + sin(_time * 2.6 + i * 1.7) * 0.14
+		if not _hints[i].has_meta("leaving"):
+			_hints[i].position.y = 0.7 + sin(_time * 2.6 + i * 1.7) * 0.14
 	_locked_toast_cooldown -= delta
 	if not is_unlocked() and _locked_toast_cooldown <= 0.0:
 		_check_locked_gate()
@@ -374,14 +378,37 @@ func _build_hints() -> void:
 		_hints.append(hint)
 
 
-# Светлячки висят над остатками травы, когда участок почти выкошен.
+# Светлячки висят над остатками травы, когда участок почти выкошен; лишние
+# (травы стало меньше) улетают вверх и гаснут.
 func _refresh_hints() -> void:
 	var progress := field.get_progress()
 	var spots := PackedVector3Array()
 	if progress >= hints_from and progress < 1.0:
-		spots = field.get_uncut_positions(MAX_HINTS)
+		var count := clampi(ceili(field.get_uncut_area() / HINT_AREA), 1, MAX_HINTS)
+		spots = field.get_uncut_positions(count)
 	for i in _hints.size():
-		_hints[i].visible = i < spots.size()
+		var hint := _hints[i]
 		if i < spots.size():
+			if hint.has_meta("leaving"):
+				continue
+			if not hint.visible:
+				hint.visible = true
+				hint.scale = Vector3.ONE
 			var at := spots[i]
-			_hints[i].global_position = Vector3(at.x, _hints[i].global_position.y, at.z)
+			hint.global_position = Vector3(at.x, hint.global_position.y, at.z)
+		elif hint.visible and not hint.has_meta("leaving"):
+			_fly_away(hint)
+
+
+func _fly_away(hint: Node3D) -> void:
+	hint.set_meta("leaving", true)
+	var tween := hint.create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(hint, "global_position", hint.global_position + Vector3(randf_range(-0.6, 0.6), 1.6,
+			randf_range(-0.6, 0.6)), 0.9).set_ease(Tween.EASE_IN)
+	tween.tween_property(hint, "scale", Vector3.ONE * 0.05, 0.9)
+	tween.set_parallel(false)
+	tween.tween_callback(func() -> void:
+		hint.visible = false
+		hint.scale = Vector3.ONE
+		hint.remove_meta("leaving"))

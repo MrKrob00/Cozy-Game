@@ -247,6 +247,22 @@ func _run() -> void:
 		if h.visible:
 			hints_visible += 1
 	check(field.get_progress() >= 0.9 and hints_visible > 0, "fireflies mark leftovers above 90 %% (visible=%d)" % hints_visible)
+	# Светлячков столько, сколько травы осталось: последний пучок — не все десять.
+	var expected := clampi(ceili(field.get_uncut_area() / plot.HINT_AREA), 1, plot.MAX_HINTS)
+	check(hints_visible == expected, "fireflies follow the grass left (%d for %.1f m2)" % [hints_visible, field.get_uncut_area()])
+	var keep: Vector3 = field.get_uncut_positions(1)[0]
+	plot.set("complete_at", 1.0)
+	for spot in field.get_uncut_positions(4000):
+		if spot.distance_to(keep) > 0.3:
+			field.mow(spot, Vector3.FORWARD, 0.13, 0.13)
+	for i in 90:
+		await process_frame
+	var lit := 0
+	for h in plot.get("_hints"):
+		if h.visible and not h.has_meta("leaving"):
+			lit += 1
+	check(lit == 1, "over the last tuft only one firefly stays, the rest fly off (%d)" % lit)
+	plot.set("complete_at", 0.95)
 	field.mow(Vector3(0, 0, 4.7), Vector3.FORWARD, 14.0, 1.6)
 	await frames(5)
 	check(done[0] == 1 and plot.is_completed(), "plot completes at 95 %")

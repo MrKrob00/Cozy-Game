@@ -469,6 +469,15 @@ func _set_wind(strength: float) -> void:
 	_grass_material.set_shader_parameter("wind_strength", strength)
 
 
+## Сколько квадратных метров травы ещё не скошено.
+func get_uncut_area() -> float:
+	var cells := 0
+	for cell in _blocked.size():
+		if _data[cell * CHANNELS] > 0:
+			cells += 1
+	return cells * cell_size * cell_size
+
+
 func get_uncut_positions(max_count: int) -> PackedVector3Array:
 	var cells := PackedInt32Array()
 	for cell in _blocked.size():
