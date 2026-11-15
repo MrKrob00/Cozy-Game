@@ -671,7 +671,7 @@ def compost_pile():
     import random
     rng = random.Random(7)
     mesh = Mesh()
-    profile = [(0.56, -0.3), (0.56, -0.05), (0.5, 0.12), (0.38, 0.27), (0.2, 0.36), (0.0, 0.39)]
+    profile = [(0.56, -0.2), (0.56, -0.05), (0.5, 0.12), (0.38, 0.27), (0.2, 0.36), (0.0, 0.39)]
     lathe(mesh, profile, (0, 0, 0), srgb((0.36, 0.60, 0.26)), segments=14)
 
     def squared(x, z):

@@ -47,7 +47,29 @@ static func pips(total: int, filled: int, side := 26.0) -> HudIcon:
 	return icon
 
 
+## Значки, снятые с моделей игры (IconStudio); остальные рисуются фигурами.
+const RENDERED := {Kind.GRASS: "grass", Kind.BAG: "bag", Kind.COMPOST: "compost", Kind.MOTOR: "motor"}
+
+var _texture: Texture2D
+
+
+func _ready() -> void:
+	if RENDERED.has(kind):
+		_texture = IconStudio.texture(RENDERED[kind])
+		if _texture:
+			# Картинка снимается в ближайших кадрах: потом перерисоваться.
+			for i in IconStudio.FRAMES + 2:
+				await RenderingServer.frame_post_draw
+			queue_redraw()
+
+
 func _draw() -> void:
+	if _texture:
+		var side := minf(size.x, size.y)
+		if badge:
+			draw_circle(Vector2(side, side) * 0.5, side * 0.5, Color(0.91, 0.84, 0.68))
+		draw_texture_rect(_texture, Rect2(Vector2.ZERO, Vector2(side, side)), false)
+		return
 	var s := minf(size.x, size.y)
 	var c := Vector2(s, s) * 0.5
 	if badge:

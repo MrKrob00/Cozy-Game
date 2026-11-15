@@ -1134,8 +1134,8 @@ func _on_return_pressed(find: FindItem) -> void:
 # мешок у его полоски. Надписи остаются как есть.
 func _add_counter_icons() -> void:
 	_coins_icon = _icon_before(_coins_label, HudIcon.Kind.COIN, 52.0)
-	_compost_icon = _icon_before(_compost_label, HudIcon.Kind.COMPOST, 52.0)
-	_icon_before(_bag_bar.get_parent().get_child(0) as Control, HudIcon.Kind.BAG, 48.0)
+	_compost_icon = _icon_before(_compost_label, HudIcon.Kind.COMPOST, 60.0)
+	_icon_before(_bag_bar.get_parent().get_child(0) as Control, HudIcon.Kind.BAG, 56.0)
 	# Строка участка: значок травы и подпись в один ряд.
 	var rows := _progress_label.get_parent()
 	var line := HBoxContainer.new()
@@ -1144,7 +1144,7 @@ func _add_counter_icons() -> void:
 	rows.add_child(line)
 	rows.move_child(line, _progress_label.get_index())
 	_progress_label.reparent(line)
-	line.add_child(HudIcon.make(HudIcon.Kind.GRASS, 48.0))
+	line.add_child(HudIcon.make(HudIcon.Kind.GRASS, 56.0))
 	line.move_child(line.get_child(1), 0)
 
 
