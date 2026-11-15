@@ -3,9 +3,6 @@ extends Interactable
 ## Компостный ящик: сюда высыпают полный мешок.
 ## Над ящиком появляется стрелка, когда мешок заполнен.
 
-const WOOD := Color(0.70, 0.50, 0.32)
-const WOOD_DARK := Color(0.56, 0.39, 0.25)
-const PILE := Color(0.45, 0.62, 0.25)
 const ARROW := Color(1.0, 0.80, 0.25)
 const SIZE := Vector3(1.3, 0.9, 1.1)
 const ARROW_HEIGHT := 2.3
@@ -69,21 +66,11 @@ func _update_pile(compost: int) -> void:
 
 
 func _build_visuals() -> void:
-	var half := SIZE * 0.5
 	_model = Node3D.new()
 	add_child(_model)
-	# Стенки из досок с щелями, верх открыт.
-	for side: float in [-1.0, 1.0]:
-		for row in 3:
-			var y := 0.17 + row * 0.29
-			Placeholder.part(_model, Placeholder.box(Vector3(SIZE.x, 0.22, 0.06)), WOOD,
-					Vector3(0.0, y, half.z * side))
-			Placeholder.part(_model, Placeholder.box(Vector3(0.06, 0.22, SIZE.z)), WOOD,
-					Vector3(half.x * side, y, 0.0))
-		for z_side: float in [-1.0, 1.0]:
-			Placeholder.part(_model, Placeholder.box(Vector3(0.12, SIZE.y + 0.1, 0.12)), WOOD_DARK,
-					Vector3(half.x * side, (SIZE.y + 0.1) * 0.5, half.z * z_side))
-	_pile = Placeholder.part(_model, Placeholder.sphere(0.52), PILE, Vector3(0.0, 0.25, 0.0))
+	# Ящик из досок и куча в нём — свои модели (tools/make_models.py).
+	Models.place(_model, "compost_bin", Vector3.ZERO, 1.0)
+	_pile = Models.place(_model, "compost_pile", Vector3(0.0, 0.25, 0.0), 1.0)
 	_pile.set_meta("no_bake", true)
 	_model.add_to_group("shadow_dynamic")
 
@@ -121,6 +108,6 @@ func _build_visuals() -> void:
 	var box := BoxShape3D.new()
 	box.size = SIZE
 	shape.shape = box
-	shape.position = Vector3(0.0, half.y, 0.0)
+	shape.position = Vector3(0.0, SIZE.y * 0.5, 0.0)
 	body.add_child(shape)
 	add_child(body)

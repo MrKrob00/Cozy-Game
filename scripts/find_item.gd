@@ -120,57 +120,36 @@ func _collect() -> void:
 
 
 func _build_visuals() -> void:
-	const GOLD := Color(1.0, 0.80, 0.25)
-	const DUCK_YELLOW := Color(1.0, 0.86, 0.22)
-	const BEAK := Color(0.96, 0.52, 0.18)
-	const DARK := Color(0.2, 0.2, 0.24)
-
+	const COIN_SCALE := 0.5
 	_model = Node3D.new()
 	_model.position = Vector3(0.0, 0.15, 0.0)
 	_model.add_to_group("shadow_dynamic")
 	add_child(_model)
+	# Ключ и монеты — Kenney Platformer Kit, остальное — свои модели
+	# (tools/make_models.py).
 	match kind:
 		Kind.KEY:
-			Placeholder.part(_model, Placeholder.cylinder(0.11, 0.04), GOLD,
-					Vector3(0.0, 0.16, 0.0), Vector3(90.0, 0.0, 0.0))
-			Placeholder.part(_model, Placeholder.box(Vector3(0.05, 0.3, 0.04)), GOLD, Vector3(0.0, -0.08, 0.0))
-			Placeholder.part(_model, Placeholder.box(Vector3(0.12, 0.05, 0.04)), GOLD, Vector3(0.05, -0.2, 0.0))
-			Placeholder.part(_model, Placeholder.box(Vector3(0.09, 0.05, 0.04)), GOLD, Vector3(0.04, -0.1, 0.0))
+			# В наборе ключ лежит вдоль X; у нас он стоит бородкой вниз.
+			var key := Models.place(_model, "key", Vector3(0.12, 0.0, 0.0), 1.1)
+			key.rotation.z = PI * 0.5
 		Kind.DUCK:
-			Placeholder.part(_model, Placeholder.sphere(0.16), DUCK_YELLOW, Vector3(0.0, 0.0, 0.0))
-			Placeholder.part(_model, Placeholder.sphere(0.11), DUCK_YELLOW, Vector3(0.0, 0.18, -0.08))
-			Placeholder.part(_model, Placeholder.box(Vector3(0.09, 0.03, 0.09)), BEAK, Vector3(0.0, 0.16, -0.2))
-			for side: float in [-1.0, 1.0]:
-				Placeholder.part(_model, Placeholder.sphere(0.02), DARK, Vector3(0.05 * side, 0.22, -0.16))
+			Models.place(_model, "duck", Vector3.ZERO, 1.0)
 		Kind.GLASSES:
-			for side: float in [-1.0, 1.0]:
-				Placeholder.part(_model, Placeholder.cylinder(0.1, 0.03), Color(0.62, 0.84, 0.94),
-						Vector3(0.12 * side, 0.05, 0.0), Vector3(90.0, 0.0, 0.0))
-				Placeholder.part(_model, Placeholder.box(Vector3(0.03, 0.03, 0.22)), DARK,
-						Vector3(0.22 * side, 0.05, 0.11))
-			Placeholder.part(_model, Placeholder.box(Vector3(0.08, 0.03, 0.03)), DARK, Vector3(0.0, 0.07, 0.0))
+			Models.place(_model, "glasses", Vector3.ZERO, 1.0)
 		Kind.GNOME:
-			Placeholder.part(_model, Placeholder.cylinder(0.13, 0.22, 0.1), Color(0.3, 0.5, 0.85), Vector3(0.0, -0.02, 0.0))
-			Placeholder.part(_model, Placeholder.sphere(0.11), Color(1.0, 0.82, 0.66), Vector3(0.0, 0.17, 0.0))
-			Placeholder.part(_model, Placeholder.sphere(0.09), Color(0.97, 0.97, 0.95), Vector3(0.0, 0.1, -0.07))
-			Placeholder.part(_model, Placeholder.cylinder(0.12, 0.26, 0.0), Color(0.9, 0.3, 0.26), Vector3(0.0, 0.36, 0.0))
+			Models.place(_model, "gnome", Vector3.ZERO, 1.0)
 		Kind.LETTER:
-			Placeholder.part(_model, Placeholder.box(Vector3(0.34, 0.02, 0.24)), Color(0.98, 0.95, 0.86), Vector3(0.0, 0.0, 0.0))
-			Placeholder.part(_model, Placeholder.box(Vector3(0.07, 0.025, 0.08)), Color(0.86, 0.3, 0.28), Vector3(0.11, 0.005, -0.06))
-			Placeholder.part(_model, Placeholder.box(Vector3(0.16, 0.025, 0.02)), DARK, Vector3(-0.05, 0.005, 0.03))
+			Models.place(_model, "letter", Vector3(0.0, -0.1, 0.0), 1.2)
 		Kind.TEAPOT:
-			const ENAMEL := Color(0.4, 0.62, 0.86)
-			Placeholder.part(_model, Placeholder.sphere(0.16), ENAMEL, Vector3(0.0, 0.05, 0.0))
-			Placeholder.part(_model, Placeholder.cylinder(0.1, 0.03), ENAMEL, Vector3(0.0, 0.2, 0.0))
-			Placeholder.part(_model, Placeholder.sphere(0.035), GOLD, Vector3(0.0, 0.24, 0.0))
-			Placeholder.part(_model, Placeholder.cylinder(0.03, 0.18), ENAMEL, Vector3(0.2, 0.09, 0.0), Vector3(0.0, 0.0, -55.0))
-			Placeholder.part(_model, Placeholder.cylinder(0.11, 0.03), ENAMEL, Vector3(-0.19, 0.06, 0.0), Vector3(90.0, 0.0, 0.0))
+			Models.place(_model, "teapot", Vector3.ZERO, 1.0)
 		Kind.COINS:
+			# Стопка из трёх монет и одна рядом, на ребре.
 			for i in 3:
-				Placeholder.part(_model, Placeholder.cylinder(0.11, 0.03), GOLD,
-						Vector3(0.03 * i, -0.05 + 0.045 * i, 0.02 * i))
-			Placeholder.part(_model, Placeholder.cylinder(0.11, 0.03), GOLD,
-					Vector3(0.2, 0.02, 0.05), Vector3(0.0, 0.0, 70.0))
+				var coin := Models.place(_model, "coin", Vector3(0.03 * i - 0.03, -0.06 + 0.075 * i, 0.02 * i - 0.1),
+						COIN_SCALE)
+				coin.rotation.x = PI * 0.5
+			var leaning := Models.place(_model, "coin", Vector3(0.2, -0.1, 0.05), COIN_SCALE, 0.5)
+			leaning.rotation.z = -0.35
 
 	_sparkles = CPUParticles3D.new()
 	_sparkles.position = Vector3(0.0, 0.5, 0.0)

@@ -25,14 +25,11 @@ const ROAD_EDGE := Color(0.70, 0.66, 0.44)
 ## и на сколько метров от участка луг ещё светлеет до него.
 const LAWN := Color(0.52, 0.775, 0.315)
 const LAWN_REACH := 4.5
-const TUFTS := [Color(0.40, 0.66, 0.32), Color(0.52, 0.76, 0.36), Color(0.34, 0.58, 0.32),
-		Color(0.66, 0.76, 0.38)]
+## Полевые цветы: модели wild_flower_0..3 в цветах PETALS (последний цвет — как первый).
+const WILD_FLOWER_KINDS := 4
 const PETALS := [Color(1.0, 0.98, 0.94), Color(1.0, 0.86, 0.32), Color(1.0, 0.58, 0.68),
 		Color(0.74, 0.62, 1.0), Color(1.0, 0.64, 0.34)]
 const ROCKS := [Color(0.66, 0.66, 0.68), Color(0.58, 0.58, 0.62), Color(0.74, 0.72, 0.68)]
-const STEM := Color(0.32, 0.58, 0.30)
-const MUSHROOM_CAP := Color(0.90, 0.32, 0.26)
-const MUSHROOM_STEM := Color(0.98, 0.94, 0.86)
 
 ## Шаг сетки земли, метры, и размер одного куска (кусок — отдельная модель,
 ## чтобы невидимые отсекались).
@@ -226,25 +223,15 @@ static func line_clumps(parent: Node3D, from: Vector3, to: Vector3, free_at: Cal
 
 
 static func tuft(parent: Node3D, at: Vector3, rng: RandomNumberGenerator, size := 1.0) -> void:
-	var color: Color = TUFTS[rng.randi() % TUFTS.size()]
-	for k in rng.randi_range(2, 4):
-		var height := rng.randf_range(0.28, 0.52) * size
-		var blade := Placeholder.part(parent, Placeholder.cylinder(0.06 * size, height, 0.0, 3, false), color,
-				at + Vector3(rng.randf_range(-0.1, 0.1), height * 0.5, rng.randf_range(-0.1, 0.1)),
-				Vector3(rng.randf_range(-28.0, 28.0), rng.randf() * 360.0, rng.randf_range(-28.0, 28.0)))
-		blade.set_meta("sway", 1.0)
-		blade.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Кочка травы — своя лёгкая модель (tools/make_models.py): их на лугу тысячи.
+	Models.place(parent, "tuft_%d" % (rng.randi() % 3), at, size * rng.randf_range(0.85, 1.25),
+			rng.randf() * TAU, false)
 
 
 static func flower(parent: Node3D, at: Vector3, petal: Color, rng: RandomNumberGenerator) -> void:
-	var height := rng.randf_range(0.16, 0.3)
-	var stem := Placeholder.part(parent, Placeholder.cylinder(0.015, height, 0.015, 3, false), STEM,
-			at + Vector3(0.0, height * 0.5, 0.0))
-	var head := Placeholder.part(parent, Placeholder.box(Vector3(0.16, 0.05, 0.16)), petal,
-			at + Vector3(0.0, height, 0.0), Vector3(0.0, rng.randf() * 90.0, 0.0))
-	for flower_part: MeshInstance3D in [stem, head]:
-		flower_part.set_meta("sway", 0.8)
-		flower_part.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Полевой цветок — своя лёгкая модель (tools/make_models.py), вид — по цвету лепестков.
+	var model := "wild_flower_%d" % (PETALS.find(petal) % WILD_FLOWER_KINDS if PETALS.has(petal) else 0)
+	Models.place(parent, model, at, rng.randf_range(0.7, 1.05), rng.randf() * TAU, false)
 
 
 static func rock(parent: Node3D, at: Vector3, size: float, rng: RandomNumberGenerator) -> void:
@@ -254,12 +241,8 @@ static func rock(parent: Node3D, at: Vector3, size: float, rng: RandomNumberGene
 
 
 static func mushroom(parent: Node3D, at: Vector3, rng: RandomNumberGenerator) -> void:
-	var size := rng.randf_range(0.7, 1.2)
-	Placeholder.part(parent, Placeholder.cylinder(0.035 * size, 0.14 * size, 0.03 * size, 5), MUSHROOM_STEM,
-			at + Vector3(0.0, 0.07 * size, 0.0))
-	var cap := Placeholder.part(parent, Placeholder.sphere(0.09 * size, 6), MUSHROOM_CAP,
-			at + Vector3(0.0, 0.15 * size, 0.0))
-	cap.scale = Vector3(1.0, 0.6, 1.0)
+	# Семейка грибов — Kenney Platformer Kit.
+	Models.place(parent, "mushrooms", at, rng.randf_range(0.4, 0.65), rng.randf() * TAU)
 
 
 static func _ground_tile(parent: Node3D, tile: Rect2, noise: FastNoiseLite,

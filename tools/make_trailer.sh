@@ -17,7 +17,7 @@ FADE=$(awk "BEGIN {print ($END - $START) / 30 - 0.6}")
 ffmpeg -y -loglevel error -framerate 30 -i "$OUT/f%08d.png" -i "$OUT/f.wav" \
 	-ss "$SECONDS_FROM" -t "$LENGTH" \
 	-vf "scale=1280:-2:flags=lanczos,fade=t=in:st=$SECONDS_FROM:d=0.25,fade=t=out:st=$(awk "BEGIN {print $SECONDS_FROM + $FADE}"):d=0.6" \
-	-af "afade=t=in:st=$SECONDS_FROM:d=0.02,afade=t=out:st=$(awk "BEGIN {print $SECONDS_FROM + $FADE}"):d=0.6,alimiter=limit=0.9" \
+	-af "volume=6dB,afade=t=in:st=$SECONDS_FROM:d=0.02,afade=t=out:st=$(awk "BEGIN {print $SECONDS_FROM + $FADE}"):d=0.6,alimiter=limit=0.9" \
 	-c:v libx264 -preset slow -crf 26 -pix_fmt yuv420p -c:a aac -b:a 128k -movflags +faststart docs/trailer.mp4
 echo "docs/trailer.mp4: $LENGTH с"
 rm -rf "$OUT"

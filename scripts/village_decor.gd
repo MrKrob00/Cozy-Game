@@ -37,7 +37,6 @@ const BUILDINGS := [
 const VIEW := Vector2(-0.7071, -0.7071)
 const FLAGS := [Color(1.0, 0.45, 0.45), Color(1.0, 0.82, 0.3), Color(0.45, 0.8, 1.0),
 		Color(0.7, 0.55, 1.0), Color(0.55, 0.85, 0.5)]
-const LEAVES := [Color(0.30, 0.62, 0.32), Color(0.40, 0.70, 0.34), Color(0.24, 0.54, 0.36)]
 
 var _terrain: Terrain
 ## Ряды фонарей: между соседними в ряду на празднике висят гирлянды.
@@ -316,10 +315,9 @@ func _build_bushes(rng: RandomNumberGenerator) -> void:
 				if not _is_free(at):
 					continue
 				var size := rng.randf_range(0.3, 0.5)
-				var bush := Placeholder.part(self, Placeholder.sphere(size, 8), LEAVES[rng.randi() % LEAVES.size()],
-						_ground(at.x, at.y) + Vector3(0.0, size * 0.55, 0.0))
-				bush.set_meta("sway", 0.15)
-				bush.scale = Vector3(1.0, 0.8, 1.0)
+				# Кусты — свои модели двух видов (tools/make_models.py).
+				Models.place(self, "bush_%d" % (rng.randi() % 2), _ground(at.x, at.y), size * 0.85,
+						at.x * 1.7 + at.y)
 				_obstacles_extra.append([at, size + 0.2])
 
 

@@ -15,6 +15,8 @@ KayKit раскрашивает модели одной текстурой-па�
   https://github.com/KayKit-Game-Assets/KayKit-Halloween-Bits-1.0
   Kenney Graveyard Kit (папка graveyard с .glb и Textures): https://kenney.nl/assets/graveyard-kit
   Kenney Fantasy Town Kit (папка fantasy-town): https://kenney.nl/assets/fantasy-town-kit
+  Kenney Fantasy Town Kit 2.0 (папка fantasy-town-kit, как в архиве с kenney.nl) — тот же адрес
+  Kenney Platformer Kit (папка platformer-kit): https://kenney.nl/assets/platformer-kit
 """
 
 import base64
@@ -35,6 +37,9 @@ PACKS = {
     "halloween": ("kaykit-halloween-bits-1.0", "addons/kaykit_halloween_bits/Assets/gltf"),
     "graveyard": ("graveyard", ""),
     "fantasy-town": ("fantasy-town", ""),
+    # Наборы Kenney, как они скачиваются с kenney.nl (папка — имя набора).
+    "town": ("fantasy-town-kit", "Models/GLB format"),
+    "platformer": ("platformer-kit", "Models/GLB format"),
 }
 
 # (файл в наборе hex или «набор:файл», имя у нас, качание: None — нет, число —
@@ -91,6 +96,23 @@ MODELS = [
     # Фонтан — Kenney Fantasy Town Kit: починенный (светлый камень) и заброшенный.
     ("fantasy-town:fountain-round-detail.glb", "fountain", None, "-ignore", "new"),
     ("fantasy-town:fountain-round-detail.glb", "fountain_dry", None, "-ignore", "old"),
+    # Забор и столб калитки — Kenney Fantasy Town Kit. В наборе
+    # они стоят на краю клетки вдоль Z; «turn» кладёт длину по X, центр — в начало.
+    ("town:fence.glb", "fence", None, "", "", "turn"),
+    ("town:pillar-wood.glb", "gate_post", None),
+    # Kenney Platformer Kit: указатель, замок, ключ, монета, цветы, грибы, валун.
+    ("platformer:sign.glb", "signpost", None),
+    ("platformer:lock.glb", "padlock", None, "", "gold"),
+    ("platformer:key.glb", "key", None, "", "gold"),
+    ("platformer:coin-gold.glb", "coin", None, "", "gold"),
+    ("platformer:flowers-tall.glb", "flowers_tall", 0.05),
+    ("platformer:flowers-tall.glb", "flowers_tall_yellow", 0.05, "", "petal_yellow"),
+    ("platformer:flowers-tall.glb", "flowers_tall_pink", 0.05, "", "petal_pink"),
+    ("platformer:flowers.glb", "flowers_low", 0.02),
+    ("platformer:flowers.glb", "flowers_low_white", 0.02, "", "petal_white"),
+    ("platformer:flowers.glb", "flowers_low_violet", 0.02, "", "petal_violet"),
+    ("platformer:mushrooms.glb", "mushrooms", None),
+    ("platformer:rocks.glb", "boulder", None),
 ]
 
 COMPONENT = {5120: "b", 5121: "B", 5122: "h", 5123: "H", 5125: "I", 5126: "f"}
@@ -167,11 +189,42 @@ def new_stone(rgb):
     return np.clip(rgb * np.array([1.30, 1.27, 1.20]) + 0.04, 0.0, 1.0)
 
 
-TINTS = {"old": old_stone, "new": new_stone}
+def petals(color):
+    """Перекрашивает лепестки (красные или синие в наборе) в свой цвет,
+    сохраняя светлоту; стебли и жёлтые серединки не трогает."""
+    target = np.array(color)
+
+    def tint(rgb):
+        r, g, b = rgb[:, 0], rgb[:, 1], rgb[:, 2]
+        petal = ((r > g * 1.5) & (r > b * 1.2)) | ((b > r * 1.15) & (b > g * 1.05))
+        luma = (0.3 * r + 0.59 * g + 0.11 * b)[petal, None]
+        rgb[petal] = np.clip(target * (0.55 + luma * 0.9), 0.0, 1.0)
+        return rgb
+    return tint
+
+
+def gold(rgb):
+    """Оранжевое «золото» Kenney — в жёлтое золото игры (как у монет в интерфейсе)."""
+    r, g, b = rgb[:, 0], rgb[:, 1], rgb[:, 2]
+    orange = (r > 0.85) & (g > 0.45) & (g < 0.9) & (b < 0.5)
+    rgb[orange, 1] = g[orange] * 0.55 + 0.42
+    rgb[orange, 2] = b[orange] * 0.7
+    return np.clip(rgb, 0.0, 1.0)
+
+
+TINTS = {
+    "old": old_stone, "new": new_stone, "gold": gold,
+    "petal_yellow": petals((1.0, 0.82, 0.30)), "petal_pink": petals((1.0, 0.62, 0.78)),
+    "petal_white": petals((1.0, 0.98, 0.94)), "petal_violet": petals((0.72, 0.56, 0.98)),
+}
 
 
 def srgb_to_linear(c):
     return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+
+
+def linear_to_srgb(c):
+    return np.where(c <= 0.0031308, c * 12.92, 1.055 * np.power(np.maximum(c, 0.0), 1 / 2.4) - 0.055)
 
 
 def pack_path(roots, source):
@@ -200,13 +253,16 @@ def load_gltf(path):
     return gltf, [open(os.path.join(folder, b["uri"]), "rb").read() for b in gltf["buffers"]]
 
 
-def convert(roots, source, name, sway_from, part="", tint=""):
+def convert(roots, source, name, sway_from, part="", tint="", fit=""):
     path = pack_path(roots, source)
     folder = os.path.dirname(path)
     gltf, buffers = load_gltf(path)
-    palette = np.asarray(Image.open(os.path.join(folder, gltf["images"][0]["uri"])).convert("RGB"),
-                         dtype=np.float64) / 255.0
-    height, width = palette.shape[:2]
+    # Цвет — из текстуры-палитры или, у старых наборов Kenney, прямо из материала.
+    palette = None
+    if gltf.get("images"):
+        palette = np.asarray(Image.open(os.path.join(folder, gltf["images"][0]["uri"])).convert("RGB"),
+                             dtype=np.float64) / 255.0
+        height, width = palette.shape[:2]
 
     positions, normals, colors, indices = [], [], [], []
 
@@ -228,16 +284,24 @@ def convert(roots, source, name, sway_from, part="", tint=""):
                 attributes = primitive["attributes"]
                 pos = read_accessor(gltf, buffers, attributes["POSITION"])
                 nrm = read_accessor(gltf, buffers, attributes["NORMAL"])
-                uv = read_accessor(gltf, buffers, attributes["TEXCOORD_0"])
                 idx = read_accessor(gltf, buffers, primitive["indices"])[:, 0].astype(np.int64)
                 pos = (matrix @ np.c_[pos, np.ones(len(pos))].T).T[:, :3]
                 normal_matrix = np.linalg.inv(matrix[:3, :3]).T
                 nrm = (normal_matrix @ nrm.T).T
                 nrm /= np.linalg.norm(nrm, axis=1, keepdims=True) + 1e-9
-                px = np.clip((uv[:, 0] % 1.0) * width, 0, width - 1).astype(int)
-                py = np.clip((uv[:, 1] % 1.0) * height, 0, height - 1).astype(int)
+                pbr = gltf["materials"][primitive["material"]].get("pbrMetallicRoughness", {}) \
+                    if "material" in primitive else {}
+                if palette is not None and "baseColorTexture" in pbr and "TEXCOORD_0" in attributes:
+                    uv = read_accessor(gltf, buffers, attributes["TEXCOORD_0"])
+                    px = np.clip((uv[:, 0] % 1.0) * width, 0, width - 1).astype(int)
+                    py = np.clip((uv[:, 1] % 1.0) * height, 0, height - 1).astype(int)
+                    flat = palette[py, px].copy()
+                else:
+                    # Цвет материала в glTF линейный, а цвета вершин мы пишем в sRGB.
+                    factor = np.array(pbr.get("baseColorFactor", [1, 1, 1, 1])[:3], dtype=np.float64)
+                    flat = np.tile(linear_to_srgb(factor), (len(pos), 1))
                 # В sRGB, как есть: Godot сам переводит цвета вершин в линейные.
-                rgb = harmonize(palette[py, px].copy())
+                rgb = harmonize(flat)
                 if tint:
                     rgb = TINTS[tint](rgb)
                 start = sum(len(p) for p in positions)
@@ -251,8 +315,17 @@ def convert(roots, source, name, sway_from, part="", tint=""):
     for root in gltf["scenes"][gltf.get("scene", 0)]["nodes"]:
         visit(root, np.eye(4))
 
-    pos = np.concatenate(positions).astype(np.float32)
-    nrm = np.concatenate(normals).astype(np.float32)
+    pos = np.concatenate(positions)
+    nrm = np.concatenate(normals)
+    if fit == "turn":
+        # Длина модели — вдоль X, середина — в начале координат.
+        pos = np.stack([pos[:, 2], pos[:, 1], -pos[:, 0]], axis=1)
+        nrm = np.stack([nrm[:, 2], nrm[:, 1], -nrm[:, 0]], axis=1)
+        middle = (pos.min(axis=0) + pos.max(axis=0)) / 2
+        pos[:, 0] -= middle[0]
+        pos[:, 2] -= middle[2]
+    pos = pos.astype(np.float32)
+    nrm = nrm.astype(np.float32)
     rgb = np.concatenate(colors)
     alpha = np.zeros(len(pos))
     if sway_from is not None:

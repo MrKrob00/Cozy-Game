@@ -162,22 +162,6 @@ func _build_cat() -> void:
 		village.festival_started.connect(func(_announce: bool) -> void: cat.play("dance"))
 
 
-# Ёжик пока собран из примитивов: готовой модели в нужном стиле не нашлось.
+# Ёжик — своя модель (tools/make_models.py): готовой в нужном стиле не нашлось.
 func _build_hedgehog() -> void:
-	const SPIKES := Color(0.45, 0.32, 0.24)
-	const FACE := Color(0.93, 0.80, 0.64)
-	const DARK := Color(0.15, 0.13, 0.13)
-	var back := Placeholder.part(_model, Placeholder.sphere(0.3), SPIKES, Vector3(0.0, 0.24, 0.05))
-	back.scale = Vector3(1.0, 0.85, 1.2)
-	Placeholder.part(_model, Placeholder.sphere(0.17), FACE, Vector3(0.0, 0.17, -0.3))
-	Placeholder.part(_model, Placeholder.sphere(0.045), DARK, Vector3(0.0, 0.17, -0.47))
-	for side: float in [-1.0, 1.0]:
-		Placeholder.part(_model, Placeholder.sphere(0.03), DARK, Vector3(0.08 * side, 0.24, -0.42))
-		Placeholder.part(_model, Placeholder.sphere(0.06), FACE, Vector3(0.14 * side, 0.3, -0.24))
-	# Иголки.
-	for i in 9:
-		var angle := TAU * i / 9.0
-		var tilt := 35.0 + 25.0 * (i % 2)
-		var spike := Placeholder.part(_model, Placeholder.cylinder(0.05, 0.2, 0.0), SPIKES,
-				Vector3(sin(angle) * 0.17, 0.44, 0.07 + cos(angle) * 0.2))
-		spike.rotation_degrees = Vector3(cos(angle) * tilt, 0.0, -sin(angle) * tilt)
+	Models.place(_model, "hedgehog", Vector3.ZERO, 0.9)

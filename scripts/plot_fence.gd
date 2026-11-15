@@ -1,7 +1,9 @@
 class_name PlotFence
 extends Node3D
 ## Забор участка с калиткой. Стоит в начале координат участка.
-## Всё временное, из примитивов (см. Placeholder).
+## Секции забора и столбы калитки — Kenney Fantasy Town Kit, указатель —
+## Kenney Platformer Kit (tools/convert_kaykit.py), кусты изгороди — свои
+## модели (tools/make_models.py).
 
 ## Отступ забора от края поля в метрах.
 @export var fence_offset := 2.5
@@ -13,10 +15,11 @@ extends Node3D
 @export var gate_width := 2.4
 @export var random_seed := 7
 
-const WOOD := Color(0.72, 0.52, 0.34)
-const WOOD_DARK := Color(0.56, 0.39, 0.25)
-const LEAVES := [Color(0.30, 0.62, 0.32), Color(0.40, 0.70, 0.34), Color(0.24, 0.54, 0.36)]
-const POST_SPACING := 2.0
+## Секция забора в наборе — метр длиной и 0,38 м высотой: во столько раз она
+## увеличена, такой длины секции и нарезаются.
+const FENCE_SCALE := 2.5
+const GATE_POST_SCALE := 1.35
+const SIGN_SCALE := 2.5
 const GATE_OPEN_ANGLE := 1.9
 const ARROW_HEIGHT := 2.6
 const ARROW_COLOR := Color(1.0, 0.80, 0.25)
@@ -51,8 +54,7 @@ func _ready() -> void:
 	_fence_run(Vector3(-_half.x, 0.0, _half.y), Vector3(gate_left, 0.0, _half.y))
 	_fence_run(Vector3(gate_right, 0.0, _half.y), Vector3(_half.x, 0.0, _half.y))
 	for x: float in [gate_left, gate_right]:
-		Placeholder.part(self, Placeholder.box(Vector3(0.2, 1.3, 0.2)), WOOD_DARK, Vector3(x, 0.65, _half.y))
-		Placeholder.part(self, Placeholder.sphere(0.14), WOOD_DARK, Vector3(x, 1.36, _half.y))
+		Models.place(self, "gate_post", Vector3(x, 0.0, _half.y), GATE_POST_SCALE)
 	_build_gate(gate_left)
 	_build_signpost.call_deferred(gate_right)
 
@@ -66,13 +68,10 @@ func _build_signpost(gate_right: float) -> void:
 	post.name = "Signpost"
 	post.position = Vector3(gate_right + 0.9, 0.0, _half.y + 0.8)
 	add_child(post)
-	Placeholder.part(post, Placeholder.box(Vector3(0.14, 1.6, 0.14)), WOOD_DARK, Vector3(0.0, 0.8, 0.0))
-	Placeholder.part(post, Placeholder.box(Vector3(1.5, 0.55, 0.08)), WOOD, Vector3(0.0, 1.45, 0.0))
-	Placeholder.part(post, Placeholder.prism(Vector3(0.3, 0.3, 0.08)), WOOD, Vector3(0.9, 1.45, 0.0),
-			Vector3(0.0, 0.0, -90.0))
+	Models.place(post, "signpost", Vector3.ZERO, SIGN_SCALE)
 	Placeholder.bake_tree(post)
 	_sign_label = Label3D.new()
-	_sign_label.position = Vector3(0.0, 2.15, 0.0)
+	_sign_label.position = Vector3(0.0, 2.0, 0.0)
 	_sign_label.font_size = 54
 	_sign_label.pixel_size = 0.006
 	_sign_label.outline_size = 18
@@ -196,15 +195,10 @@ func _build_gate(gate_left: float) -> void:
 	_gate.add_to_group("shadow_dynamic")
 	_gate.position = Vector3(gate_left + 0.1, 0.0, _half.y)
 	add_child(_gate)
+	# Створка — та же секция забора, по ширине проёма.
 	var width := gate_width - 0.25
-	for height: float in [0.3, 0.8]:
-		Placeholder.part(_gate, Placeholder.box(Vector3(width, 0.1, 0.06)), WOOD,
-				Vector3(width * 0.5, height, 0.0))
-	var planks := 5
-	for i in planks:
-		var x := width * (i + 0.5) / planks
-		Placeholder.part(_gate, Placeholder.box(Vector3(0.16, 0.9 + 0.08 * sin(PI * (i + 0.5) / planks), 0.05)),
-				WOOD, Vector3(x, 0.5, 0.03))
+	var leaf := Models.place(_gate, "fence", Vector3(width * 0.5, 0.0, 0.0), 1.0)
+	leaf.scale = Vector3(width, FENCE_SCALE * 0.92, FENCE_SCALE)
 	_gate.rotation.y = GATE_OPEN_ANGLE if _gate_open else 0.0
 
 
@@ -212,15 +206,12 @@ func _fence_run(from: Vector3, to: Vector3) -> void:
 	var length := from.distance_to(to)
 	if length < 0.1:
 		return
-	var yaw := atan2(to.x - from.x, to.z - from.z)
-	var posts := maxi(roundi(length / POST_SPACING), 1)
-	var post := Placeholder.box(Vector3(0.14, 0.9, 0.14))
-	for i in posts + 1:
-		Placeholder.part(self, post, WOOD, from.lerp(to, float(i) / posts) + Vector3(0.0, 0.45, 0.0))
-	for height: float in [0.35, 0.7]:
-		var rail := Placeholder.part(self, Placeholder.box(Vector3(0.06, 0.08, length)), WOOD,
-				(from + to) * 0.5 + Vector3(0.0, height, 0.0))
-		rail.rotation.y = yaw
+	# Секции одной длины, чуть растянутые или сжатые, чтобы уложиться в пролёт.
+	var yaw := atan2(-(to.z - from.z), to.x - from.x)
+	var sections := maxi(roundi(length / FENCE_SCALE), 1)
+	for i in sections:
+		var section := Models.place(self, "fence", from.lerp(to, (i + 0.5) / sections), 1.0, yaw)
+		section.scale = Vector3(length / sections, FENCE_SCALE, FENCE_SCALE)
 
 
 # Кусты вдоль дальней стороны, в промежутках между постройками.
@@ -242,9 +233,6 @@ func _build_hedge() -> void:
 			if absf(to_local(building.global_position).x - x) < building.get_width() * 0.5 + 0.7:
 				blocked = true
 		if not blocked:
-			var size := rng.randf_range(0.6, 0.85)
-			var color: Color = LEAVES[rng.randi() % LEAVES.size()]
-			var bush := Placeholder.part(self, Placeholder.sphere(size), color,
-					Vector3(x, size * 0.6, z + rng.randf_range(-0.2, 0.2)))
-			bush.scale = Vector3(1.0, 0.8, 1.0)
+			Models.place(self, "bush_%d" % (rng.randi() % 2), Vector3(x, 0.0, z + rng.randf_range(-0.2, 0.2)),
+					rng.randf_range(0.48, 0.62), rng.randf() * TAU)
 		x += 1.0

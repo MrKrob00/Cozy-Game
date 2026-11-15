@@ -13,9 +13,9 @@ extends SceneTree
 ## название — в самом конце. «Показывай мечту, а не работу»: никаких меню.
 ##
 ## Монтаж идёт по музыке. Трек чуть ускорен, чтобы доля длилась ровно BEAT
-## кадров; смены кадра стоят на сильных долях и на границах фраз (каждые
-## 16 долей), подписи, прыжки ёжика, калитка, залпы и название — на долях.
-## Шаги героя тоже в темпе: цикл анимации равен одной доле.
+## кадров; смены кадра стоят на границах тактов, подписи, прыжки ёжика,
+## калитка, находки, залпы и название — на долях. Шаги героя тоже в темпе.
+## Звук — фоном под музыкой, и только важное: ёжик, находки, «двор выкошен».
 ##
 ## Проверка без записи: TRAILER_PREVIEW=<папка> — каждый шестой кадр
 ## сохраняется картинкой, в журнал пишутся кадры событий.
@@ -25,39 +25,44 @@ extends SceneTree
 
 const FPS := 30.0
 const CUT_LENGTH := 0.4
-## Кадров на долю: 120 ударов в минуту.
-const BEAT := 15
-const MUSIC := "res://assets/music/pleasant_porridge.ogg"
-## Доля в записи трека, секунд (119 уд/мин): трек ускоряется до BEAT кадров.
-const MUSIC_BEAT := 0.50422
+## Кадров на долю: 128,6 удара в минуту.
+const BEAT := 14
+## Уютная, тёплая: гитара и пианино, без тубы и барабанов.
+const MUSIC := "res://assets/music/wholesome.ogg"
+## Доля в записи трека, секунд (127,85 уд/мин): трек ускоряется до BEAT кадров.
+const MUSIC_BEAT := 0.4693
+## Первая доля в записи трека, секунд: с неё трек и начинается.
+const MUSIC_FIRST_BEAT := 0.256
 const MUSIC_VOLUME_DB := -4.0
+## Звуки — тихо, под музыкой.
+const SFX_VOLUME_DB := -15.0
 ## Свои голоса для звуков: игровые звуки в трейлере заглушены (при смене
 ## кадра и подготовке сцен игра выдаёт их пачками и невпопад), а трейлер
 ## ставит нужные сам — по долям и по событиям в кадре.
 const VOICES := 10
-## Скорость героя, при которой цикл шагов длится ровно долю (и вдвое чаще).
-const WALK_PACE := 2.5333
-const RUN_PACE := 3.8
+## Скорость героя, при которой цикл шагов (два шага) длится ровно долю:
+## анимация «walk» — 0,667 с при скорости 1,9 м/с.
+const WALK_PACE := 0.6667 * 1.9 / (BEAT / FPS)
+## Скорость покоса в ускоренном показе двора.
+const LAPSE_PACE := 7.5
 ## Вспышка на смене кадра: прозрачность по кадрам от самой смены.
 const FLASH := {-2: 0.3, -1: 0.65, 0: 0.85, 1: 0.55, 2: 0.3, 3: 0.12}
 const FLASH_COLOR := Color(1.0, 0.97, 0.88)
-## «Вжух» начинается раньше смены кадра, чтобы его пик пришёлся на неё.
-const WHOOSH_LEAD := 8
 ## Дальше этой черты (мировая z) камера крючка не идёт: там забор двора.
 const HOOK_CAMERA_STOP := -5.2
 ## Прыжок ёжика: полдоли.
-const HOP_FRAMES := 7.5
+const HOP_FRAMES := BEAT * 0.5
 
-# Кадры смен: всё кратно доле, крупные смены — на границах фраз.
-const AT_LAPSE := 120
-const AT_DONE := 240
-const AT_GATE := 300
-const AT_ROAD := 360
-const AT_SQUARE := 480
-const AT_ORCHARD := 600
-const AT_FESTIVAL := 720
-const AT_TITLE := 780
-const AT_END := 870
+# Кадры смен: в долях, смены — на границах тактов (по 4 доли).
+const AT_LAPSE := BEAT * 12
+const AT_DONE := BEAT * 24
+const AT_GATE := BEAT * 28
+const AT_ROAD := BEAT * 32
+const AT_SQUARE := BEAT * 40
+const AT_ORCHARD := BEAT * 48
+const AT_FESTIVAL := BEAT * 60
+const AT_TITLE := BEAT * 64
+const AT_END := BEAT * 72
 
 var _village: Node3D
 var _player: CharacterBody3D
@@ -80,6 +85,11 @@ var _next_voice := 0
 # (подготовка сцены открывает их пачкой).
 var _found: Dictionary = {}
 var _quiet_until := 0
+# Находки двора: где на маршруте нож до них доходит (м) и на какой кадр
+# (долю) это подогнано.
+var _find_marks: Array[float] = []
+var _find_frames: Dictionary = {}
+var _find_sounds := false
 # Кадр ролика (0 — первый) и дела, назначенные на кадры.
 var _frame := 0
 var _cues: Dictionary = {}
@@ -182,21 +192,25 @@ func _run() -> void:
 	_caption_at(AT_ORCHARD + BEAT, "Every garden has its own charm")
 	for cut: int in [AT_LAPSE, AT_DONE, AT_ROAD, AT_SQUARE, AT_ORCHARD, AT_FESTIVAL]:
 		_at(cut, _say.bind(""))
-	# Двор выкошен: мелодия на сильную долю, монеты награды — по долям.
-	_at(AT_DONE, _play.bind("complete", -4.0))
-	for i in 3:
-		_at(AT_DONE + BEAT * (i + 1), _play.bind("coin", -11.0, 1.0 + 0.08 * i))
-	_at(AT_GATE, _play.bind("gate", -5.0))
+	# Двор выкошен: короткая мелодия на сильную долю.
+	_at(AT_DONE, _play.bind("complete", SFX_VOLUME_DB + 2.0))
 
 	# Заготовка: пара полос уже скошена, герой — в начале следующей, на ней
 	# в высокой траве сидит ёжик.
 	_set_route(_serpentine(yard, [2.1, 2.85], 5.6, -5.6))
 	while _advance(40.0, yard):
 		pass
-	# Крючок рассчитан от ёжика: на 4-й доле косилка в 2,75 м от него.
-	var notice_at := BEAT * 4
+	# Крючок рассчитан от ёжика: на 5-й доле косилка в 2,75 м от него.
+	var notice_at := BEAT * 5
 	var blade_start: float = hedgehog.position.z + 2.75 + WALK_PACE * notice_at / FPS
-	_set_route(_serpentine(yard, [hedgehog.position.x, 4.35, 5.1, 5.85], blade_start, -5.6))
+	_set_route(_serpentine(yard, [hedgehog.position.x, 4.35, 5.1, 5.85, 6.6], blade_start, -5.6))
+	for find in get_nodes_in_group("find"):
+		if yard.is_ancestor_of(find) and not find.call("is_collected"):
+			var mark := _route_reach(Vector2(find.global_position.x, find.global_position.z),
+					_player.get_cut_width() * 0.5 - 0.05)
+			if mark >= 0.0:
+				_find_marks.append(mark)
+	_find_marks.sort()
 	_advance(0.01, yard)
 	_teleport()
 	_advance(0.01, yard)
@@ -206,7 +220,7 @@ func _run() -> void:
 	_hog_cues(hedgehog, notice_at, notice_at + BEAT)
 	await frames(40)
 	print("TRAILER_START ", Engine.get_frames_drawn())
-	_music.play(0.0)
+	_music.play(MUSIC_FIRST_BEAT)
 	_sync_steps(WALK_PACE)
 	_fire()
 
@@ -220,17 +234,11 @@ func _run() -> void:
 	# 2. Цикл покоса: вид как в игре, двор покрывается полосами, находки.
 	_set_hud(true)
 	_follow_camera(1)
-	_sync_steps(RUN_PACE)
+	_find_sounds = true
 	while _frame < AT_DONE:
-		# Темп подогнан так, чтобы монетки нашлись ровно на 12-й доле,
-		# а ключ — на 14-й.
-		var pace := 8.5
-		if not _state.has_flag("find_yard_coins"):
-			pace = 8.36
-		elif not _state.has_flag("find_shed_key"):
-			pace = 7.93
-		_advance(pace, yard)
+		_advance(_beat_pace(LAPSE_PACE), yard)
 		await _next()
+	_find_sounds = false
 
 	# 3. Двор выкошен: конфетти, герой прыгает; камера уходит к новой калитке.
 	_player.set("_current_speed", 0.0)
@@ -258,7 +266,6 @@ func _run() -> void:
 			Vector2(-4.2, 25.4), Vector2(-9.0, 26.0), Vector2(-15.4, 26.0)]))
 	_teleport()
 	_follow_camera(2)
-	_sync_steps(RUN_PACE)
 	while _frame < AT_SQUARE:
 		_advance(5.2, null)
 		await _next()
@@ -275,12 +282,10 @@ func _run() -> void:
 	square.fence.call("_update_sign", square)
 	_premow(square, 0.49)
 	_set_hud(false)
-	# Начало маршрута подобрано так, чтобы ключ в бурьяне нашёлся на долю.
 	_set_route(PackedVector2Array([_local(square, -0.54, -5.6), _local(square, 10.4, -5.6)]))
 	_teleport()
 	_advance(0.01, square)
 	_camera.set_process(false)
-	_sync_steps(WALK_PACE)
 	while _frame < AT_ORCHARD:
 		_advance(WALK_PACE, square)
 		var along := (_frame - AT_SQUARE) / float(AT_ORCHARD - AT_SQUARE)
@@ -295,12 +300,12 @@ func _run() -> void:
 	orchard.fence.call("_update_sign", orchard)
 	_premow(orchard, 0.43)
 	_set_hud(true)
-	_set_route(_serpentine(orchard, [-1.6, -0.6, 0.4], 8.0, -0.6))
+	# Сад показан дольше: деревья, пруд, полосы на газоне.
+	_set_route(_serpentine(orchard, [-1.6, -0.6, 0.4, 1.4], 8.0, -0.6))
 	_teleport()
 	_follow_camera(2)
-	_sync_steps(RUN_PACE)
 	while _frame < AT_FESTIVAL:
-		_advance(6.0, orchard)
+		_advance(5.4, orchard)
 		await _next()
 
 	# 8. Финал: праздник в деревне, залпы по долям и название.
@@ -323,19 +328,18 @@ func _run() -> void:
 	var volley := 0
 	while _frame < AT_END:
 		if _frame % (BEAT * 2) == 0:
-			# Залп: на сильные доли — большой, название — самый большой.
+			# Залпы конфетти через долю (без звука: звучит музыка), под
+			# название — самый большой.
 			var big := _frame == AT_TITLE
 			for i in (3 if big else 2):
 				var at := Vector3(-5.0 + ((volley * 5 + i * 4) % 11), 2.6 + (volley % 2) * 0.6, 23.0 + ((volley * 3 + i * 2) % 6))
 				_juice.confetti(_village, at, 70 if big else 55)
 				_juice.sparkle(_village, at, Color(1.0, 0.92, 0.6), 24)
-			_play("pop", -5.0 if big else -9.0, 0.8 + 0.1 * (volley % 3))
 			volley += 1
 		if _frame == AT_TITLE:
 			_show_title()
-			_play("stamp", -4.0, 0.9)
-		if _frame >= AT_END - BEAT * 3:
-			_music.volume_db = lerpf(MUSIC_VOLUME_DB, -40.0, (_frame - (AT_END - BEAT * 3)) / float(BEAT * 3))
+		if _frame >= AT_END - BEAT * 4:
+			_music.volume_db = lerpf(MUSIC_VOLUME_DB, -40.0, (_frame - (AT_END - BEAT * 4)) / float(BEAT * 4))
 		await _next()
 	print("TRAILER_END ", Engine.get_frames_drawn())
 	_state.clear()
@@ -371,26 +375,48 @@ func _fire() -> void:
 		alpha = maxf(alpha, FLASH.get(_frame - cut, 0.0))
 	_flash.color.a = alpha
 	_move_hog()
-	# Находка выпрыгнула из травы — её звук (кроме подготовки сцен).
+	# Находка выпрыгнула из травы — её звук (только во дворе, тихо).
 	for flag: String in _state.flags:
 		if flag.begins_with("find_") and not _found.has(flag):
 			_found[flag] = true
-			if _frame >= _quiet_until:
-				_play("find", -6.0)
+			if _find_sounds and _frame >= _quiet_until:
+				_play("find", SFX_VOLUME_DB)
 	if _preview != "":
 		_log_events()
 
 
-# Смена кадра: короткая светлая вспышка и «вжух» с пиком на самой смене.
+# Смена кадра: короткая светлая вспышка, без звука.
 func _cut_at(frame: int) -> void:
 	_cuts.append(frame)
-	_at(frame - WHOOSH_LEAD, _play.bind("whoosh", -8.0))
 
 
 func _caption_at(frame: int, text: String) -> void:
-	_at(frame, func() -> void:
-		_say(text)
-		_play("pop", -10.0, 1.25))
+	_at(frame, _say.bind(text))
+
+
+# Скорость покоса, при которой следующая находка выпрыгнет ровно на долю:
+# доля выбирается один раз — ближайшая к тому, когда это вышло бы само.
+func _beat_pace(base: float) -> float:
+	for mark in _find_marks:
+		if mark <= _route_at + 0.01:
+			continue
+		if not _find_frames.has(mark):
+			var natural := _frame + (mark - _route_at) / (base / FPS)
+			_find_frames[mark] = maxi(roundi(natural / BEAT) * BEAT, _frame + BEAT)
+		var left: int = _find_frames[mark] - _frame
+		return (mark - _route_at) / (maxi(left, 1) / FPS)
+	return base
+
+
+# Где на маршруте нож впервые проходит над точкой (в пределах reach), или −1.
+func _route_reach(target: Vector2, reach: float) -> float:
+	var along := 0.0
+	while along < _route_length:
+		var point: Vector2 = _route_point(along)[0]
+		if point.distance_to(target) < reach:
+			return along
+		along += 0.02
+	return -1.0
 
 
 # Звук трейлера: имя как у игры (assets/audio), громкость и высота.
@@ -448,8 +474,7 @@ func _hog_cues(animal: Node3D, notice_frame: int, leave_frame: int) -> void:
 	_hog_hops = [2, 3]
 	_hog_start = leave_frame
 	_at(notice_frame, func() -> void:
-		_play("squeak", -5.0)
-		_play("hop", -9.0)
+		_play("squeak", SFX_VOLUME_DB + 1.0)
 		_juice.floating_text(animal, animal.global_position + Vector3.UP * 0.9, "!", Color(1.0, 0.9, 0.4))
 		animal.call("_hop_in_place"))
 	_at(leave_frame, func() -> void:
@@ -457,13 +482,7 @@ func _hog_cues(animal: Node3D, notice_frame: int, leave_frame: int) -> void:
 		animal.set("_moved", true)
 		animal.set("_busy", true)
 		_state.set_flag("animal_" + animal.animal_id)
-		animal.get("_body").process_mode = Node.PROCESS_MODE_DISABLED
-		_play("squeak", -7.0, 1.15))
-	var hops := 0
-	for count in _hog_hops:
-		hops += count
-	for i in hops:
-		_at(leave_frame + roundi(i * HOP_FRAMES), _play.bind("hop", -9.0, 1.0 + 0.05 * i))
+		animal.get("_body").process_mode = Node.PROCESS_MODE_DISABLED)
 
 
 func _move_hog() -> void:

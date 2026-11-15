@@ -9,10 +9,9 @@ extends Interactable
 @export var bed_size := Vector2(2.0, 0.9)
 @export var compost_cost := 5
 
-const STONE := Color(0.76, 0.74, 0.72)
 const SOIL := Color(0.50, 0.38, 0.27)
-const STEM := Color(0.30, 0.62, 0.30)
-const CENTER := Color(1.0, 0.85, 0.3)
+const TALL_FLOWERS := ["flowers_tall", "flowers_tall_yellow", "flowers_tall_pink"]
+const LOW_FLOWERS := ["flowers_low", "flowers_low_white", "flowers_low_violet"]
 const PETALS := [
 	Color(1.0, 0.55, 0.65), Color(1.0, 0.86, 0.35), Color(0.98, 0.97, 0.94),
 	Color(0.72, 0.58, 1.0), Color(1.0, 0.62, 0.32),
@@ -102,15 +101,22 @@ func _plant(animated: bool) -> void:
 	flowers.name = "Flowers"
 	flowers.set_meta("plant", true)
 	add_child(flowers)
-	var columns := maxi(int(bed_size.x / 0.38), 1)
-	var rows := maxi(int(bed_size.y / 0.36), 1)
+	# Цветы — кустики из Kenney Platformer Kit: высокие в три цвета и между
+	# ними низкие.
+	var columns := maxi(int(bed_size.x / 0.5), 1)
+	var rows := maxi(int(bed_size.y / 0.45), 1)
 	for row in rows:
 		for column in columns:
 			var at := Vector3(
-					((column + 0.5) / columns - 0.5) * bed_size.x + rng.randf_range(-0.07, 0.07),
-					0.0,
-					((row + 0.5) / rows - 0.5) * bed_size.y + rng.randf_range(-0.07, 0.07))
-			_create_flower(flowers, at, rng)
+					((column + 0.5) / columns - 0.5) * bed_size.x + rng.randf_range(-0.05, 0.05),
+					0.04,
+					((row + 0.5) / rows - 0.5) * bed_size.y + rng.randf_range(-0.05, 0.05))
+			Models.place(flowers, TALL_FLOWERS[rng.randi() % TALL_FLOWERS.size()], at,
+					rng.randf_range(0.8, 1.05), rng.randf() * TAU, false)
+			if rng.randf() < 0.6:
+				var beside := at + Vector3(rng.randf_range(-0.2, 0.2), 0.0, rng.randf_range(-0.18, 0.18))
+				Models.place(flowers, LOW_FLOWERS[rng.randi() % LOW_FLOWERS.size()], beside,
+						rng.randf_range(0.45, 0.6), rng.randf() * TAU, false)
 	Placeholder.bake_tree(flowers)
 
 	for i in 2:
@@ -128,25 +134,6 @@ func _plant(animated: bool) -> void:
 		Sfx.play("plant")
 		Sfx.buzz(25)
 		Juice.sparkle(self, global_position + Vector3.UP * 0.5, Color(1.0, 0.8, 0.9), 26)
-
-
-func _create_flower(flowers: Node3D, at: Vector3, rng: RandomNumberGenerator) -> void:
-	var flower := Node3D.new()
-	flower.position = at
-	flower.rotation.y = rng.randf() * TAU
-	flower.set_meta("merge_up", true)
-	flowers.add_child(flower)
-	var height := rng.randf_range(0.32, 0.55)
-	var petal: Color = PETALS[rng.randi() % PETALS.size()]
-	var head := Placeholder.part(flower, Placeholder.sphere(0.13, 8), petal, Vector3(0.0, height, 0.0))
-	head.scale = Vector3(1.0, 0.55, 1.0)
-	for flower_part in [
-		Placeholder.part(flower, Placeholder.cylinder(0.025, height), STEM, Vector3(0.0, height * 0.5, 0.0)),
-		Placeholder.part(flower, Placeholder.sphere(0.06, 6), STEM, Vector3(0.06, height * 0.4, 0.0)),
-		head,
-		Placeholder.part(flower, Placeholder.sphere(0.06, 6), CENTER, Vector3(0.0, height + 0.05, 0.0)),
-	]:
-		flower_part.set_meta("anchor", at)
 
 
 func _build_border() -> void:
@@ -170,9 +157,7 @@ func _build_border() -> void:
 			at = Vector2(half.x - (along - bed_size.x - bed_size.y), half.y)
 		else:
 			at = Vector2(-half.x, half.y - (along - bed_size.x * 2.0 - bed_size.y))
-		var pebble := Placeholder.part(self, Placeholder.sphere(rng.randf_range(0.1, 0.14)), STONE,
-				Vector3(at.x, 0.05, at.y))
-		pebble.scale = Vector3(1.0, 0.7, 1.0)
+		Models.place(self, "pebble", Vector3(at.x, 0.0, at.y), rng.randf_range(0.1, 0.14), rng.randf() * TAU)
 
 
 func _flag() -> String:

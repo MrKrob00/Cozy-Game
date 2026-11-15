@@ -6,8 +6,6 @@ extends Interactable
 @export var stone_id := ""
 @export var coins_reward := 2
 
-const ROCK := Color(0.62, 0.62, 0.66)
-const ROCK_DARK := Color(0.5, 0.5, 0.55)
 
 var _removed := false
 var _model: Node3D
@@ -69,12 +67,8 @@ func _build_visuals() -> void:
 	add_child(_model)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(stone_id)
-	var main := Placeholder.part(_model, Placeholder.sphere(0.3), ROCK, Vector3(0.0, 0.16, 0.0))
-	main.scale = Vector3(1.1, 0.7, 0.9)
-	main.rotation.y = rng.randf() * TAU
-	var side := Placeholder.part(_model, Placeholder.sphere(0.17), ROCK_DARK,
-			Vector3(rng.randf_range(0.15, 0.25), 0.1, rng.randf_range(-0.2, 0.2)))
-	side.scale = Vector3(1.0, 0.75, 1.0)
+	# Камни — Kenney Platformer Kit.
+	Models.place(_model, "boulder", Vector3.ZERO, 0.95, rng.randf() * TAU)
 
 	_body = StaticBody3D.new()
 	var shape := CollisionShape3D.new()

@@ -27,15 +27,16 @@ Kevin MacLeod ([incompetech.com](https://incompetech.com)), лицензия [Cr
 - [Mini Characters](https://kenney.nl/assets/mini-characters) — герой, Мастер, Бабушка, Почтальон, со своими анимациями;
 - [Cube Pets](https://kenney.nl/assets/cube-pets) — кот и цыплята на выкошенных газонах;
 - [Graveyard Kit](https://kenney.nl/assets/graveyard-kit) — садовая скамейка (переведена в цвет вершин тем же скриптом);
-- [Fantasy Town Kit](https://kenney.nl/assets/fantasy-town-kit) — фонтан на площади.
+- [Fantasy Town Kit](https://kenney.nl/assets/fantasy-town-kit) — фонтан на площади, забор участков, столбы калиток, засов мастерской;
+- [Platformer Kit](https://kenney.nl/assets/platformer-kit) — указатели у калиток, замок мастерской, ключ и монеты (находки), цветы на клумбах, грибы, камни.
+
+Модели из Fantasy Town Kit и Platformer Kit — в том виде, как они скачиваются с kenney.nl (папки `fantasy-town-kit`, `platformer-kit`), переведены тем же скриптом; золото подкрашено в цвет монет игры, у цветов на клумбах три расцветки.
 
 Модели [Quaternius](https://quaternius.com), лицензия CC0:
 
 - [Easy Enemy Pack](https://quaternius.com/packs/easyenemy.html) — лягушка.
 
-Свои модели (`tools/make_models.py` → `assets/models/mower_*.gltf`, `straw_hat.gltf`): газонокосилка по частям (корпус трёх уровней, мотор, колёса, ручка, мешок) и соломенная шляпа. Готовой бесплатной косилки в подходящем стиле не нашлось.
-
-Пока из примитивов: ёжик, забор, клумбы, находки.
+Свои модели (`tools/make_models.py` → `assets/models/`): газонокосилка по частям (корпус трёх уровней, мотор, колёса, ручка, мешок), соломенная шляпа, ёжик, находки (уточка, очки, садовый гном, письмо, чайник), почтовый ящик «Бюро находок», компостный ящик с кучей, кусты, плитки дорожек, камешки, кочки травы и полевые цветы. Готовых бесплатных моделей в подходящем стиле для них не нашлось; кочки и цветы луга свои ещё и потому, что их на карте тысячи: у них по 30–40 треугольников.
 
 ## Звуки
 
@@ -45,4 +46,4 @@ Kevin MacLeod ([incompetech.com](https://incompetech.com)), лицензия [Cr
 - [Impact Sounds](https://kenney.nl/assets/impact-sounds) — штамп, удар косилки о препятствие;
 - [RPG Audio](https://kenney.nl/assets/rpg-audio) — монеты, высыпание травы, калитка.
 
-Мелодичные звуки (завершение участка, отметки прогресса, птицы, «голоса» жителей) и «вжух» для смены кадров в трейлере синтезированы скриптом `tools/make_placeholder_sounds.py`. Косилка беззвучна.
+Мелодичные звуки (завершение участка, отметки прогресса, птицы, «голоса» жителей) синтезированы скриптом `tools/make_placeholder_sounds.py`. Косилка беззвучна.

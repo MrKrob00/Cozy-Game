@@ -11,7 +11,7 @@ extends Node3D
 @export var stone_radius := 0.4
 @export var random_seed := 3
 
-const STONES := [Color(0.74, 0.73, 0.72), Color(0.66, 0.66, 0.68), Color(0.80, 0.78, 0.74)]
+const STONE_KINDS := 3
 
 var _positions := PackedVector3Array()
 
@@ -33,10 +33,8 @@ func _ready() -> void:
 	rng.seed = random_seed
 	for at in _positions:
 		var radius := stone_radius * rng.randf_range(0.85, 1.1)
-		var stone := Placeholder.part(self, Placeholder.cylinder(radius, 0.07, radius * 0.9),
-				STONES[rng.randi() % STONES.size()], at + Vector3(0.0, 0.035, 0.0))
-		stone.rotation.y = rng.randf() * TAU
-		stone.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		# Плитки — свои модели трёх оттенков (tools/make_models.py).
+		Models.place(self, "stepping_stone_%d" % (rng.randi() % STONE_KINDS), at, radius, rng.randf() * TAU, false)
 
 
 func shape_grass(field: MowField) -> void:

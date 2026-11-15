@@ -14,11 +14,8 @@ enum Kind { HOUSE, SHED, BENCH, TREE, WELL, FOUNTAIN, POND }
 ## Дерево с яблоками.
 @export var fruit := false
 
-const WOOD := Color(0.72, 0.52, 0.34)
-const WOOD_DARK := Color(0.52, 0.36, 0.24)
 const GLASS := Color(0.62, 0.84, 0.94)
 const STONE := Color(0.70, 0.70, 0.72)
-const GOLD := Color(1.0, 0.80, 0.25)
 const LEAVES := Color(0.34, 0.66, 0.34)
 const LEAVES_LIGHT := Color(0.44, 0.74, 0.36)
 
@@ -171,11 +168,10 @@ func _build_shed() -> void:
 	_barrier.position = Vector3(0.0, 0.0, _footprint.y * 0.5 + 0.25)
 	_barrier.add_to_group("shadow_dynamic")
 	add_child(_barrier)
-	for side: float in [-1.0, 1.0]:
-		Placeholder.part(_barrier, Placeholder.box(Vector3(0.14, 1.0, 0.14)), WOOD_DARK, Vector3(0.9 * side, 0.5, 0.0))
-	for height: float in [0.45, 0.8]:
-		Placeholder.part(_barrier, Placeholder.box(Vector3(1.9, 0.12, 0.08)), WOOD, Vector3(0.0, height, 0.0))
-	_padlock = Placeholder.part(_barrier, Placeholder.box(Vector3(0.26, 0.26, 0.12)), GOLD, Vector3(0.0, 0.62, 0.08))
+	# Засов — секция забора (Kenney Fantasy Town Kit), замок — Kenney Platformer Kit.
+	var bar := Models.place(_barrier, "fence", Vector3.ZERO, 1.0)
+	bar.scale = Vector3(1.9, 2.4, 2.4)
+	_padlock = Models.place(_barrier, "padlock", Vector3(0.0, 0.4, 0.16), 0.8)
 	_padlock.set_meta("no_bake", true)
 
 
@@ -393,9 +389,8 @@ func _build_pond() -> void:
 	var rim := 22
 	for i in rim:
 		var angle := TAU * i / rim
-		var pebble := Placeholder.part(self, Placeholder.sphere(rng.randf_range(0.2, 0.32)), STONE,
-				Vector3(cos(angle), 0.0, sin(angle)) * (POND_RADIUS + 0.05) + Vector3(0.0, 0.08, 0.0))
-		pebble.scale = Vector3(1.0, 0.6, 1.0)
+		Models.place(self, "pebble", Vector3(cos(angle), 0.0, sin(angle)) * (POND_RADIUS + 0.05),
+				rng.randf_range(0.2, 0.32), angle * 3.0)
 	# Кувшинки — модели KayKit.
 	for i in 6:
 		var angle := rng.randf() * TAU
