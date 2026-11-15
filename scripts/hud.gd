@@ -14,6 +14,8 @@ const MAX_WAITING_TOASTS := 2
 const COMPLETION_DELAY := 5.0
 ## Сколько летят значки награды до счётчика, секунд.
 const FLIGHT_TIME := 0.85
+## Значок каждого улучшения в мастерской.
+const UPGRADE_ICONS := {"blade": HudIcon.Kind.BLADE, "bag": HudIcon.Kind.BAG, "motor": HudIcon.Kind.MOTOR}
 ## Секунд на букву в реплике жителя.
 const TYPE_SPEED := 0.028
 ## Пауза между «скошено 80 %» и показом новой калитки, секунд.
@@ -29,6 +31,9 @@ const FIXED_STICK_AT := Vector2(0.36, 0.62)
 @onready var _bag_bar: ProgressBar = %BagBar
 @onready var _coins_label: Label = %CoinsLabel
 @onready var _compost_label: Label = %CompostLabel
+## Значки у счётчиков: к ним летят награды из мира.
+var _coins_icon: HudIcon
+var _compost_icon: HudIcon
 @onready var _pause_button: Button = %PauseButton
 @onready var _toast: PanelContainer = %Toast
 @onready var _toast_label: Label = %ToastLabel
@@ -161,6 +166,7 @@ func _ready() -> void:
 	if _player:
 		_player.interaction_target_changed.connect(_on_target_changed)
 
+	_add_counter_icons()
 	_shown_coins = GameState.coins
 	_shown_compost = GameState.compost
 	GameState.coins_changed.connect(_on_coins_changed)
@@ -549,6 +555,7 @@ func _update_counter(kind: String) -> void:
 			clampf(absf(target - shown) * 0.02, 0.25, 0.8)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	if delay == 0.0:
 		Juice.punch(label, 0.3)
+		Juice.punch(_coins_icon if kind == "coins" else _compost_icon, 0.35)
 
 
 func _show_counter(value: float, kind: String) -> void:
@@ -566,9 +573,9 @@ func _on_reward_shown(kind: String, amount: int, world_position: Vector3) -> voi
 	var camera := get_viewport().get_camera_3d()
 	if camera == null or amount <= 0 or camera.is_position_behind(world_position):
 		return
-	var label := _coins_label if kind == "coins" else _compost_label
+	var aim: Control = _coins_icon if kind == "coins" else _compost_icon
 	var start := camera.unproject_position(world_position)
-	var target := label.get_global_rect().get_center() - Vector2.ONE * RewardIcon.SIZE * 0.5
+	var target := aim.get_global_rect().get_center() - Vector2.ONE * RewardIcon.SIZE * 0.5
 	var count := clampi(int(sqrt(float(amount))) + 1, 2, 9)
 	_in_flight[kind] += count
 	for i in count:
@@ -589,13 +596,13 @@ func _on_reward_shown(kind: String, amount: int, world_position: Vector3) -> voi
 		tween.tween_property(icon, "position", target, FLIGHT_TIME - 0.27 - 0.05 * i) \
 				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 		tween.parallel().tween_property(icon, "scale", Vector2.ONE * 0.6, FLIGHT_TIME - 0.27 - 0.05 * i)
-		tween.tween_callback(_on_icon_arrived.bind(icon, kind, label, i))
+		tween.tween_callback(_on_icon_arrived.bind(icon, kind, aim, i))
 
 
-func _on_icon_arrived(icon: RewardIcon, kind: String, label: Label, index: int) -> void:
+func _on_icon_arrived(icon: RewardIcon, kind: String, aim: Control, index: int) -> void:
 	icon.queue_free()
 	_in_flight[kind] = maxi(_in_flight[kind] - 1, 0)
-	Juice.punch(label, 0.18, 0.2)
+	Juice.punch(aim, 0.25, 0.2)
 	Sfx.play("coin" if kind == "coins" else "pop", -14.0, 1.0 + index * 0.06, 0.02)
 
 
@@ -963,6 +970,31 @@ func _on_return_pressed(find: FindItem) -> void:
 
 
 # Строки мастерской: по одной на апгрейд, с ценой следующего уровня.
+# Значки рядом с надписями: монета и листик у счётчиков, трава у участка,
+# мешок у его полоски. Надписи остаются как есть.
+func _add_counter_icons() -> void:
+	_coins_icon = _icon_before(_coins_label, HudIcon.Kind.COIN, 52.0)
+	_compost_icon = _icon_before(_compost_label, HudIcon.Kind.COMPOST, 52.0)
+	_icon_before(_bag_bar.get_parent().get_child(0) as Control, HudIcon.Kind.BAG, 48.0)
+	# Строка участка: значок травы и подпись в один ряд.
+	var rows := _progress_label.get_parent()
+	var line := HBoxContainer.new()
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	line.add_theme_constant_override("separation", 10)
+	rows.add_child(line)
+	rows.move_child(line, _progress_label.get_index())
+	_progress_label.reparent(line)
+	line.add_child(HudIcon.make(HudIcon.Kind.GRASS, 48.0))
+	line.move_child(line.get_child(1), 0)
+
+
+func _icon_before(label: Control, kind: HudIcon.Kind, side: float) -> HudIcon:
+	var icon := HudIcon.make(kind, side)
+	label.add_sibling(icon)
+	label.get_parent().move_child(icon, label.get_index())
+	return icon
+
+
 func _fill_workshop() -> void:
 	for child in _workshop_rows.get_children():
 		child.queue_free()
@@ -975,13 +1007,20 @@ func _fill_workshop() -> void:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 28)
 		_workshop_rows.add_child(row)
+		var badge := HudIcon.make(UPGRADE_ICONS.get(id, HudIcon.Kind.GRASS), 100.0)
+		badge.badge = true
+		row.add_child(badge)
 
 		var text := VBoxContainer.new()
 		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(text)
+		var heading := HBoxContainer.new()
+		heading.add_theme_constant_override("separation", 18)
+		text.add_child(heading)
 		var title := Label.new()
 		title.text = L.t("%s — уровень %d из %d") % [L.t(info["title"]), level + 1, values.size()]
-		text.add_child(title)
+		heading.add_child(title)
+		heading.add_child(HudIcon.pips(values.size(), level + 1, 34.0))
 		var about := Label.new()
 		about.add_theme_font_size_override("font_size", 28)
 		about.modulate.a = 0.7
