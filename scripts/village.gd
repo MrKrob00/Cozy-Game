@@ -33,6 +33,8 @@ const AMBIENT := Color(0.50, 0.56, 0.74)
 const FESTIVAL_DELAY := 11.0
 ## Сколько залпов салюта на празднике.
 const FIREWORKS := 9
+## Насколько должно измениться «настроение» участка, чтобы обновить свет дня.
+const MOOD_STEP := 0.01
 
 var current_plot: Plot
 
@@ -42,6 +44,7 @@ var _environment: Environment
 var _sun: DirectionalLight3D
 ## Сглаженный прогресс текущего участка, по которому меняется картинка.
 var _mood := 0.0
+var _applied_mood := -1.0
 var _chirp_timer := 3.0
 var _fluff: CPUParticles3D
 
@@ -93,7 +96,13 @@ func _process(delta: float) -> void:
 	var progress := current_plot.get_mood() if current_plot else 1.0
 	if not is_equal_approx(_mood, progress):
 		_mood = lerpf(_mood, progress, 1.0 - exp(-1.5 * delta))
-		_apply_mood()
+		if absf(_mood - progress) < 0.002:
+			_mood = progress
+		# Свет дня — параметр каждого освещённого материала: обновляем его,
+		# только когда разница уже видна, а не каждый кадр.
+		if absf(_mood - _applied_mood) >= MOOD_STEP or _mood == progress:
+			_applied_mood = _mood
+			_apply_mood()
 
 	# Птицы: чем больше скошено, тем чаще поют.
 	_chirp_timer -= delta

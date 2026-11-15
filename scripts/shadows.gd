@@ -13,7 +13,10 @@ extends Node3D
 ##                 окно (раз на несколько метров пути) или что-то изменилось;
 ##   итоговая    — неподвижная картинка одним прямоугольником плюс то, что
 ##                 движется (игрок, зверьки, калитки); рисуется, когда что-то
-##                 из этого сдвинулось, не чаще 30 раз в секунду.
+##                 из этого заметно сдвинулось (на полтекселя картинки или
+##                 повернулось), не чаще 30 раз в секунду. Мелкая дрожь,
+##                 дыхание зверьков и всё, что за окном, её не перерисовывают:
+##                 иначе она рисовалась бы 30 раз в секунду и стоя на месте.
 
 ## Слои рендера двойников: основная камера их не видит.
 const LAYER_STATIC := 1 << 19
@@ -26,9 +29,15 @@ const WINDOW_STEP := 6.0
 ## Доля окна у края, где тени плавно гаснут.
 const EDGE_FADE := 0.06
 const MIN_INTERVAL := 1.0 / 30.0
-## Раз в столько секунд обе картинки перерисовываются в любом случае
-## (что-то показалось или спряталось, а движения не было).
-const REFRESH := 2.0
+## Насколько должна измениться ось модели (поворот, масштаб), чтобы тень
+## перерисовалась: 0,05 — около 3° или 5 % масштаба.
+const BASIS_TOLERANCE := 0.05
+## Запас за краем окна, м: модель там уже не отбрасывает тень в картинку.
+const WINDOW_MARGIN := 3.0
+## Раз в столько секунд проверяется, не показалась ли или не спряталась ли
+## неподвижная модель (засов мастерской, фонтан, цветы); если да —
+## неподвижная картинка перерисовывается. Без изменений — нет.
+const REFRESH := 1.0
 const CAST_SHADER := preload("res://shaders/shadow_cast.gdshader")
 const CAST_FLAT_SHADER := preload("res://shaders/shadow_cast_flat.gdshader")
 
@@ -42,9 +51,15 @@ var _cast_material: ShaderMaterial
 var _cast_flat_material: ShaderMaterial
 var _target: Node3D
 var _center := Vector2(INF, INF)
-## Двойники движущихся моделей и их последнее состояние.
+## Двойники движущихся моделей и их состояние на последней отрисовке:
+## [положение, видна ли].
 var _dynamic: Array[MeshInstance3D] = []
 var _last: Dictionary = {}
+## Двойники неподвижных моделей и сколько из них было видно в прошлый раз.
+var _static: Array[MeshInstance3D] = []
+var _static_shown := -1
+## Сдвиг, заметный в картинке теней: половина её текселя, м.
+var _position_tolerance := 0.05
 var _static_dirty := true
 var _final_dirty := true
 ## Сдвиг окна идёт в два кадра, иначе земля один кадр читала бы старую
@@ -132,15 +147,15 @@ func _process(delta: float) -> void:
 		_final_dirty = true
 	if not _final_dirty:
 		for proxy in _dynamic:
-			if not is_instance_valid(proxy):
-				continue
-			var state := [proxy.global_transform, proxy.is_visible_in_tree()]
-			if _last.get(proxy) != state:
-				_last[proxy] = state
+			if is_instance_valid(proxy) and _moved(proxy):
 				_final_dirty = true
+				break
 	if _since_refresh >= REFRESH:
 		_since_refresh = 0.0
-		_static_dirty = true
+		var shown := _visible_static()
+		if shown != _static_shown:
+			_static_shown = shown
+			_static_dirty = true
 	if _static_dirty:
 		_static_dirty = false
 		_static_drawn = true
@@ -156,6 +171,33 @@ func _render_final() -> void:
 	_since_render = 0.0
 	final_renders += 1
 	_final_view.render_target_update_mode = SubViewport.UPDATE_ONCE
+	for proxy in _dynamic:
+		if is_instance_valid(proxy):
+			_last[proxy] = [proxy.global_transform, proxy.is_visible_in_tree()]
+
+
+# Сдвинулась ли модель с последней отрисовки так, что это видно в картинке.
+func _moved(proxy: MeshInstance3D) -> bool:
+	var shown := proxy.is_visible_in_tree()
+	var now := proxy.global_transform
+	if not _last.has(proxy):
+		return shown and _in_window(now.origin)
+	var last: Array = _last[proxy]
+	var then: Transform3D = last[0]
+	if shown != last[1]:
+		return _in_window(now.origin) or _in_window(then.origin)
+	if not shown or not (_in_window(now.origin) or _in_window(then.origin)):
+		return false
+	if now.origin.distance_to(then.origin) > _position_tolerance:
+		return true
+	return (now.basis.x - then.basis.x).length() > BASIS_TOLERANCE \
+			or (now.basis.y - then.basis.y).length() > BASIS_TOLERANCE \
+			or (now.basis.z - then.basis.z).length() > BASIS_TOLERANCE
+
+
+func _in_window(at: Vector3) -> bool:
+	var half := WINDOW * 0.5 + WINDOW_MARGIN
+	return absf(at.x - _center.x) < half and absf(at.z - _center.y) < half
 
 
 ## Включает или выключает тени целиком (для замера кадра, см. FrameProbe).
@@ -216,6 +258,7 @@ func _apply_quality() -> void:
 	var side: int = Graphics.preset["shade_size"]
 	_static_view.size = Vector2i(side, side)
 	_final_view.size = Vector2i(side, side)
+	_position_tolerance = WINDOW / side * 0.5
 	_static_dirty = true
 
 
@@ -256,13 +299,31 @@ func _add_casters() -> void:
 		caster.set_meta("shadow_proxy", proxy)
 		if dynamic:
 			_dynamic.append(proxy)
+		else:
+			_static.append(proxy)
 	# Двойники удалённых моделей (перестроенная косилка) выбрасываем из списка.
 	var alive: Array[MeshInstance3D] = []
 	for proxy: Variant in _dynamic:
 		if is_instance_valid(proxy):
 			alive.append(proxy)
 	_dynamic = alive
+	var still: Array[MeshInstance3D] = []
+	for proxy: Variant in _static:
+		if is_instance_valid(proxy):
+			still.append(proxy)
+	_static = still
+	_static_shown = _visible_static()
 	_static_dirty = true
+
+
+# Сколько неподвижных двойников сейчас видно в окне (меняется, когда модель
+# показалась или спряталась). Окно — с запасом, как у движущихся.
+func _visible_static() -> int:
+	var count := 0
+	for proxy in _static:
+		if is_instance_valid(proxy) and proxy.is_visible_in_tree() and _in_window(proxy.global_position):
+			count += 1
+	return count
 
 
 # Движется ли модель: она внутри узла из группы «shadow_dynamic».

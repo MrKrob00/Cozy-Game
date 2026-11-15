@@ -366,18 +366,20 @@ def engine_cap():
 
 
 def wheel():
-    """Колесо: шина с протектором и диск. Ось — X, начало координат в центре."""
+    """Колесо: шина с протектором и диск. Ось — X, начало координат в центре.
+    Колёс четыре, и они маленькие на экране: деталей ровно столько, чтобы
+    было видно, что колесо крутится (около 300 треугольников)."""
     mesh = Mesh()
-    tyre = [(0.09, -0.045), (0.135, -0.045), (0.15, -0.03), (0.15, 0.03), (0.135, 0.045), (0.09, 0.045)]
-    lathe(mesh, tyre, (0, 0, 0), TYRE, segments=16, axis="x")
-    hub = [(0.0, -0.05), (0.07, -0.05), (0.095, -0.035), (0.095, 0.035), (0.07, 0.05), (0.0, 0.05)]
-    lathe(mesh, hub, (0, 0, 0), CREAM, segments=12, axis="x")
+    tyre = [(0.09, -0.045), (0.14, -0.045), (0.15, -0.025), (0.15, 0.025), (0.14, 0.045), (0.09, 0.045)]
+    lathe(mesh, tyre, (0, 0, 0), TYRE, segments=12, axis="x")
+    hub = [(0.0, -0.05), (0.08, -0.05), (0.095, -0.03), (0.095, 0.03), (0.08, 0.05), (0.0, 0.05)]
+    lathe(mesh, hub, (0, 0, 0), CREAM, segments=10, axis="x")
     lathe(mesh, [(0.0, -0.062), (0.028, -0.062), (0.028, 0.062), (0.0, 0.062)], (0, 0, 0), STEEL,
           segments=8, axis="x")
     # Грунтозацепы: по ним видно, что колесо крутится.
     for i in range(8):
         angle = 2 * math.pi * i / 8
-        box(mesh, (0.1, 0.03, 0.045), (0, math.cos(angle) * 0.15, math.sin(angle) * 0.15), DARK, bevel=0.008)
+        box(mesh, (0.1, 0.03, 0.045), (0, math.cos(angle) * 0.15, math.sin(angle) * 0.15), DARK, bevel=0.0)
         # Коробка должна лежать по касательной: поворачиваем её вокруг X.
         start = len(mesh.vertices) - 24
         center = np.array([0, math.cos(angle) * 0.15, math.sin(angle) * 0.15])
@@ -386,13 +388,13 @@ def wheel():
             y, z = mesh.vertices[k][1] - center[1], mesh.vertices[k][2] - center[2]
             mesh.vertices[k] = np.array([mesh.vertices[k][0], center[1] + y * cos_a - z * sin_a,
                                          center[2] + y * sin_a + z * cos_a])
-    # Отверстия в диске.
+    # Отверстия в диске (с обеих сторон: колёса стоят по обе стороны деки).
     for i in range(5):
         angle = 2 * math.pi * i / 5
         for side in (-1, 1):
-            lathe(mesh, [(0.0, 0.0), (0.016, 0.0), (0.016, 0.004), (0.0, 0.004)],
+            lathe(mesh, [(0.0, 0.0), (0.016, 0.0), (0.0, 0.004)],
                   (side * 0.049 - (0.004 if side > 0 else 0.0), math.cos(angle) * 0.058, math.sin(angle) * 0.058),
-                  DARK, segments=6, axis="x")
+                  DARK, segments=5, axis="x")
     return mesh
 
 
