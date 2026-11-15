@@ -847,6 +847,27 @@ func _on_screen_tapped() -> void:
 # Включает выбранную сенсорную схему: один из видов джойстика или «вести пальцем».
 func _apply_touch_controls() -> void:
 	var scheme := GameState.touch_controls
+	# Камера сзади на телефоне — руль: джойстик ставится под палец в левом
+	# нижнем углу (зона не подсвечена), влево-вправо поворачивает героя.
+	var steer := _touch and GameState.camera_mode == 1
+	if _player:
+		_player.steering = steer
+	if steer:
+		var live := _controls_live
+		_joystick.visible = live
+		_joystick.process_mode = Node.PROCESS_MODE_PAUSABLE if live else Node.PROCESS_MODE_DISABLED
+		_joystick.joystick_mode = VirtualJoystick.JOYSTICK_DYNAMIC
+		_joystick.visibility_mode = VirtualJoystick.VISIBILITY_WHEN_TOUCHED
+		_joystick.anchor_left = 0.0
+		_joystick.anchor_top = 0.3
+		_joystick.anchor_right = 0.45
+		_joystick.anchor_bottom = 1.0
+		for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
+			_joystick.set_offset(side, 0.0)
+		_touch_pad.visible = false
+		if _player:
+			_player.touch_pad = null
+		return
 	var stick := _controls_live and scheme != 2
 	_joystick.visible = stick
 	_joystick.process_mode = Node.PROCESS_MODE_PAUSABLE if stick else Node.PROCESS_MODE_DISABLED
@@ -967,6 +988,9 @@ func _update_settings_buttons() -> void:
 	_graphics_button.text = L.t("Графика: %s") % L.t(Graphics.preset["title"])
 	_fps_button.text = "Счётчик FPS: включён" if GameState.show_fps else "Счётчик FPS: выключен"
 	_fps_label.visible = GameState.show_fps
+	# Камера сзади на телефоне включает руль, сверху — прежнюю схему.
+	if _controls_live:
+		_apply_touch_controls()
 	# Сведения об устройстве — вместе со счётчиком FPS: в обычной игре они не нужны.
 	_diag_label.visible = GameState.show_fps
 	# Выключенное — светлая кнопка и перечёркнутый значок.

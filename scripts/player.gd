@@ -74,6 +74,12 @@ const GRIP := Vector3(0.23, 0.8, 0.58)
 var interaction_target: Interactable
 ## Сенсорная схема «вести пальцем» (ставит интерфейс; null — джойстик).
 var touch_pad: TouchPad
+## Руль (телефон, камера сзади): джойстик влево-вправо поворачивает героя,
+## вверх — едет вперёд, вниз — задний ход. Иначе джойстик ведёт по карте.
+var steering := false
+## Задний ход медленнее: доля обычной скорости.
+const REVERSE_SPEED := 0.5
+var _steer := Vector2.ZERO
 ## Пока выключено (титульный экран), игрок не слушается ввода.
 var controls_enabled := true
 ## Насколько косилка сейчас «в пути» по дороге, 0–1 (камера на это время
@@ -178,14 +184,16 @@ func _input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	_smoothed_direction = _smoothed_direction.lerp(_desired_direction(),
+	_smoothed_direction = _smoothed_direction.lerp(Vector3.ZERO if steering else _desired_direction(),
 			1.0 - exp(-input_smoothing * delta))
 	var desired := _smoothed_direction
 	var strength := minf(desired.length(), 1.0)
 	var forward := -global_basis.z
 	var target_speed := 0.0
 
-	if strength > 0.05:
+	if steering:
+		target_speed = _steer_step(delta)
+	elif strength > 0.05:
 		var angle := forward.signed_angle_to(desired.normalized(), Vector3.UP)
 		# Цель почти за спиной: знак угла там скачет от дрожи пальца, и
 		# косилка рыскала бы влево-вправо. Доворачиваем в начатую сторону.
@@ -276,7 +284,7 @@ func _physics_process(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
-	var pace := clampf(_current_speed / speed, 0.0, 1.0)
+	var pace := clampf(absf(_current_speed) / speed, 0.0, 1.0)
 	var blend := 1.0 - exp(-10.0 * delta)
 
 	# Герой катит косилку: шаги — анимация модели в темпе хода, в повороты
@@ -288,7 +296,8 @@ func _process(delta: float) -> void:
 	if cheering:
 		pass
 	elif pace > 0.06:
-		_hero.play("push-walk", clampf(_current_speed / 1.9, 0.5, 2.2))
+		# Задним ходом шаги идут назад.
+		_hero.play("push-walk", signf(_current_speed) * clampf(absf(_current_speed) / 1.9, 0.5, 2.2))
 	else:
 		_hero.play("push-idle")
 	_character.rotation.z = lerpf(_character.rotation.z, -_turn_speed * 0.03, blend)
@@ -553,6 +562,38 @@ func _update_interaction(delta: float) -> void:
 
 
 ## Желаемое направление в мировых координатах, длина 0–1.
+# Руль: поворот на месте вокруг ножа (влево-вправо), газ вперёд или задний
+# ход (вверх-вниз). Возвращает желаемую скорость (минус — назад).
+func _steer_step(delta: float) -> float:
+	var input := Vector2.ZERO
+	if controls_enabled and not (_pinch_zoom and _pinch_zoom.active):
+		input = Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	_steer = _steer.lerp(input, 1.0 - exp(-input_smoothing * delta))
+	var turn := -_steer.x * turn_rate * 0.75 * delta
+	if absf(turn) > 0.0001:
+		var pivot := get_blade_position()
+		rotate_y(turn)
+		global_position = pivot + (global_position - pivot).rotated(Vector3.UP, turn)
+	_turn_speed = lerpf(_turn_speed, turn / delta, 0.2)
+	var throttle := -_steer.y
+	if absf(throttle) < 0.08:
+		return 0.0
+	if throttle < 0.0:
+		return speed * REVERSE_SPEED * throttle
+	var target := speed * minf(throttle / FULL_SPEED_INPUT, 1.0) * lerpf(1.0, 0.7, absf(_steer.x))
+	_road_boost = lerpf(_road_boost, 1.0 if _field_at(global_position) == null else 0.0, 1.0 - exp(-3.0 * delta))
+	target *= 1.0 + (ROAD_SPEED_BOOST - 1.0) * _road_boost
+	var ahead := _grass_height_at(get_blade_position() - global_basis.z * 0.25)
+	_grass_ahead = ahead
+	if ahead > 0.9:
+		target *= weed_speed
+		if not can_cut_weeds():
+			_weeds_hint()
+	elif ahead > 0.7:
+		target *= tall_grass_speed_best_motor if GameState.is_upgrade_maxed("motor") else tall_grass_speed
+	return target
+
+
 func _desired_direction() -> Vector3:
 	if not controls_enabled:
 		return Vector3.ZERO

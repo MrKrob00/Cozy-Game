@@ -177,6 +177,34 @@ func _run() -> void:
 	await frames(60)
 	check(game_state.camera_mode == 0, "and back with C")
 
+	# 3b-руль. Телефон, камера сзади: влево — поворот налево, вверх —
+	# вперёд по взгляду героя, вниз — задний ход.
+	player.steering = true
+	player.global_position = Vector3(0, 0, 3.0)
+	player.rotation = Vector3.ZERO
+	await frames(10)
+	var yaw_before: float = player.rotation.y
+	Input.action_press("move_left")
+	await frames(30)
+	Input.action_release("move_left")
+	await frames(10)
+	check(player.rotation.y > yaw_before + 0.3, "steering: left turns the hero left on the spot")
+	var facing: Vector3 = -player.global_basis.z
+	var steer_from: Vector3 = player.global_position
+	Input.action_press("move_up")
+	await frames(45)
+	Input.action_release("move_up")
+	await frames(15)
+	var steered: Vector3 = player.global_position - steer_from
+	check(steered.dot(facing) > 0.8 and absf(steered.dot(facing.cross(Vector3.UP))) < 0.3, "steering: up drives forward where he faces")
+	steer_from = player.global_position
+	Input.action_press("move_down")
+	await frames(45)
+	Input.action_release("move_down")
+	await frames(15)
+	check((player.global_position - steer_from).dot(facing) < -0.3, "steering: down reverses")
+	player.steering = false
+
 	# 3b''. Нажатие мимо окна паузы закрывает его, нажатие по окну — нет.
 	hud_node.call("_set_paused", true)
 	var window: Control = hud_node.get_node("%PauseWindow")
