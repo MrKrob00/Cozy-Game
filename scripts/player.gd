@@ -62,6 +62,12 @@ const TIDY_RADIUS_IDLE := 2.0
 const ROAD_DUST_STEP := 1.1
 ## Радиус колеса косилки (tools/make_models.py), метры.
 const WHEEL_RADIUS := 0.15
+const CLIPPINGS_GRASS := Color(0.62, 0.86, 0.34)
+const CLIPPINGS_WEED := Color(0.66, 0.46, 0.74)
+## Зверька герой замечает и провожает взглядом с такого расстояния, м.
+const LOOK_ANIMAL_DISTANCE := 4.0
+## Постояв столько секунд, герой начинает оглядываться.
+const GLANCE_AFTER := 3.0
 ## Рукоятка косилки в её координатах (как в tools/make_models.py, handle).
 const GRIP := Vector3(0.23, 0.8, 0.58)
 
@@ -87,6 +93,14 @@ var _bag: MeshInstance3D
 var _character: Node3D
 var _hero: CharacterModel
 var _hands: HandsOnHandle
+var _bumped: Object
+var _cap_kick := 0.0
+var _clipping_weeds := false
+# Куда смотрит герой: точка, до какого времени, и оглядывание на месте.
+var _look_point := Vector3.ZERO
+var _look_until := -1.0
+var _glance_timer := 0.0
+var _glance_side := 1.0
 var _wheels: Array[MeshInstance3D] = []
 var _wheel_turn := 0.0
 ## До какого момента (по _time) герой радуется и не держит ручку косилки.
@@ -243,6 +257,11 @@ func _physics_process(delta: float) -> void:
 		_last_cut_time = _time
 	_cutting = _time - _last_cut_time < 0.2
 	_clippings.emitting = _cutting
+	# Из бурьяна летят лиловые обрезки, из травы — зелёные.
+	var weeds := _cutting and _grass_ahead > 0.9
+	if weeds != _clipping_weeds:
+		_clipping_weeds = weeds
+		_clippings.material_override = Placeholder.material(CLIPPINGS_WEED if weeds else CLIPPINGS_GRASS)
 	_grass_life(_grass_ahead if _cutting else 0.0, _current_speed * delta)
 	_tidy_leftovers(delta)
 	travel = _road_boost * clampf(_current_speed / maxf(speed, 0.1) - 0.6, 0.0, 1.0)
@@ -264,7 +283,8 @@ func _process(delta: float) -> void:
 	# он слегка наклоняется.
 	var cheering := _time < _cheer_until
 	# Пока герой прыгает от радости, руки свободны; потом снова на ручке.
-	_hands.influence = move_toward(_hands.influence, 0.0 if cheering else 1.0, delta * 6.0)
+	_hands.hands_weight = move_toward(_hands.hands_weight, 0.0 if cheering else 1.0, delta * 6.0)
+	_update_look(delta, pace)
 	if cheering:
 		pass
 	elif pace > 0.06:
@@ -279,6 +299,10 @@ func _process(delta: float) -> void:
 	if moving != _was_moving:
 		_was_moving = moving
 		Juice.squash(_character, 0.1 if moving else 0.06, 0.35)
+		if moving:
+			# Мотор «чихает» на старте: облачко и подскок крышки.
+			Juice.puff(get_parent(), _exhaust.global_position, 5)
+			_cap_kick = 0.07
 	_idle_time = 0.0 if pace > 0.05 else _idle_time + delta
 	_exhaust.emitting = pace > 0.2
 	_bump_cooldown -= delta
@@ -288,7 +312,8 @@ func _process(delta: float) -> void:
 	var shake := 0.004 + 0.006 * pace + 0.008 * _cut_amount
 	_mower.position.y = sin(_time * 47.0) * shake
 	_mower.rotation.z = sin(_time * 39.0) * shake * 1.5 - _turn_speed * 0.02
-	_engine_cap.position.y = _engine_top + absf(sin(_time * 23.0)) * (0.008 + 0.02 * pace)
+	_cap_kick = move_toward(_cap_kick, 0.0, delta * 0.35)
+	_engine_cap.position.y = _engine_top + absf(sin(_time * 23.0)) * (0.008 + 0.02 * pace) + _cap_kick
 	# Колёса катятся по пройденному пути.
 	_wheel_turn -= _current_speed * delta / WHEEL_RADIUS
 	for wheel in _wheels:
@@ -312,6 +337,53 @@ func celebrate() -> void:
 	Juice.squash(_character, 0.18, 0.5)
 
 
+## Герой поворачивает голову к точке на seconds секунд (находка, событие).
+func look_at_point(point: Vector3, seconds := 1.5) -> void:
+	_look_point = point
+	_look_until = _time + seconds
+
+
+## Где мешок косилки (из него трава летит в компостный ящик).
+func get_bag_position() -> Vector3:
+	return _bag.global_position + Vector3.UP * 0.3
+
+
+# Голова: на то, что показали (look_at_point), на зверька рядом, а постояв —
+# оглядывается по сторонам.
+func _update_look(delta: float, pace: float) -> void:
+	var target := Vector3.ZERO
+	var wanted := 0.0
+	if _time < _look_until:
+		target = _look_point
+		wanted = 1.0
+	else:
+		var animal := _nearest_animal()
+		if animal:
+			target = animal.global_position + Vector3.UP * 0.3
+			wanted = 1.0
+		elif _idle_time > GLANCE_AFTER and pace < 0.05:
+			_glance_timer -= delta
+			if _glance_timer <= 0.0:
+				_glance_timer = randf_range(1.6, 2.8)
+				_glance_side = -_glance_side
+			target = global_position + (-global_basis.z * 3.0 + global_basis.x * 3.0 * _glance_side) \
+					+ Vector3.UP * 1.4
+			wanted = 0.8
+	if wanted > 0.0:
+		_hands.look_target = target if _hands.look_weight < 0.01 else \
+				_hands.look_target.lerp(target, 1.0 - exp(-6.0 * delta))
+	_hands.look_weight = move_toward(_hands.look_weight, wanted, delta * 3.0)
+
+
+func _nearest_animal() -> Node3D:
+	for node in get_tree().get_nodes_in_group("animal"):
+		var animal := node as Animal
+		if animal and animal.visible and not animal.is_moved() \
+				and animal.global_position.distance_to(global_position) < LOOK_ANIMAL_DISTANCE:
+			return animal
+	return null
+
+
 ## Центр ножа в мировых координатах.
 func get_blade_position() -> Vector3:
 	return global_position - global_basis.z * BLADE_OFFSET
@@ -333,17 +405,22 @@ func _check_bump(target_speed: float, at_border: bool) -> void:
 	var forward := -global_basis.z
 	var contact := at_border
 	var hit := get_blade_position() + forward * 0.4
+	_bumped = null
 	for i in get_slide_collision_count():
 		var collision := get_slide_collision(i)
 		if forward.dot(-collision.get_normal()) > 0.55:
 			contact = true
 			hit = collision.get_position()
+			_bumped = collision.get_collider()
 	if contact and not _in_contact and target_speed > 0.8 and _bump_cooldown <= 0.0:
 		_bump_cooldown = 0.6
 		Juice.squash(_mower_root, 0.2, 0.4)
 		Juice.dust(get_parent(), Vector3(hit.x, 0.15, hit.z))
 		Sfx.play("bonk", -5.0, 1.0, 0.1)
 		Sfx.buzz(12)
+		# Дерево качается и роняет листья, скамейка вздрагивает.
+		if is_instance_valid(_bumped) and _bumped.has_method("bumped"):
+			_bumped.bumped(forward)
 	_in_contact = contact
 
 
@@ -602,7 +679,8 @@ func _build_mower() -> void:
 	_clippings.lifetime = 0.55
 	_clippings.local_coords = false
 	_clippings.mesh = Placeholder.box(Vector3(0.05, 0.012, 0.11))
-	_clippings.material_override = Placeholder.material(Color(0.62, 0.86, 0.34))
+	_clippings.material_override = Placeholder.material(CLIPPINGS_GRASS)
+	_clipping_weeds = false
 	_clippings.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_clippings.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
 	_clippings.emission_box_extents = Vector3(get_cut_width() * 0.5, 0.03, 0.12)

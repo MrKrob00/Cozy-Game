@@ -144,8 +144,18 @@ func _run() -> void:
 	player.global_position = weeds + Vector3(0, 0, 4.4)
 	player.rotation = Vector3(0, 0, 0)
 	var bag_before: float = gs.bag_fill
-	await walk("north", 300)
+	Input.action_press("move_up")
+	Input.action_press("move_right")
+	var weed_clippings := false
+	for i in 300:
+		await frames(1)
+		if player.get("_clipping_weeds"):
+			weed_clippings = true
+	Input.action_release("move_up")
+	Input.action_release("move_right")
+	await frames(20)
 	check(square.field.get_height_at(weeds) == 0.0, "weeds are cut with the better blade")
+	check(weed_clippings, "cut weeds fly out lilac, not green")
 	check(gs.bag_fill > bag_before + 3.0, "weeds fill the bag fast")
 
 	# 4. Камень: мешает, убирается кнопкой, даёт монеты.

@@ -259,6 +259,19 @@ func _build_well() -> void:
 
 
 # Скамейка — модель Kenney Graveyard Kit (CC0). Сиденье смотрит на +Z.
+## Косилка упёрлась: дерево качается и роняет листья, скамейка вздрагивает.
+func bumped(push: Vector3) -> void:
+	match kind:
+		Kind.TREE:
+			if _crown:
+				Juice.wobble(_crown, push, 0.07, 1.3)
+				Juice.leaves(get_parent(), global_position + Vector3.UP * 2.4, 14, 1.45)
+		Kind.BENCH:
+			for child in get_children():
+				if child is MeshInstance3D:
+					Juice.wobble(child, push, 0.04, 0.6)
+
+
 func _build_bench() -> void:
 	Models.place(self, "bench", Vector3.ZERO, BENCH_SCALE)
 	_add_box_collision(Vector3(1.55, 1.0, 0.8), Vector3(0.0, 0.5, 0.0))

@@ -1,6 +1,6 @@
 class_name Juice
 ## Мелкие эффекты отклика: подпрыгивания интерфейса, всплывающий текст,
-## искры, конфетти.
+## искры, конфетти, листья, качание от удара, комочки травы в полёте.
 
 
 ## Элемент интерфейса на миг увеличивается и пружинит обратно.
@@ -57,7 +57,7 @@ static func slam(control: Control, from_scale := 1.8, duration := 0.22) -> void:
 
 
 ## Облачко пыли у земли (косилка во что-то упёрлась).
-static func dust(host: Node, at: Vector3, amount := 10) -> void:
+static func dust(host: Node, at: Vector3, amount := 10) -> CPUParticles3D:
 	var particles := _burst(host, at, amount, 0.6)
 	var mesh := SphereMesh.new()
 	mesh.radius = 0.08
@@ -84,6 +84,7 @@ static func dust(host: Node, at: Vector3, amount := 10) -> void:
 	particles.damping_min = 1.5
 	particles.damping_max = 2.5
 	particles.emitting = true
+	return particles
 
 
 ## Текст всплывает над точкой в мире и растворяется.
@@ -208,6 +209,125 @@ static func confetti(host: Node, at: Vector3, amount := 70) -> void:
 	particles.damping_min = 0.6
 	particles.damping_max = 1.4
 	particles.emitting = true
+
+
+## Листья слетают с кроны и, покачиваясь, опускаются на землю.
+static func leaves(host: Node, at: Vector3, amount := 9, spread_radius := 1.4) -> void:
+	var particles := _burst(host, at, amount, 2.2)
+	particles.explosiveness = 0.55
+	particles.mesh = Placeholder.box(Vector3(0.26, 0.015, 0.18))
+	var leaf := StandardMaterial3D.new()
+	leaf.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	leaf.vertex_color_use_as_albedo = true
+	particles.material_override = leaf
+	var colors := Gradient.new()
+	colors.interpolation_mode = Gradient.GRADIENT_INTERPOLATE_CONSTANT
+	colors.offsets = PackedFloat32Array([0.0, 0.4, 0.8])
+	colors.colors = PackedColorArray([Color(0.72, 0.88, 0.36), Color(0.92, 0.84, 0.34), Color(0.95, 0.66, 0.30)])
+	particles.color_initial_ramp = colors
+	# С края кроны, кольцом: изнутри листьев не было бы видно.
+	particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
+	particles.emission_ring_axis = Vector3.UP
+	particles.emission_ring_radius = spread_radius
+	particles.emission_ring_inner_radius = spread_radius * 0.85
+	particles.emission_ring_height = 1.2
+	particles.spread = 180.0
+	particles.initial_velocity_min = 0.2
+	particles.initial_velocity_max = 0.7
+	particles.gravity = Vector3(0.35, -1.3, 0.1)
+	particles.damping_min = 0.8
+	particles.damping_max = 1.6
+	particles.angular_velocity_min = -280.0
+	particles.angular_velocity_max = 280.0
+	particles.emitting = true
+
+
+## Облачко из мотора: косилка тронулась с места.
+static func puff(host: Node, at: Vector3, amount := 5) -> void:
+	var particles := dust(host, at, amount)
+	var fade := Gradient.new()
+	fade.colors = PackedColorArray([Color(1.0, 1.0, 1.0, 0.85), Color(1.0, 1.0, 1.0, 0.0)])
+	particles.color_ramp = fade
+	particles.direction = Vector3(0.0, 1.0, 0.4)
+	particles.spread = 30.0
+	particles.initial_velocity_min = 0.8
+	particles.initial_velocity_max = 1.4
+	particles.gravity = Vector3(0.0, 0.6, 0.0)
+
+
+## Огонёк в траве: здесь что-то спрятано.
+static func glint(host: Node, at: Vector3, color := Color(1.0, 0.93, 0.55)) -> void:
+	var particles := _burst(host, at, 6, 0.8)
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.1
+	mesh.height = 0.2
+	mesh.radial_segments = 6
+	mesh.rings = 3
+	particles.mesh = mesh
+	var glow := StandardMaterial3D.new()
+	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	glow.albedo_color = color
+	particles.material_override = glow
+	var size := Curve.new()
+	size.add_point(Vector2(0.0, 0.2))
+	size.add_point(Vector2(0.3, 1.0))
+	size.add_point(Vector2(1.0, 0.0))
+	particles.scale_amount_curve = size
+	particles.spread = 70.0
+	particles.initial_velocity_min = 0.6
+	particles.initial_velocity_max = 1.2
+	particles.gravity = Vector3(0.0, 0.2, 0.0)
+	particles.damping_min = 1.0
+	particles.damping_max = 1.5
+	particles.emitting = true
+
+
+## Объект качается и затихает (дерево или скамейка от удара). push — куда
+## толкнули, в мире; качание — вокруг основания узла.
+static func wobble(node: Node3D, push: Vector3, amount := 0.07, duration := 1.1) -> void:
+	_stop(node)
+	var parent := node.get_parent() as Node3D
+	var axis := Vector3.UP.cross(Vector3(push.x, 0.0, push.z))
+	if axis.length_squared() < 0.0001:
+		return
+	if parent:
+		axis = parent.global_basis.inverse() * axis
+	axis = axis.normalized()
+	var base := node.transform.basis
+	var tween := node.create_tween()
+	tween.tween_method(func(t: float) -> void:
+		var angle := amount * sin(t * TAU * 2.5) * pow(1.0 - t, 2.0)
+		node.transform.basis = Basis(axis, angle) * base, 0.0, 1.0, duration)
+	node.set_meta("juice_tween", tween)
+
+
+## Комочки летят дугой из from в to (трава из мешка в компостный ящик).
+## Возвращает, сколько секунд до прилёта последнего.
+static func toss(host: Node, from: Vector3, to: Vector3, color: Color, count := 8, duration := 0.45,
+		height := 1.1) -> float:
+	var mesh := Placeholder.box(Vector3(0.14, 0.1, 0.16))
+	var material := Placeholder.material(color)
+	var stagger := 0.04
+	for i in count:
+		var clump := MeshInstance3D.new()
+		clump.mesh = mesh
+		clump.material_override = material
+		clump.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		host.add_child(clump)
+		clump.global_position = from
+		clump.scale = Vector3.ONE * 0.01
+		var side := Vector3(randf_range(-0.25, 0.25), 0.0, randf_range(-0.25, 0.25))
+		var spin := Vector3(randf_range(-9.0, 9.0), randf_range(-9.0, 9.0), randf_range(-9.0, 9.0))
+		var lift := height * randf_range(0.85, 1.15)
+		var size := randf_range(0.8, 1.25)
+		var tween := clump.create_tween()
+		tween.tween_interval(stagger * i)
+		tween.tween_method(func(t: float) -> void:
+			clump.global_position = from.lerp(to + side, t) + Vector3.UP * lift * 4.0 * t * (1.0 - t)
+			clump.rotation = spin * t
+			clump.scale = Vector3.ONE * size * minf(t * 5.0, 1.0) * lerpf(1.0, 0.6, t), 0.0, 1.0, duration)
+		tween.tween_callback(clump.queue_free)
+	return stagger * (count - 1) + duration
 
 
 static func _burst(host: Node, at: Vector3, amount: int, lifetime: float) -> CPUParticles3D:

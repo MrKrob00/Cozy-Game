@@ -22,8 +22,13 @@ enum Kind { KEY, DUCK, COINS, GLASSES, GNOME, LETTER, TEAPOT }
 
 var _field: MowField
 var _revealed := false
+## Спрятанная вещь поблёскивает, когда герой ближе этого (м), раз в столько секунд.
+const GLINT_DISTANCE := 5.0
+const GLINT_EVERY := 2.6
+
 var _model: Node3D
 var _sparkles: CPUParticles3D
+var _glint_timer := 0.0
 
 
 func _enter_tree() -> void:
@@ -40,9 +45,17 @@ func _ready() -> void:
 		set_process(false)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not _revealed and _field and _field.get_height_at(global_position) == 0.0:
 		_reveal()
+		return
+	# Рядом с героем спрятанная вещь изредка поблёскивает над травой.
+	_glint_timer -= delta
+	if _glint_timer <= 0.0:
+		_glint_timer = randf_range(GLINT_EVERY * 0.8, GLINT_EVERY * 1.3)
+		var player := get_tree().get_first_node_in_group("player") as Node3D
+		if player and player.global_position.distance_to(global_position) < GLINT_DISTANCE:
+			Juice.glint(get_parent(), global_position + Vector3.UP * 0.75)
 
 
 func is_collected() -> bool:
@@ -80,6 +93,9 @@ func _reveal() -> void:
 	_sparkles.emitting = true
 	Sfx.play("find")
 	Sfx.buzz(30)
+	var player := get_tree().get_first_node_in_group("player")
+	if player and player.has_method("look_at_point"):
+		player.look_at_point(global_position + Vector3.UP * 1.2, 1.8)
 	var camera := get_viewport().get_camera_3d() as FollowCamera
 	if camera:
 		camera.nudge(1.0, 0.9)

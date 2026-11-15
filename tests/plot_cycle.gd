@@ -85,7 +85,13 @@ func _run() -> void:
 	player.rotation = Vector3(0, PI, 0)  # лицом к +Z, к ящику
 	await hold("move_down", 1)
 	Input.action_press("move_down"); Input.action_press("move_left")  # на экране вниз-влево = +Z
-	await frames(120)
+	var yard_node = current_scene.get_node("Yard")
+	var clumps_seen := false
+	for i in 120:
+		await frames(1)
+		for child in yard_node.get_children():
+			if child is MeshInstance3D and child.mesh is BoxMesh and not child.has_meta("vertex_colors"):
+				clumps_seen = true
 	Input.action_release("move_down"); Input.action_release("move_left")
 	await frames(20)
 	print("at bin: pos=%s target=%s" % [player.global_position, player.interaction_target])
@@ -93,6 +99,19 @@ func _run() -> void:
 	check(gs.bag_fill < 1.0 and gs.compost == 6, "bag empties by itself at the bin (60 units -> 6 compost)")
 	check(player.interaction_target == null, "no target once bag is empty")
 	check(not bin.get("_arrow").visible, "arrow hidden after emptying")
+	check(clumps_seen, "grass flies from the bag into the bin")
+
+	# Удар о дерево: крона качается, сыплются листья.
+	var tree = current_scene.get_node("Yard/Tree")
+	tree.bumped(Vector3(-1, 0, 0))
+	await frames(6)
+	var leaves_falling := false
+	for child in yard_node.get_children():
+		if child is CPUParticles3D and child.emitting and child.global_position.y > 1.5:
+			leaves_falling = true
+	check(absf(tree.get("_crown").rotation.z) > 0.01 and leaves_falling, "a bumped tree sways and drops leaves")
+	await frames(90)
+	check(tree.get("_crown").rotation.length() < 0.005, "the tree settles back")
 
 	# 4. Находка: скашиваем траву над монетками.
 	var coins_find = current_scene.get_node("Yard/FindCoins")

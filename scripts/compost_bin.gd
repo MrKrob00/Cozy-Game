@@ -6,6 +6,8 @@ extends Interactable
 const ARROW := Color(1.0, 0.80, 0.25)
 const SIZE := Vector3(1.3, 0.9, 1.1)
 const ARROW_HEIGHT := 2.3
+const CLUMP := Color(0.55, 0.78, 0.30)
+const TOSS_CLUMPS := 9
 
 var _arrow: Node3D
 var _model: Node3D
@@ -40,19 +42,22 @@ func can_interact(_player: Player) -> bool:
 	return GameState.bag_fill >= 1.0
 
 
-func interact(_player: Player) -> void:
+func interact(player: Player) -> void:
 	var gained := GameState.empty_bag()
-	if gained > 0:
-		GameState.show_reward("compost", gained, global_position + Vector3.UP * 1.2)
+	GameState.save_game()
+	# Трава комочками летит из мешка в ящик; ящик отзывается, когда она долетела.
+	var flight := Juice.toss(get_parent(), player.get_bag_position(), global_position + Vector3.UP * 0.75,
+			CLUMP, TOSS_CLUMPS)
+	Sfx.buzz(20)
+	await get_tree().create_timer(flight * 0.75).timeout
 	_burst.restart()
 	_burst.emitting = true
 	Juice.squash(_model, 0.22)
 	Sfx.play("dump")
-	Sfx.buzz(20)
 	if gained > 0:
+		GameState.show_reward("compost", gained, global_position + Vector3.UP * 1.2)
 		Juice.floating_text(self, global_position + Vector3.UP * 1.6, L.t("+%d компоста") % gained,
 				Color(0.8, 1.0, 0.55))
-	GameState.save_game()
 
 
 func _on_bag_changed(_fill: float, _capacity: float) -> void:
