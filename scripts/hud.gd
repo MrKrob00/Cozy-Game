@@ -1149,6 +1149,11 @@ func _on_festival_started(announce: bool, village: Village) -> void:
 	_completion.visible = true
 	Juice.pop_in(_completion_panel, 0.4)
 	Sfx.play("pop")
+	# Когда окно итогов закроют, камера покажет дом: у двери можно лечь спать.
+	var bed := get_tree().get_first_node_in_group("bedtime") as Bedtime
+	if bed:
+		show_place(bed.get_show_point(),
+				L.t("У двери дома можно лечь спать: наступит новый день, и на участках подрастёт трава — её можно подстричь снова"))
 
 
 # Строки бюро находок: найденные вещи, у которых есть владелец.

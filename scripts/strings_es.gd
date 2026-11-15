@@ -174,4 +174,5 @@ const MESSAGES := {
 	"Хорошо тут, яблоками пахнет. Посижу минутку.": "Qué bien se está aquí, huele a manzanas. Me siento un minuto.",
 	"Ох, ноги уже не те. Посижу, посмотрю, как ты косишь.": "Ay, las piernas ya no son lo que eran. Me siento a verte segar.",
 	"Пять минут без писем… Красота!": "Cinco minutos sin cartas… ¡Qué maravilla!",
+	"У двери дома можно лечь спать: наступит новый день, и на участках подрастёт трава — её можно подстричь снова": "En la puerta de casa puedes irte a dormir: empieza un nuevo día y la hierba vuelve a crecer un poco para que la cortes otra vez",
 }

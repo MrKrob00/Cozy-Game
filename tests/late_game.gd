@@ -226,6 +226,7 @@ func _run() -> void:
 	# 7. Сон: новый день, трава на выкошенных участках отрастает, повторный покос даёт монеты.
 	var bedtime = yard.get_node("Bedtime")
 	check(bedtime.can_interact(player), "player can sleep once the yard is mowed")
+	check(bedtime.get_node_or_null("GlowRing") != null, "a glowing ring marks the door while sleep is possible")
 	check(gs.day == 1 and is_equal_approx(yard.get_progress(), 1.0), "day 1, yard fully mowed")
 	bedtime.interact(player)
 	await wait(4.0)
@@ -259,6 +260,21 @@ func _run() -> void:
 	check(village.get_node("Decor").get("_bunting") != null, "street gets festival bunting")
 	print("summary: ", village.get_summary())
 	check(village.get_summary().size() == 4, "summary has four lines")
+	# Окно итогов закрыли — камера показывает дом: у двери можно лечь спать.
+	hud.get_node("%Completion").visible = false
+	# Показ встаёт в очередь за другими (житель вернулся и т. п.).
+	var camera = village.get_node("Camera")
+	var shown := false
+	for i in 60:
+		await wait(0.5)
+		if camera.is_revealing() and (camera.get("_reveal_point") as Vector3).distance_to(bedtime.get_show_point()) < 0.1:
+			shown = true
+			break
+	check(shown, "after the festival the camera shows the front door")
+	await wait(2.0)
+	check(toasts.any(func(t): return t.begins_with("У двери дома можно лечь спать")), "and explains that you can sleep there")
+	while hud.is_showing():
+		await wait(0.5)
 
 	# 9. Сохранение: день, возвраты, починка и праздник переживают перезагрузку.
 	gs.save_game()
