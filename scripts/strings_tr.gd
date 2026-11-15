@@ -172,7 +172,6 @@ const MESSAGES := {
 	"клад в жестянке": "teneke kutuda hazine",
 	"гном-рыбак": "balıkçı cüce",
 	"Второй! Теперь у них будет компания.": "İkincisi! Artık birbirlerine arkadaş olurlar.",
-	"Мимо пробегает почтальон… Ой, письмо выпало!": "Postacı koşarak geçiyor… Eyvah, bir mektup düştü!",
 	"Письмо! В нём открытка и монеты: +%d": "Bir mektup! İçinde kartpostal ve altın var: +%d",
 	"Грибной дождик! Трава намокла": "Güneşli yağmur! Çimenler ıslandı",
 	"Дождик кончился — трава блестит от росы": "Yağmur dindi — çimenler çiyle parlıyor",

@@ -23,13 +23,11 @@ const GATE_POST_SCALE := 1.35
 const SIGN_HIDE_NEAR := 6.0
 const SIGN_SCALE := 2.5
 const GATE_OPEN_ANGLE := 1.9
-const ARROW_HEIGHT := 2.6
 
 var _half := Vector2.ZERO
 var _gate: Node3D
 var _gate_open := true
-var _arrow: Node3D
-var _arrow_time := 0.0
+var _arrow: GlowRing
 var _guide_plot: Plot
 var _sign_label: Label3D
 
@@ -106,21 +104,16 @@ func _update_sign(plot: Plot) -> void:
 	_sign_label.text = text
 
 
-## Стрелка над калиткой: зовёт на только что открытый участок и исчезает,
-## когда игрок туда зашёл.
+## Световой круг на земле у калитки: зовёт на только что открытый участок
+## и гаснет, когда игрок туда зашёл (стрелка над калиткой игроку не нравилась).
 func show_guide_arrow(plot: Plot) -> void:
 	if _arrow:
 		return
 	_guide_plot = plot
-	_arrow = Node3D.new()
-	_arrow.name = "GuideArrow"
+	_arrow = GlowRing.create(1.0)
+	_arrow.name = "GuideRing"
 	add_child(_arrow)
-	_arrow.global_position = get_gate_position() + Vector3.UP * ARROW_HEIGHT
-	Models.place(_arrow, "guide_arrow", Vector3(0.0, -0.35, 0.0), 1.1, 0.0, false)
-	Placeholder.bake_tree(_arrow)
-	_arrow.scale = Vector3.ONE * 0.01
-	var grow := _arrow.create_tween()
-	grow.tween_property(_arrow, "scale", Vector3.ONE, 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_arrow.global_position = get_gate_position()
 	set_process(true)
 
 
@@ -128,24 +121,15 @@ func _process(delta: float) -> void:
 	if _arrow == null:
 		set_process(false)
 		return
-	_arrow_time += delta
-	_arrow.position.y = _arrow_base_y() + sin(_arrow_time * 3.5) * 0.25
-	_arrow.rotate_y(delta * 1.8)
 	var village := get_tree().get_first_node_in_group("village") as Village
 	if village and village.current_plot == _guide_plot and _guide_plot.get_progress() > 0.0:
-		var arrow := _arrow
+		var ring := _arrow
 		_arrow = null
-		var shrink := arrow.create_tween()
-		shrink.tween_property(arrow, "scale", Vector3.ONE * 0.01, 0.3).set_ease(Tween.EASE_IN)
-		shrink.tween_callback(arrow.queue_free)
+		ring.vanish()
 
 
 func has_guide_arrow() -> bool:
 	return _arrow != null
-
-
-func _arrow_base_y() -> float:
-	return to_local(get_gate_position()).y + ARROW_HEIGHT
 
 
 ## Углы забора в мировых координатах, по кругу.

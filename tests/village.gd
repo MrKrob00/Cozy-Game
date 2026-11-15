@@ -202,7 +202,7 @@ func _run() -> void:
 	check(not garden.reveal_pending and garden.get_walk_rects().size() == 2, "garden gate passage appears")
 	check(camera.global_position.distance_to(gate_at) < camera.global_position.distance_to(player.global_position), "the camera is at the garden gate while it opens")
 	check(toasts.any(func(t): return t.begins_with("Калитка в сад бабушки открыта")), "unlock toast")
-	check(garden.fence.has_guide_arrow(), "an arrow over the garden gate shows the way")
+	check(garden.fence.has_guide_arrow(), "a glow ring at the garden gate shows the way")
 	check(garden.fence.get("_sign_label").text.contains("Сад бабушки") and not garden.fence.get("_sign_label").text.contains("закрыто"), "the garden signpost no longer says closed")
 	await frames(220)
 	check(not camera.is_revealing() and player.controls_enabled, "the camera comes back and the player moves again")
@@ -279,7 +279,7 @@ func _run() -> void:
 	check(village.current_plot == garden, "garden becomes the current plot")
 	check(hud.get_node("%ProgressLabel").text.begins_with("Сад бабушки"), "HUD switches to the garden")
 	check(garden.get_progress() > 0.005 and gs.bag_fill > 2.0, "mowing works on the second plot")
-	check(not garden.fence.has_guide_arrow(), "the guide arrow goes once the player mows the garden")
+	check(not garden.fence.has_guide_arrow(), "the gate ring goes once the player mows the garden")
 
 	check(trail.mark_count() == 0 and village.next_goal() == null, "the trail goes once the player mows the garden")
 

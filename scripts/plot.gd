@@ -255,6 +255,10 @@ func _on_progress_changed(ratio: float) -> void:
 		_state["perfect"] = true
 		GameState.toast("Идеально! Ни травинки не осталось")
 		Sfx.play("find", -4.0, 1.2)
+		# Облёт камеры — только когда выкошено всё (на 95 % его нет).
+		var camera := get_viewport().get_camera_3d() as FollowCamera
+		if camera:
+			camera.play_flyover()
 		GameState.save_game()
 
 
@@ -318,9 +322,6 @@ func _celebrate() -> void:
 	Sfx.play("complete")
 	Sfx.buzz(60)
 	_light_up()
-	var camera := get_viewport().get_camera_3d() as FollowCamera
-	if camera:
-		camera.play_flyover()
 	var player := get_tree().get_first_node_in_group("player") as Player
 	if player:
 		Juice.confetti(self, player.global_position + Vector3.UP * 1.2)

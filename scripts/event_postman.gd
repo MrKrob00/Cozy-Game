@@ -4,6 +4,9 @@ extends Node3D
 ## письмо: ветер уносит его в траву участка (PlotEvents.drop_letter).
 
 const SPEED := 2.6
+## Шаг раз в столько секунд; дальше этого от героя шагов не слышно, метры.
+const STEP_EVERY := 0.27
+const HEAR_DISTANCE := 16.0
 
 var _events: PlotEvents
 var _from := Vector3.ZERO
@@ -15,6 +18,7 @@ var _figure: CharacterModel
 var _travelled := 0.0
 var _dropped := false
 var _terrain: Terrain
+var _step_timer := 0.0
 
 
 ## Почтальон бежит по ближайшей к герою дороге из конца в конец (а не вдоль
@@ -71,6 +75,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_travelled += SPEED * delta
+	_footsteps(delta)
 	var length := _from.distance_to(_to)
 	_place(_travelled / length)
 	if not _dropped and _travelled >= length * _drop_at:
@@ -109,3 +114,17 @@ func _throw_letter() -> void:
 		letter.queue_free()
 		if is_instance_valid(events):
 			events.drop_letter(landing))
+
+
+# Топот бегущего почтальона: тем тише, чем он дальше от героя.
+func _footsteps(delta: float) -> void:
+	_step_timer -= delta
+	if _step_timer > 0.0:
+		return
+	_step_timer = STEP_EVERY
+	var player := get_tree().get_first_node_in_group("player") as Node3D
+	if player == null:
+		return
+	var distance := player.global_position.distance_to(global_position)
+	if distance < HEAR_DISTANCE:
+		Sfx.play("step", -12.0 - distance * 0.9, 1.1, 0.1)

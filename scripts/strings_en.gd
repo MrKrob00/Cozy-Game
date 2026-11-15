@@ -205,7 +205,6 @@ const MESSAGES := {
 	"Второй! Теперь у них будет компания.": "A second one! Now they'll keep each other company.",
 
 	# События.
-	"Мимо пробегает почтальон… Ой, письмо выпало!": "The postman hurries by… Oops, a letter fell out!",
 	"Письмо! В нём открытка и монеты: +%d": "A letter! A postcard and coins inside: +%d",
 	"Грибной дождик! Трава намокла": "A sun shower! The grass is getting wet",
 	"Дождик кончился — трава блестит от росы": "The shower is over — the grass sparkles with dew",

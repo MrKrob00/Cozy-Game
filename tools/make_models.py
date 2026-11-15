@@ -1210,9 +1210,6 @@ def pebble():
 
 # --- Вместо последних примитивов: стрелка, яблоко, вода, мох, листья, бабочка, земля клумбы ---
 
-ARROW_GOLD = (1.0, 0.80, 0.25)
-ARROW_EDGE = (0.86, 0.56, 0.16)
-ARROW_SHINE = (1.0, 0.95, 0.70)
 APPLE = (0.90, 0.24, 0.22)
 APPLE_SHINE = (1.0, 0.55, 0.45)
 STEM = (0.40, 0.26, 0.16)
@@ -1228,24 +1225,6 @@ SOIL_DARK = (0.38, 0.27, 0.19)
 SOIL_LIGHT = (0.52, 0.39, 0.28)
 LILY_PINK = (1.0, 0.68, 0.80)
 LILY_WHITE = (1.0, 0.92, 0.95)
-
-
-def guide_arrow():
-    """Стрелка-подсказка остриём вниз: круглое древко, наконечник с тёмной
-    кромкой и светлым бликом. Начало координат — у острия."""
-    mesh = Mesh()
-    # Наконечник: конус с чуть скруглённым верхним краем.
-    lathe(mesh, [(0.0, 0.0), (0.03, 0.02), (0.42, 0.5), (0.44, 0.53), (0.42, 0.56), (0.0, 0.56)], (0, 0, 0),
-          ARROW_GOLD, segments=12)
-    lathe(mesh, [(0.4, 0.5), (0.445, 0.525), (0.44, 0.55), (0.4, 0.56)], (0, 0, 0), ARROW_EDGE, segments=12)
-    # Древко со скруглённым торцом.
-    lathe(mesh, [(0.0, 0.55), (0.17, 0.55), (0.17, 1.0), (0.14, 1.06), (0.0, 1.08)], (0, 0, 0), ARROW_GOLD,
-          segments=10)
-    # Блики — узкие светлые полоски сбоку.
-    box(mesh, (0.05, 0.38, 0.03), (0.0, 0.8, -0.165), ARROW_SHINE, bevel=0.01)
-    mesh.add([(0.0, 0.08, -0.06), (-0.04, 0.45, -0.36), (0.04, 0.45, -0.36)], [[0, 1, 2]], ARROW_SHINE,
-             smooth=False, outward_from=(0.0, 0.3, 0.0))
-    return mesh
 
 
 def apple():
@@ -1438,7 +1417,6 @@ if __name__ == "__main__":
         write(tuft(variant), f"tuft_{variant}", sway_from="all", sway=1.0)
     for variant in range(4):
         write(wild_flower(variant), f"wild_flower_{variant}", sway_from="all", sway=0.8)
-    write(guide_arrow(), "guide_arrow")
     write(apple(), "apple", sway_from="all", sway=0.2)
     write(water_disc([WATER_SHALLOW, WATER_MID, WATER_MID, WATER_DEEP]), "water_disc", smooth_angle=10.0)
     write(moss_disc(), "moss_disc")

@@ -172,7 +172,6 @@ const MESSAGES := {
 	"клад в жестянке": "skarb w puszce",
 	"гном-рыбак": "krasnal wędkarz",
 	"Второй! Теперь у них будет компания.": "Drugi! Teraz będą miały towarzystwo.",
-	"Мимо пробегает почтальон… Ой, письмо выпало!": "Listonosz przebiega obok… Ojej, wypadł list!",
 	"Письмо! В нём открытка и монеты: +%d": "List! W środku pocztówka i monety: +%d",
 	"Грибной дождик! Трава намокла": "Ciepły deszczyk! Trawa zmokła",
 	"Дождик кончился — трава блестит от росы": "Deszczyk minął — trawa lśni od rosy",

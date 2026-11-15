@@ -11,7 +11,7 @@ const TOAST_TIME := 3.2
 const TOAST_TIME_BUSY := 1.7
 const MAX_WAITING_TOASTS := 2
 ## Пауза перед окном завершения участка, секунд.
-const COMPLETION_DELAY := 5.0
+const COMPLETION_DELAY := 1.8
 ## Сколько летят значки награды до счётчика, секунд.
 const FLIGHT_TIME := 0.85
 ## Значок каждого улучшения в мастерской.
@@ -719,7 +719,8 @@ func _on_target_changed(target: Interactable) -> void:
 
 
 func _on_plot_completed(plot: Plot) -> void:
-	# Сначала облёт камеры, чтобы игрок увидел выкошенный участок, потом окно.
+	# Сначала конфетти и радость героя, потом окно. Облёт камеры — на 100 %
+	# (Plot._on_progress_changed).
 	show_toast(plot.completed_title)
 	await get_tree().create_timer(COMPLETION_DELAY).timeout
 	_completion_title.text = L.t(plot.completed_title)

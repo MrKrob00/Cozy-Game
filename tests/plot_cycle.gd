@@ -80,7 +80,7 @@ func _run() -> void:
 
 	# 3. Компостный ящик.
 	var bin = current_scene.get_node("Yard/CompostBin")
-	check(bin.get("_arrow").visible, "arrow shown over compost bin when bag is full")
+	check(bin.get("_ring").visible, "a glow ring marks the compost bin when the bag is full")
 	player.global_position = Vector3(3.3, 0, 4.6)
 	player.rotation = Vector3(0, PI, 0)  # лицом к +Z, к ящику
 	await hold("move_down", 1)
@@ -98,7 +98,7 @@ func _run() -> void:
 	check(player.global_position.z < 6.2, "mower is stopped by the bin")
 	check(gs.bag_fill < 1.0 and gs.compost == 6, "bag empties by itself at the bin (60 units -> 6 compost)")
 	check(player.interaction_target == null, "no target once bag is empty")
-	check(not bin.get("_arrow").visible, "arrow hidden after emptying")
+	check(not bin.get("_ring").visible, "the ring goes once the bag is empty")
 	check(clumps_seen, "grass flies from the bag into the bin")
 
 	# Удар о дерево: крона качается, сыплются листья.
@@ -266,6 +266,9 @@ func _run() -> void:
 	field.mow(Vector3(0, 0, 4.7), Vector3.FORWARD, 14.0, 1.6)
 	await frames(5)
 	check(done[0] == 1 and plot.is_completed(), "plot completes at 95 %")
+	var camera3d = current_scene.get_node("Camera")
+	var no_flyover: bool = camera3d.get("_flyover") == null or not camera3d.get("_flyover").is_running()
+	check(no_flyover or field.get_progress() >= 1.0, "no camera fly-over at 95 %")
 	print("milestones: ", milestones)
 	check(milestones == [25, 50, 75], "milestones at 25, 50 and 75 % fire once each")
 	check(gs.coins == coins_before + 50, "completion reward +50 coins")
@@ -274,9 +277,10 @@ func _run() -> void:
 	check(field.get_progress() == 1.0, "progress reaches 100 %")
 	check(done[0] == 1, "completion fires only once")
 	check(toasts.any(func(t): return t.begins_with("Идеально")), "perfect toast")
+	check(camera3d.get("_flyover") != null and camera3d.get("_flyover").is_running(), "the camera flies around the plot at 100 %")
 	for i in 400:
 		await process_frame
-	check(hud.get_node("%Completion").visible, "completion window shown after the fly-over")
+	check(hud.get_node("%Completion").visible, "completion window shown after the celebration")
 	var stamps: Array = plot.get_stamps()
 	print("stamps: ", stamps)
 	check(stamps.size() == 5 and stamps.all(func(st): return st.earned), "all five stamps earned")

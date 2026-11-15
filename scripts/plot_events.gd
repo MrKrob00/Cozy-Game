@@ -168,8 +168,8 @@ func _letter() -> bool:
 		return false
 	var spot: Variant = _uncut_spot(2.0, 6.0)
 	var landing: Vector3 = spot if spot != null else _open_spot()
+	# Без сообщения: почтальона слышно (шаги), письмо видно в полёте.
 	EventPostman.spawn(self, plot, _player.global_position, landing)
-	GameState.toast("Мимо пробегает почтальон… Ой, письмо выпало!")
 	return true
 
 

@@ -1,17 +1,15 @@
 class_name CompostBin
 extends Interactable
 ## Компостный ящик: сюда высыпают полный мешок.
-## Над ящиком появляется стрелка, когда мешок заполнен.
+## Вокруг ящика светится круг на земле, когда мешок заполнен.
 
 const SIZE := Vector3(1.3, 0.9, 1.1)
-const ARROW_HEIGHT := 2.3
 const TOSS_CLUMPS := 9
 
-var _arrow: Node3D
+var _ring: GlowRing
 var _model: Node3D
 var _pile: MeshInstance3D
 var _burst: CPUParticles3D
-var _time := 0.0
 
 
 func _ready() -> void:
@@ -23,13 +21,6 @@ func _ready() -> void:
 	GameState.compost_changed.connect(_update_pile)
 	_on_bag_changed(GameState.bag_fill, GameState.bag_capacity)
 	_update_pile(GameState.compost)
-
-
-func _process(delta: float) -> void:
-	if _arrow.visible:
-		_time += delta
-		_arrow.position.y = ARROW_HEIGHT + sin(_time * 4.0) * 0.18
-		_arrow.rotate_y(delta * 2.0)
 
 
 func get_prompt() -> String:
@@ -59,7 +50,9 @@ func interact(player: Player) -> void:
 
 
 func _on_bag_changed(_fill: float, _capacity: float) -> void:
-	_arrow.visible = GameState.is_bag_full()
+	var full := GameState.is_bag_full()
+	_ring.visible = full
+	_ring.set_process(full)
 
 
 func _update_pile(compost: int) -> void:
@@ -78,11 +71,9 @@ func _build_visuals() -> void:
 	_pile.set_meta("no_bake", true)
 	_model.add_to_group("shadow_dynamic")
 
-	_arrow = Node3D.new()
-	_arrow.position = Vector3(0.0, ARROW_HEIGHT, 0.0)
-	add_child(_arrow)
-	# Стрелка вертится и качается: тени не отбрасывает, чтобы не перерисовывать тени.
-	Models.place(_arrow, "guide_arrow", Vector3(0.0, -0.3, 0.0), 0.95, 0.0, false)
+	_ring = GlowRing.create(1.15)
+	_ring.name = "GlowRing"
+	add_child(_ring)
 
 	_burst = CPUParticles3D.new()
 	_burst.position = Vector3(0.0, 1.0, 0.0)
