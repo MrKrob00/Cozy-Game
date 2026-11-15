@@ -855,100 +855,213 @@ def fx_clump():
     return mesh
 
 
-BALLOON_COLORS = [(0.95, 0.42, 0.32), (1.0, 0.86, 0.42), (0.40, 0.66, 0.90), (1.0, 0.97, 0.90)]
+BALLOON_COLORS = [(0.93, 0.36, 0.30), (1.0, 0.95, 0.86), (0.98, 0.78, 0.30), (1.0, 0.95, 0.86)]
+BALLOON_BAND = (0.30, 0.58, 0.86)
+BALLOON_SKIRT = (0.58, 0.30, 0.26)
+WICKER = (0.80, 0.62, 0.38)
+STEEL_DARK = (0.38, 0.40, 0.45)
+WICKER_DARK = (0.64, 0.46, 0.27)
+LEATHER = (0.48, 0.30, 0.20)
+SANDBAG = (0.86, 0.78, 0.60)
 
 
 def hot_air_balloon():
-    """Воздушный шар: купол из цветных клиньев, горелка, стропы и плетёная
-    корзина. Высота около 2,6 м, начало координат — дно корзины."""
+    """Воздушный шар: купол-капля из 16 клиньев в полоску, синий пояс с
+    зубцами по экватору, макушка, тёмная юбка у горловины, восемь строп к
+    раме горелки, плетёная корзина с кожаным бортиком и мешками с песком.
+    Высота около 2,7 м, начало координат — дно корзины."""
     mesh = Mesh()
-    gores = 12
-    steps = 3
-    # Профиль купола: (радиус, высота) снизу вверх.
-    profile = [(0.22, 0.95), (0.55, 1.15), (0.85, 1.55), (0.98, 1.95), (0.92, 2.3), (0.66, 2.55), (0.3, 2.66),
-               (0.0, 2.69)]
+    gores, steps = 16, 3
+    count = gores * steps
+    # Профиль купола (радиус, высота) снизу вверх: узкая горловина, капля.
+    profile = [(0.2, 1.0), (0.3, 1.1), (0.5, 1.28), (0.7, 1.5), (0.86, 1.74), (0.96, 1.98), (0.99, 2.16),
+               (0.95, 2.34), (0.84, 2.5), (0.66, 2.62), (0.42, 2.7), (0.18, 2.74), (0.0, 2.75)]
+    band_rows = (5, 6)
     rows = []
     for radius, height in profile:
         ring = []
-        for k in range(gores * steps):
-            angle = 2 * math.pi * k / (gores * steps)
-            # Клинья чуть выпуклые: между швами радиус больше.
-            bulge = 1.0 + 0.04 * math.sin(math.pi * (k % steps) / steps)
+        for k in range(count):
+            angle = 2 * math.pi * k / count
+            # Клин чуть выпуклый между швами.
+            bulge = 1.0 + 0.035 * math.sin(math.pi * (k % steps) / steps)
             ring.append((math.cos(angle) * radius * bulge, height, math.sin(angle) * radius * bulge))
         rows.append(ring)
     for r in range(len(rows) - 1):
-        for k in range(gores * steps):
-            j = (k + 1) % (gores * steps)
-            color = BALLOON_COLORS[(k // steps) % len(BALLOON_COLORS)]
+        for k in range(count):
+            j = (k + 1) % count
+            if r in band_rows:
+                # Пояс с зубцами: нижняя половина клина — пояс, верхняя — по цвету клина.
+                color = BALLOON_BAND if (r == band_rows[0] or (k // steps) % 2 == 0) else \
+                    BALLOON_COLORS[(k // steps) % len(BALLOON_COLORS)]
+            elif r >= len(rows) - 3:
+                color = BALLOON_COLORS[0]
+            else:
+                color = BALLOON_COLORS[(k // steps) % len(BALLOON_COLORS)]
             quad = [rows[r][k], rows[r][j], rows[r + 1][j], rows[r + 1][k]]
             if profile[r + 1][0] < 1e-6:
                 quad = quad[:3]
-            mesh.add(quad, [list(range(len(quad)))], color, smooth=True, outward_from=(0, 1.8, 0))
-    # Горелка и рама над корзиной.
-    lathe(mesh, [(0.0, 0.62), (0.1, 0.62), (0.12, 0.72), (0.0, 0.74)], (0, 0, 0), STEEL, segments=8)
-    # Стропы от корзины к куполу.
+            mesh.add(quad, [list(range(len(quad)))], color, smooth=True, outward_from=(0, 1.9, 0))
+    # Юбка у горловины.
+    lathe(mesh, [(0.17, 0.9), (0.21, 1.02)], (0, 0, 0), BALLOON_SKIRT, segments=12)
+    lathe(mesh, [(0.21, 1.02), (0.17, 0.9)], (0, 0, 0), BALLOON_SKIRT, segments=12)
+    # Рама и горелка.
+    lathe(mesh, [(0.0, 0.66), (0.07, 0.66), (0.1, 0.74), (0.08, 0.82), (0.0, 0.84)], (0, 0, 0), STEEL, segments=8)
+    lathe(mesh, [(0.03, 0.82), (0.05, 0.86), (0.0, 0.9)], (0, 0, 0), (1.0, 0.72, 0.30), segments=6)
     for k in range(4):
         angle = math.pi / 4 + k * math.pi / 2
-        bottom = (math.cos(angle) * 0.2, 0.42, math.sin(angle) * 0.2)
-        top = (math.cos(angle) * 0.24, 0.97, math.sin(angle) * 0.24)
-        tube(mesh, [bottom, top], 0.012, WOOD_DARK, segments=4)
-    # Корзина: короб, светлый обод, полоски плетения.
-    box(mesh, (0.44, 0.38, 0.44), (0, 0.19, 0), WOOD, bevel=0.03)
-    box(mesh, (0.5, 0.06, 0.5), (0, 0.4, 0), STRAW, bevel=0.02)
-    for y in (0.1, 0.22):
-        box(mesh, (0.455, 0.025, 0.455), (0, y, 0), WOOD_DARK, bevel=0.008)
+        tube(mesh, [(math.cos(angle) * 0.2, 0.44, math.sin(angle) * 0.2),
+                    (math.cos(angle) * 0.09, 0.7, math.sin(angle) * 0.09)], 0.008, STEEL_DARK, segments=4)
+    # Стропы от рамы к поясу купола.
+    for k in range(8):
+        angle = k * math.pi / 4
+        tube(mesh, [(math.cos(angle) * 0.18, 0.62, math.sin(angle) * 0.18),
+                    (math.cos(angle) * 0.2, 1.0, math.sin(angle) * 0.2)], 0.006, WOOD_DARK, segments=3)
+    # Корзина: плетение полосами, кожаный бортик, мешки с песком.
+    for i, y in enumerate((0.05, 0.13, 0.21, 0.29, 0.37)):
+        box(mesh, (0.44 - i * 0.004, 0.08, 0.44 - i * 0.004), (0, y, 0), WICKER if i % 2 == 0 else WICKER_DARK,
+            bevel=0.015)
+    for k in range(4):
+        x = -0.15 + k * 0.1
+        for z in (-0.222, 0.222):
+            box(mesh, (0.025, 0.36, 0.01), (x, 0.2, z), WICKER_DARK, bevel=0.0, smooth=False)
+            box(mesh, (0.01, 0.36, 0.025), (z, 0.2, x), WICKER_DARK, bevel=0.0, smooth=False)
+    box(mesh, (0.5, 0.05, 0.5), (0, 0.43, 0), LEATHER, bevel=0.022)
+    for side in (-1, 1):
+        ball(mesh, (0.05, 0.065, 0.035), (side * 0.25, 0.3, 0.1), SANDBAG, segments=7, rings=4)
+        tube(mesh, [(side * 0.25, 0.36, 0.1), (side * 0.24, 0.43, 0.1)], 0.005, WOOD_DARK, segments=3)
     return mesh
+
+
+GIFT = (0.52, 0.76, 0.92)
+GIFT_DOTS = (1.0, 0.97, 0.88)
+RIBBON = (0.92, 0.30, 0.32)
+RIBBON_DARK = (0.74, 0.20, 0.24)
 
 
 def parcel():
-    """Посылка: коробка с лентой и бантом. Начало координат — дно коробки."""
+    """Подарок с воздушного шара: голубая коробка в белый горошек, крышка
+    шире коробки, красная лента крест-накрест и пышный бант из двух петель
+    с хвостиками. Начало координат — дно коробки."""
     mesh = Mesh()
-    box(mesh, (0.32, 0.24, 0.26), (0, 0.12, 0), (0.82, 0.62, 0.40), bevel=0.02)
-    box(mesh, (0.335, 0.245, 0.06), (0, 0.122, 0), RED, bevel=0.01)
-    box(mesh, (0.06, 0.245, 0.275), (0, 0.122, 0), RED, bevel=0.01)
+    box(mesh, (0.3, 0.2, 0.26), (0, 0.1, 0), GIFT, bevel=0.012)
+    box(mesh, (0.32, 0.06, 0.28), (0, 0.22, 0), GIFT, bevel=0.012)
+    # Горошек на боках и крышке.
+    def dot(center, normal, radius=0.016):
+        normal = np.asarray(normal, dtype=float)
+        a = np.cross(normal, [0.0, 1.0, 0.0] if abs(normal[1]) < 0.9 else [1.0, 0.0, 0.0])
+        a /= np.linalg.norm(a)
+        b = np.cross(normal, a)
+        middle = np.asarray(center, dtype=float) + normal * 0.002
+        ring = [middle + (a * math.cos(t) + b * math.sin(t)) * radius for t in np.linspace(0, 2 * math.pi, 9)[:-1]]
+        mesh.add([middle] + ring, [[0, k + 1, (k + 1) % 8 + 1] for k in range(8)], GIFT_DOTS, smooth=False,
+                 outward_from=middle - normal)
+    for x in (-0.1, -0.05, 0.05, 0.1):
+        for y in (0.05, 0.14):
+            shift = 0.025 if y > 0.1 else -0.025
+            for z in (-0.13, 0.13):
+                if abs(x + shift) > 0.04:
+                    dot((x + shift, y, z), (0, 0, 1 if z > 0 else -1))
+            for xs in (-0.15, 0.15):
+                if abs(x * 0.85 + shift) > 0.04:
+                    dot((xs, y, x * 0.85 + shift), (1 if xs > 0 else -1, 0, 0))
+    for x in (-0.11, -0.06, 0.06, 0.11):
+        for z in (-0.09, 0.09):
+            dot((x, 0.25, z + (0.02 if x > 0 else -0.02)), (0, 1, 0))
+    # Лента крест-накрест.
+    box(mesh, (0.325, 0.255, 0.05), (0, 0.127, 0), RIBBON, bevel=0.006)
+    box(mesh, (0.05, 0.255, 0.285), (0, 0.127, 0), RIBBON, bevel=0.006)
+    # Бант: две петли, узелок, два хвостика.
     for side in (-1, 1):
-        ball(mesh, (0.06, 0.035, 0.04), (side * 0.05, 0.255, 0), RED, segments=7, rings=4)
+        loop = []
+        for k in range(13):
+            a = 2 * math.pi * k / 12
+            loop.append((side * (0.06 + 0.055 * math.cos(a)), 0.29 + 0.04 * math.sin(a) + 0.02, 0.012 * math.sin(a)))
+        tube(mesh, loop, 0.014, RIBBON, segments=6)
+        tube(mesh, [(0, 0.27, 0), (side * 0.05, 0.255, 0.05), (side * 0.07, 0.25, 0.1)], 0.012, RIBBON_DARK,
+             segments=5)
+    ball(mesh, (0.026, 0.024, 0.024), (0, 0.29, 0), RIBBON_DARK, segments=8, rings=5)
     return mesh
+
+
+PARACHUTE_RED = (0.92, 0.36, 0.32)
+PARACHUTE_WHITE = (1.0, 0.96, 0.90)
 
 
 def parachute():
-    """Парашютик посылки: купол на четырёх стропах (над коробкой parcel)."""
+    """Парашютик посылки: купол из десяти клиньев красный–белый с волнистым
+    краем и дырочкой на макушке, видный и снизу; стропы сходятся к бантику
+    посылки (над коробкой parcel)."""
     mesh = Mesh()
-    canopy = [(0.0, 0.95), (0.25, 0.93), (0.42, 0.84), (0.5, 0.7), (0.47, 0.66)]
-    lathe(mesh, list(reversed(canopy)), (0, 0, 0), (1.0, 0.97, 0.90), segments=10)
-    for k in range(4):
-        angle = math.pi / 4 + k * math.pi / 2
-        tube(mesh, [(math.cos(angle) * 0.13, 0.25, math.sin(angle) * 0.11),
-                    (math.cos(angle) * 0.45, 0.67, math.sin(angle) * 0.45)], 0.006, PAPER_DARK, segments=3)
+    gores, steps = 10, 3
+    count = gores * steps
+    profile = [(0.52, 0.66), (0.5, 0.74), (0.44, 0.82), (0.34, 0.89), (0.2, 0.94), (0.06, 0.96)]
+    rows = []
+    for r, (radius, height) in enumerate(profile):
+        ring = []
+        for k in range(count):
+            angle = 2 * math.pi * k / count
+            # Волнистый край: между стропами ткань провисает.
+            sag = 0.035 * math.sin(math.pi * (k % steps) / steps) if r == 0 else 0.0
+            pull = 1.0 - 0.06 * math.sin(math.pi * (k % steps) / steps) if r == 0 else 1.0
+            ring.append((math.cos(angle) * radius * pull, height + sag, math.sin(angle) * radius * pull))
+        rows.append(ring)
+    for r in range(len(rows) - 1):
+        for k in range(count):
+            j = (k + 1) % count
+            color = PARACHUTE_RED if (k // steps) % 2 == 0 else PARACHUTE_WHITE
+            quad = [rows[r][k], rows[r][j], rows[r + 1][j], rows[r + 1][k]]
+            mesh.add(quad, [[0, 1, 2, 3]], color, smooth=True, outward_from=(0, 0.5, 0))
+            # Изнанка (снизу купол тоже виден), чуть темнее.
+            mesh.add(quad, [[0, 3, 2, 1]], tuple(c * 0.82 for c in color), smooth=True, outward_from=(0, 1.5, 0))
+    for k in range(gores):
+        angle = 2 * math.pi * k * steps / count
+        tube(mesh, [(0.0, 0.31, 0.0), (math.cos(angle) * 0.5, 0.66, math.sin(angle) * 0.5)], 0.004, PAPER_DARK,
+             segments=3)
     return mesh
 
 
-CLOVER = (0.48, 0.92, 0.30)
-CLOVER_LIGHT = (0.95, 1.0, 0.86)
+CLOVER = (0.46, 0.88, 0.30)
+CLOVER_DARK = (0.30, 0.66, 0.22)
+CLOVER_LIGHT = (0.92, 1.0, 0.82)
 CLOVER_STEM = (0.30, 0.62, 0.24)
 
 
 def clover():
-    """Клевер-четырёхлистник на высоком стебле: четыре листика-сердечка со
-    светлой серединкой, ярче травы. Игра увеличивает его, чтобы листья
-    поднимались над травой."""
+    """Клевер-четырёхлистник: четыре листика-сердечка (острый конец к центру,
+    выемка наружу) чуть сложены по жилке, на каждом светлая «галочка»;
+    изогнутый стебелёк. Ярче травы: игра увеличивает его, чтобы он был виден
+    над травой."""
     mesh = Mesh()
-    top = np.array([0.0, 0.45, 0.0])
-    tube(mesh, [(0, 0, 0), (0.02, 0.24, 0.01), top], 0.012, CLOVER_STEM, segments=5)
-    for k in range(4):
-        angle = math.pi / 4 + k * math.pi / 2
+    top = np.array([0.03, 0.42, 0.0])
+    tube(mesh, [(0, 0, 0), (0.0, 0.16, 0.01), (0.02, 0.32, 0.0), top], 0.014, CLOVER_STEM, segments=6)
+    length = 0.15
+    heart = []
+    for k in range(25):
+        t = 2 * math.pi * k / 24
+        hx = 16 * math.sin(t) ** 3
+        hy = 13 * math.cos(t) - 5 * math.cos(2 * t) - 2 * math.cos(3 * t) - math.cos(4 * t)
+        heart.append((hx / 34.0, (hy + 17.0) / 30.0))   # кончик сердечка (−17) → 0, выемка → ~0.9
+    for leaf in range(4):
+        angle = math.pi / 4 + leaf * math.pi / 2
         out = np.array([math.cos(angle), 0.0, math.sin(angle)])
         side = np.array([-out[2], 0.0, out[0]])
-        # Сердечко: две доли по бокам от оси листика.
-        for lobe in (-1, 1):
-            center = top + out * 0.075 + side * lobe * 0.034 + np.array([0, 0.012, 0])
-            ring = [center + (out * math.cos(a) * 0.055 + side * math.sin(a) * 0.045) for a in
-                    np.linspace(0, 2 * math.pi, 9)[:-1]]
-            mesh.add([center + np.array([0, 0.006, 0])] + ring, [[0, i + 1, (i + 1) % 8 + 1] for i in range(8)],
-                     CLOVER, smooth=False, outward_from=center - np.array([0, 1.0, 0]))
-        mesh.add([top + np.array([0, 0.02, 0]), top + out * 0.07 + side * 0.02 + np.array([0, 0.021, 0]),
-                  top + out * 0.07 - side * 0.02 + np.array([0, 0.021, 0])], [[0, 1, 2]], CLOVER_LIGHT,
-                 smooth=False, outward_from=top - np.array([0, 1.0, 0]))
+
+        def at(u, v):
+            # Лист сложен по жилке и чуть поднимается к краю.
+            return top + out * v * length + side * u * length + np.array([0, 0.012 + abs(u) * 0.02 + v * 0.02, 0])
+
+        center = at(0.0, 0.45)
+        ring = [at(u, v) for u, v in heart[:-1]]
+        for k in range(len(ring)):
+            a, b = ring[k], ring[(k + 1) % len(ring)]
+            mesh.add([center, a, b], [[0, 1, 2]], CLOVER, smooth=True, outward_from=center - np.array([0, 1.0, 0]))
+            mesh.add([center, b, a], [[0, 1, 2]], CLOVER_DARK, smooth=True,
+                     outward_from=center + np.array([0, 1.0, 0]))
+        # Светлая «галочка» поперёк листика.
+        lift = np.array([0, 0.004, 0])
+        mark = [at(-0.3, 0.62), at(0.0, 0.38), at(0.3, 0.62)]
+        ribbon(mesh, [mark[0] + lift, mark[1] + lift, mark[2] + lift], [0.012, 0.014, 0.012], np.array([0, 0, 0.0]) + out,
+               [CLOVER_LIGHT, CLOVER_LIGHT])
     return mesh
 
 
