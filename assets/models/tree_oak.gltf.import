@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://clp4kkvjqyp4t"
-path="res://.godot/imported/trees_round_small.gltf-582bfc827efa4725e3e15ff80f3a028e.scn"
+uid="uid://myifrtonaeby"
+path="res://.godot/imported/tree_oak.gltf-1fe9d2db5e94e8a1f1fb7f0ee6f567e0.scn"
 
 [deps]
 
-source_file="res://assets/models/trees_round_small.gltf"
-dest_files=["res://.godot/imported/trees_round_small.gltf-582bfc827efa4725e3e15ff80f3a028e.scn"]
+source_file="res://assets/models/tree_oak.gltf"
+dest_files=["res://.godot/imported/tree_oak.gltf-1fe9d2db5e94e8a1f1fb7f0ee6f567e0.scn"]
 
 [params]
 

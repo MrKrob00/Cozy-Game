@@ -17,7 +17,7 @@ Kevin MacLeod ([incompetech.com](https://incompetech.com)), лицензия [Cr
 
 Модели Kay Lousberg ([kaylousberg.com](https://www.kaylousberg.com)), лицензия CC0:
 
-- [KayKit: Medieval Hexagon Pack](https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0) — дома, кузница (мастерская), колодцы, таверна, рынок, церковь, лесопилка, мельница, деревья, пни, камни, кувшинки и осока, бочки, ящики, мешки, тачка, доски;
+- [KayKit: Medieval Hexagon Pack](https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0) — дома, кузница (мастерская), колодцы, таверна, рынок, церковь, лесопилка, мельница, ели, пни, камни, кувшинки и осока, бочки, ящики, мешки, тачка, доски;
 - [KayKit: Halloween Bits](https://github.com/KayKit-Game-Assets/KayKit-Halloween-Bits-1.0) — фонарь на столбе, напольный фонарь, тыквы.
 
 Переведены в цвет вершин скриптом `tools/convert_kaykit.py` (`assets/models/`), цвета слегка подогнаны под палитру игры.
@@ -28,9 +28,10 @@ Kevin MacLeod ([incompetech.com](https://incompetech.com)), лицензия [Cr
 - [Cube Pets](https://kenney.nl/assets/cube-pets) — кот и цыплята на выкошенных газонах;
 - [Graveyard Kit](https://kenney.nl/assets/graveyard-kit) — садовая скамейка (переведена в цвет вершин тем же скриптом);
 - [Fantasy Town Kit](https://kenney.nl/assets/fantasy-town-kit) — фонтан на площади, забор участков, столбы калиток, засов мастерской;
-- [Platformer Kit](https://kenney.nl/assets/platformer-kit) — указатели у калиток, замок мастерской, ключ и монеты (находки), цветы на клумбах, грибы, камни.
+- [Platformer Kit](https://kenney.nl/assets/platformer-kit) — указатели у калиток, замок мастерской, ключ и монеты (находки), цветы на клумбах, грибы, камни, яблоня с круглой кроной;
+- [Nature Kit](https://kenney.nl/assets/nature-kit) — ветвистое дерево и дуб (листва сделана сочнее, кора — коричневой).
 
-Модели из Fantasy Town Kit и Platformer Kit — в том виде, как они скачиваются с kenney.nl (папки `fantasy-town-kit`, `platformer-kit`), переведены тем же скриптом; золото подкрашено в цвет монет игры, у цветов на клумбах три расцветки.
+Модели из Fantasy Town Kit, Platformer Kit и Nature Kit — в том виде, как они скачиваются с kenney.nl (папки `fantasy-town-kit`, `platformer-kit`, `nature-kit`), переведены тем же скриптом; золото подкрашено в цвет монет игры, у цветов на клумбах три расцветки.
 
 Модели [Quaternius](https://quaternius.com), лицензия CC0:
 

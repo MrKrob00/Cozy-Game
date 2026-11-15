@@ -35,6 +35,11 @@ const POND_RADIUS := 2.8
 const CROWN_FADE := 0.3
 ## Масштаб модели дерева: крона около 2,5 м в поперечнике, высота около 5 м.
 const TREE_SCALE := 4.2
+## Яблок на одной яблоне.
+const APPLES := 10
+
+## Точки на кроне модели дерева, куда можно повесить яблоко (по модели).
+static var _crown_surfaces: Dictionary = {}
 
 ## Размер модели по земле (X, Z) и её высота, метры.
 var _footprint := Vector2.ZERO
@@ -283,15 +288,28 @@ func _build_tree() -> void:
 	_crown = Node3D.new()
 	_crown.name = "Crown"
 	add_child(_crown)
-	Models.place(_crown, "tree_round", Vector3.ZERO, TREE_SCALE, hash(name) % 628 / 100.0)
+	# Яблоня — пышная круглая крона (Kenney), остальные — ветвистое дерево или дуб.
+	var model := "fruit_tree" if fruit else ("tree_leafy" if hash(name) % 2 == 0 else "tree_oak")
+	var yaw := hash(name) % 628 / 100.0
+	Models.place(_crown, model, Vector3.ZERO, TREE_SCALE, yaw)
 	if fruit:
 		var rng := RandomNumberGenerator.new()
 		rng.seed = hash(name)
-		for i in 10:
-			var direction := Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-0.3, 0.7),
-					rng.randf_range(-1.0, 1.0)).normalized()
-			Models.place(_crown, "apple", Vector3(0.0, 3.0, 0.0) + direction * Vector3(1.25, 1.1, 1.25),
-					1.35, rng.randf() * TAU)
+		# Яблоки — на поверхности кроны: на её боковых гранях, не друг на друге.
+		var surface := _crown_surface(model)
+		var points: PackedVector3Array = surface[0]
+		var normals: PackedVector3Array = surface[1]
+		var placed: Array[Vector3] = []
+		var turn := Basis(Vector3.UP, yaw)
+		for attempt in 60:
+			if placed.size() >= APPLES or points.is_empty():
+				break
+			var k := rng.randi() % points.size()
+			var at := turn * ((points[k] + normals[k] * 0.012) * TREE_SCALE)
+			if placed.any(func(other: Vector3) -> bool: return other.distance_to(at) < 0.6):
+				continue
+			placed.append(at)
+			Models.place(_crown, "apple", at, 1.35, rng.randf() * TAU)
 	var shape := CollisionShape3D.new()
 	var cylinder := CylinderShape3D.new()
 	cylinder.radius = 0.4
@@ -329,6 +347,30 @@ func _update_crown_fade(delta: float) -> void:
 	for child in _crown.get_children():
 		if child is MeshInstance3D and child.material_override in [_fade_material, Placeholder.vertex_material()]:
 			child.material_override = Placeholder.vertex_material() if solid else _fade_material
+
+
+## Точки и нормали на боковых зелёных гранях кроны (в координатах модели).
+static func _crown_surface(model: String) -> Array:
+	if _crown_surfaces.has(model):
+		return _crown_surfaces[model]
+	var points := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var mesh := Models.mesh(model)
+	if mesh:
+		var arrays := mesh.surface_get_arrays(0)
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var vertex_normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+		var colors: PackedColorArray = arrays[Mesh.ARRAY_COLOR]
+		var top := mesh.get_aabb().end.y
+		for i in vertices.size():
+			var color := colors[i]
+			var normal := vertex_normals[i]
+			if color.g > color.r + 0.05 and color.g > color.b and vertices[i].y > top * 0.45 \
+					and normal.y < 0.75 and normal.y > -0.35:
+				points.append(vertices[i])
+				normals.append(normal)
+	_crown_surfaces[model] = [points, normals]
+	return _crown_surfaces[model]
 
 
 ## Чинит фонтан: чаша светлеет, появляется вода и струя.

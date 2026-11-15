@@ -965,7 +965,7 @@ if __name__ == "__main__":
     for variant in range(4):
         write(wild_flower(variant), f"wild_flower_{variant}", sway_from="all", sway=0.8)
     write(guide_arrow(), "guide_arrow")
-    write(apple(), "apple")
+    write(apple(), "apple", sway_from="all", sway=0.2)
     write(water_disc([WATER_SHALLOW, WATER_MID, WATER_MID, WATER_DEEP]), "water_disc", smooth_angle=10.0)
     write(moss_disc(), "moss_disc")
     for variant in range(4):

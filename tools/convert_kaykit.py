@@ -40,15 +40,15 @@ PACKS = {
     # Наборы Kenney, как они скачиваются с kenney.nl (папка — имя набора).
     "town": ("fantasy-town-kit", "Models/GLB format"),
     "platformer": ("platformer-kit", "Models/GLB format"),
+    "nature": ("nature-kit", "Models/GLTF format"),
+    "survival": ("survival-kit", "Models/GLB format"),
 }
 
 # (файл в наборе hex или «набор:файл», имя у нас, качание: None — нет, число —
 # высота, выше которой качается крона; необязательно — какую часть модели взять)
 MODELS = [
     ("decoration/nature/tree_single_A.gltf", "tree_pine", 0.35),
-    ("decoration/nature/tree_single_B.gltf", "tree_round", 0.45),
     ("decoration/nature/trees_A_small.gltf", "trees_pine_small", 0.35),
-    ("decoration/nature/trees_B_small.gltf", "trees_round_small", 0.45),
     ("decoration/nature/rock_single_A.gltf", "rock_a", None),
     ("decoration/nature/rock_single_B.gltf", "rock_b", None),
     ("decoration/nature/rock_single_C.gltf", "rock_c", None),
@@ -100,6 +100,12 @@ MODELS = [
     # они стоят на краю клетки вдоль Z; «turn» кладёт длину по X, центр — в начало.
     ("town:fence.glb", "fence", None, "", "", "turn"),
     ("town:pillar-wood.glb", "gate_post", None),
+    # Лиственные деревья вместо «круглого» дерева KayKit (оно похоже на ёлку):
+    # яблоня с пышной кроной (Kenney Platformer Kit), ветвистое дерево и дуб
+    # (Kenney Nature Kit, листва — сочнее). Высота — как у деревьев KayKit.
+    ("platformer:tree.glb", "fruit_tree", 0.5, "", "bark", "h1.2"),
+    ("nature:tree_detailed.glb", "tree_leafy", 0.45, "", "tree", "h1.2"),
+    ("nature:tree_oak.glb", "tree_oak", 0.4, "", "tree", "h1.2"),
     # Kenney Platformer Kit: указатель, замок, ключ, монета, цветы, грибы, валун.
     ("platformer:sign.glb", "signpost", None),
     ("platformer:lock.glb", "padlock", None, "", "gold"),
@@ -212,8 +218,34 @@ def gold(rgb):
     return np.clip(rgb, 0.0, 1.0)
 
 
+def deep_leaves(rgb):
+    """Листва Kenney Nature Kit после подгонки выходит бледно-мятной: делаем её
+    сочной и темнее, как у остальных деревьев игры. Ствол не трогаем."""
+    r, g, b = rgb[:, 0], rgb[:, 1], rgb[:, 2]
+    leafy = (g > r + 0.05) & (g >= b)
+    deep = np.stack([g * 0.42, g * 0.78, g * 0.30], axis=1)
+    rgb[leafy] = deep[leafy]
+    return np.clip(rgb, 0.0, 1.0)
+
+
+def bark(rgb):
+    """Стволы Kenney (бледно-розовые или оранжевые) — в коричневый, как кора
+    у деревьев KayKit."""
+    r, g, b = rgb[:, 0], rgb[:, 1], rgb[:, 2]
+    woody = (r > g + 0.12) & (g > b)
+    target = np.array([0.55, 0.36, 0.24])
+    luma = (0.3 * r + 0.59 * g + 0.11 * b)[:, None]
+    brown = target * (0.75 + 0.5 * luma)
+    rgb[woody] = brown[woody]
+    return np.clip(rgb, 0.0, 1.0)
+
+
+def tree_colors(rgb):
+    return bark(deep_leaves(rgb))
+
+
 TINTS = {
-    "old": old_stone, "new": new_stone, "gold": gold,
+    "old": old_stone, "new": new_stone, "gold": gold, "deep": deep_leaves, "bark": bark, "tree": tree_colors,
     "petal_yellow": petals((1.0, 0.82, 0.30)), "petal_pink": petals((1.0, 0.62, 0.78)),
     "petal_white": petals((1.0, 0.98, 0.94)), "petal_violet": petals((0.72, 0.56, 0.98)),
 }
@@ -317,6 +349,10 @@ def convert(roots, source, name, sway_from, part="", tint="", fit=""):
 
     pos = np.concatenate(positions)
     nrm = np.concatenate(normals)
+    if fit.startswith("h"):
+        # Высота модели — как у деревьев KayKit (дерево ставится тем же масштабом).
+        low, high = pos[:, 1].min(), pos[:, 1].max()
+        pos = pos * (float(fit[1:]) / (high - low))
     if fit == "turn":
         # Длина модели — вдоль X, середина — в начале координат.
         pos = np.stack([pos[:, 2], pos[:, 1], -pos[:, 0]], axis=1)

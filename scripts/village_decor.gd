@@ -16,6 +16,7 @@ const WINDMILL_YAW := 0.9
 ## Большой дуб у дальнего угла поляны: (x, z) и масштаб модели.
 const OAK_AT := Vector2(-10.6, 19.4)
 const OAK_SCALE := 8.0
+const LEAFY_TREES := ["tree_leafy", "tree_oak", "fruit_tree"]
 ## Колодец посреди поляны: масштаб модели и радиус, который он занимает.
 const WELL_SCALE := 3.0
 const WELL_RADIUS := 1.25
@@ -226,7 +227,7 @@ func _build_green(rng: RandomNumberGenerator) -> void:
 	shape.position = Vector3(0.0, 0.8, 0.0)
 	well.add_child(shape)
 
-	Models.place(self, "tree_round", _ground(OAK_AT.x, OAK_AT.y), OAK_SCALE, 1.1)
+	Models.place(self, "tree_leafy", _ground(OAK_AT.x, OAK_AT.y), OAK_SCALE, 1.1)
 	_obstacles_extra.append([OAK_AT, 2.6])
 	_trees.append(_ground(OAK_AT.x, OAK_AT.y))
 
@@ -337,13 +338,14 @@ func _build_trees(area: Rect2, rng: RandomNumberGenerator) -> void:
 			_obstacles_extra.append([spot, 0.8])
 			continue
 		_trees.append(at)
-		var model := "tree_round"
+		# Лиственные — трёх видов (ветвистое, дуб, круглое); ели и группы елей.
+		var model: String = LEAFY_TREES[rng.randi() % LEAFY_TREES.size()]
 		var size := rng.randf_range(3.4, 4.6)
 		if pick < 0.3:
 			model = "tree_pine"
 		elif pick < 0.45:
-			model = "trees_round_small"
-			size = rng.randf_range(3.2, 4.0)
+			model = "tree_oak"
+			size = rng.randf_range(2.6, 3.4)
 		elif pick < 0.55:
 			model = "trees_pine_small"
 			size = rng.randf_range(3.4, 4.2)
