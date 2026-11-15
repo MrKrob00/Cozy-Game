@@ -498,7 +498,7 @@ func _move_hog() -> void:
 			_hog.look_at(Vector3(to.x, _hog.global_position.y, to.z) + (to - from) * 0.01, Vector3.UP)
 			_hog.call("_travel", minf(hop / hops, 1.0), from, to, hops)
 			if last and hop >= hops:
-				_hog.set("_busy", false)
+				_hog.call("_arrive")
 				_juice.sparkle(_hog, _hog.global_position + Vector3.UP * 0.4, Color(1.0, 0.75, 0.8))
 				_hog = null
 			return

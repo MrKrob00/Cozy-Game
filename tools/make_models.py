@@ -480,8 +480,20 @@ LEAVES = [(0.30, 0.62, 0.32), (0.40, 0.70, 0.34), (0.24, 0.54, 0.36)]
 STONES = [(0.74, 0.73, 0.72), (0.66, 0.66, 0.68), (0.80, 0.78, 0.74)]
 
 
+# Лапки ёжика: где стоят (игра двигает их на бегу, см. Animal).
+HEDGEHOG_FEET = [(-0.14, 0.04, -0.2), (0.14, 0.04, -0.2), (-0.16, 0.04, 0.24), (0.16, 0.04, 0.24)]
+
+
+def hedgehog_foot():
+    """Лапка ёжика; начало координат — в её середине."""
+    mesh = Mesh()
+    ball(mesh, (0.072, 0.045, 0.1), (0, 0, 0), FUR, segments=7, rings=4)
+    return mesh
+
+
 def hedgehog():
-    """Ёжик: смотрит на −Z, стоит на земле. Иголки — конусы по спине."""
+    """Ёжик: смотрит на −Z, стоит на земле. Иголки — конусы по спине.
+    Лапки — отдельная модель (hedgehog_foot): на бегу они перебирают."""
     mesh = Mesh()
     center, radii = np.array([0.0, 0.26, 0.06]), np.array([0.29, 0.25, 0.36])
     ball(mesh, radii, center, SPIKES, segments=12, rings=7)
@@ -492,8 +504,6 @@ def hedgehog():
     for side in (-1, 1):
         ball(mesh, 0.03, (side * 0.085, 0.255, -0.385), INK, segments=6, rings=4)
         ball(mesh, (0.06, 0.07, 0.035), (side * 0.15, 0.35, -0.25), FUR_DARK, segments=7, rings=4)
-        ball(mesh, (0.07, 0.045, 0.1), (side * 0.14, 0.04, -0.2), FUR, segments=7, rings=4)
-        ball(mesh, (0.075, 0.045, 0.1), (side * 0.16, 0.04, 0.24), FUR, segments=7, rings=4)
     # Иголки: точки по спирали на спине, наклон назад.
     count = 90
     for i in range(count):
@@ -743,6 +753,7 @@ if __name__ == "__main__":
     write(bag(), "mower_bag")
     write(straw_hat(), "straw_hat")
     write(hedgehog(), "hedgehog")
+    write(hedgehog_foot(), "hedgehog_foot")
     write(duck(), "duck")
     write(glasses(), "glasses")
     write(gnome(), "gnome")
