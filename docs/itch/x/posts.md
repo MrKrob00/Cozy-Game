@@ -20,7 +20,7 @@ No timers, no way to lose 💚
 Первый ответ на свой пост (ссылка — здесь, а не в самом посте):
 
 ```
-Play it free on itch.io 👉 https://mrkrob.itch.io/cozy-grass-cut
+Play it on itch.io 👉 https://mrkrob.itch.io/cozy-grass-cut
 ```
 
 ## 2. Через 2–3 дня
