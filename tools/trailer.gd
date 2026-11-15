@@ -50,8 +50,8 @@ const FLASH := {-2: 0.3, -1: 0.65, 0: 0.85, 1: 0.55, 2: 0.3, 3: 0.12}
 const FLASH_COLOR := Color(1.0, 0.97, 0.88)
 ## Дальше этой черты (мировая z) камера крючка не идёт: там забор двора.
 const HOOK_CAMERA_STOP := -5.2
-## Прыжок ёжика: полдоли.
-const HOP_FRAMES := BEAT * 0.5
+## Скорость, с которой ёжик убегает, м/с.
+const HOG_RUN := 2.3
 
 # Кадры смен: в долях, смены — на границах тактов (по 4 доли).
 const AT_LAPSE := BEAT * 12
@@ -102,7 +102,6 @@ var _route_length := 0.0
 # Ёжик, уходящий с дороги.
 var _hog: Node3D
 var _hog_path: Array[Vector3] = []
-var _hog_hops: Array[int] = []
 var _hog_start := 0
 # Проверка без записи.
 var _preview := ""
@@ -464,14 +463,13 @@ func _log_events() -> void:
 
 # --- Ёжик ---
 
-# Ёжик замечает косилку («!» и прыжок на месте), а долей позже прыжками
-# уходит в свой уголок: по прыжку на полдоли.
+# Ёжик замечает косилку («!» и прыжок на месте), а долей позже убегает,
+# семеня лапками (как в игре, Animal._scurry).
 func _hog_cues(animal: Node3D, notice_frame: int, leave_frame: int) -> void:
 	# Вбок с дороги косилки — на уже скошенную полосу, где его хорошо видно, —
 	# и дальше по ней. (В игре он уходит в свой уголок; тут это за кадром.)
-	var aside := animal.global_position + Vector3(-1.5, 0.0, -0.5)
-	_hog_path = [animal.global_position, aside, aside + Vector3(0.4, 0.0, -2.5)]
-	_hog_hops = [2, 3]
+	var aside := animal.global_position + Vector3(-1.9, 0.0, -0.3)
+	_hog_path = [animal.global_position, aside, aside + Vector3(-0.7, 0.0, -2.2)]
 	_hog_start = leave_frame
 	_at(notice_frame, func() -> void:
 		_play("squeak", SFX_VOLUME_DB + 1.0)
@@ -488,21 +486,23 @@ func _hog_cues(animal: Node3D, notice_frame: int, leave_frame: int) -> void:
 func _move_hog() -> void:
 	if _hog == null:
 		return
-	var hop := (_frame - _hog_start) / HOP_FRAMES
-	for part in _hog_hops.size():
-		var hops := _hog_hops[part]
-		var last := part == _hog_hops.size() - 1
-		if hop < hops or last:
-			var from := _hog_path[part]
-			var to := _hog_path[part + 1]
+	var travelled := (_frame - _hog_start) / FPS * HOG_RUN
+	var left := travelled
+	for part in _hog_path.size() - 1:
+		var from := _hog_path[part]
+		var to := _hog_path[part + 1]
+		var length := from.distance_to(to)
+		var last := part == _hog_path.size() - 2
+		if left <= length or last:
+			_hog.global_position = from.lerp(to, minf(left / length, 1.0))
 			_hog.look_at(Vector3(to.x, _hog.global_position.y, to.z) + (to - from) * 0.01, Vector3.UP)
-			_hog.call("_travel", minf(hop / hops, 1.0), from, to, hops)
-			if last and hop >= hops:
+			_hog.call("_scurry", travelled)
+			if last and left >= length:
 				_hog.call("_arrive")
 				_juice.sparkle(_hog, _hog.global_position + Vector3.UP * 0.4, Color(1.0, 0.75, 0.8))
 				_hog = null
 			return
-		hop -= hops
+		left -= length
 
 
 # --- Герой ---
