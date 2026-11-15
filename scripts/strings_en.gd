@@ -203,4 +203,14 @@ const MESSAGES := {
 	"клад в жестянке": "treasure in a tin",
 	"гном-рыбак": "fishing gnome",
 	"Второй! Теперь у них будет компания.": "A second one! Now they'll keep each other company.",
+
+	# События.
+	"Мимо пробегает почтальон… Ой, письмо выпало!": "The postman hurries by… Oops, a letter fell out!",
+	"Письмо! В нём открытка и монеты: +%d": "A letter! A postcard and coins inside: +%d",
+	"Грибной дождик! Пока он идёт, компоста вдвое больше": "A sun shower! While it lasts, you get double compost",
+	"Дождик кончился — трава блестит": "The shower is over — the grass is glistening",
+	"Над деревней летит воздушный шар!": "A hot air balloon is flying over the village!",
+	"Посылка с воздушного шара: +%d монет": "A parcel from the balloon: +%d coins",
+	"В траве клевер-четырёхлистник! Скосите его, пока не завял": "A four-leaf clover in the grass! Mow it before it wilts",
+	"Четырёхлистник — на удачу! +%d монет": "A four-leaf clover — good luck! +%d coins",
 }

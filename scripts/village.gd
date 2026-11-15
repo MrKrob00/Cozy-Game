@@ -77,6 +77,9 @@ func _ready() -> void:
 	var trail := GuideTrail.new()
 	trail.name = "GuideTrail"
 	add_child(trail)
+	var events := PlotEvents.new()
+	events.name = "PlotEvents"
+	add_child(events)
 	# Склейка деталей — когда все объекты построили свои модели.
 	_bake_world.call_deferred()
 	_build_fluff()

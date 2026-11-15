@@ -91,6 +91,9 @@ var _texture: ImageTexture
 var _dirty := false
 var _mowable_cells := 0
 var _cut_cells := 0
+## Обычный ветер в траве (как в шейдере травы).
+const WIND_STRENGTH := 0.07
+
 var _grass_material: ShaderMaterial
 var _ground_material: ShaderMaterial
 var _grass_nodes: Array[MultiMeshInstance3D] = []
@@ -449,6 +452,17 @@ func set_pusher_position(world_position: Vector3) -> void:
 
 
 ## До max_count точек с нескошенной травой, равномерно по списку остатков.
+## Порыв ветра: трава гнётся сильнее и через seconds успокаивается.
+func gust(seconds: float) -> void:
+	var tween := create_tween()
+	tween.tween_method(_set_wind, WIND_STRENGTH, WIND_STRENGTH * 3.2, seconds * 0.25)
+	tween.tween_method(_set_wind, WIND_STRENGTH * 3.2, WIND_STRENGTH, seconds * 0.75)
+
+
+func _set_wind(strength: float) -> void:
+	_grass_material.set_shader_parameter("wind_strength", strength)
+
+
 func get_uncut_positions(max_count: int) -> PackedVector3Array:
 	var cells := PackedInt32Array()
 	for cell in _blocked.size():

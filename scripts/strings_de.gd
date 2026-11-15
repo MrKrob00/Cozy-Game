@@ -172,4 +172,12 @@ const MESSAGES := {
 	"клад в жестянке": "Schatz in einer Dose",
 	"гном-рыбак": "Anglerzwerg",
 	"Второй! Теперь у них будет компания.": "Ein zweiter! Jetzt leisten sie sich Gesellschaft.",
+	"Мимо пробегает почтальон… Ой, письмо выпало!": "Der Briefträger eilt vorbei… Hoppla, ein Brief ist herausgefallen!",
+	"Письмо! В нём открытка и монеты: +%d": "Ein Brief! Darin eine Postkarte und Münzen: +%d",
+	"Грибной дождик! Пока он идёт, компоста вдвое больше": "Ein warmer Sommerregen! Solange er fällt, gibt es doppelt Kompost",
+	"Дождик кончился — трава блестит": "Der Regen ist vorbei — das Gras glitzert",
+	"Над деревней летит воздушный шар!": "Ein Heißluftballon fliegt über das Dorf!",
+	"Посылка с воздушного шара: +%d монет": "Ein Paket vom Ballon: +%d Münzen",
+	"В траве клевер-четырёхлистник! Скосите его, пока не завял": "Ein vierblättriges Kleeblatt im Gras! Mäh es, bevor es welkt",
+	"Четырёхлистник — на удачу! +%d монет": "Ein Glücksklee! +%d Münzen",
 }

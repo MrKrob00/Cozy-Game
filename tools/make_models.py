@@ -855,6 +855,132 @@ def fx_clump():
     return mesh
 
 
+BALLOON_COLORS = [(0.95, 0.42, 0.32), (1.0, 0.86, 0.42), (0.40, 0.66, 0.90), (1.0, 0.97, 0.90)]
+
+
+def hot_air_balloon():
+    """Воздушный шар: купол из цветных клиньев, горелка, стропы и плетёная
+    корзина. Высота около 2,6 м, начало координат — дно корзины."""
+    mesh = Mesh()
+    gores = 12
+    steps = 3
+    # Профиль купола: (радиус, высота) снизу вверх.
+    profile = [(0.22, 0.95), (0.55, 1.15), (0.85, 1.55), (0.98, 1.95), (0.92, 2.3), (0.66, 2.55), (0.3, 2.66),
+               (0.0, 2.69)]
+    rows = []
+    for radius, height in profile:
+        ring = []
+        for k in range(gores * steps):
+            angle = 2 * math.pi * k / (gores * steps)
+            # Клинья чуть выпуклые: между швами радиус больше.
+            bulge = 1.0 + 0.04 * math.sin(math.pi * (k % steps) / steps)
+            ring.append((math.cos(angle) * radius * bulge, height, math.sin(angle) * radius * bulge))
+        rows.append(ring)
+    for r in range(len(rows) - 1):
+        for k in range(gores * steps):
+            j = (k + 1) % (gores * steps)
+            color = BALLOON_COLORS[(k // steps) % len(BALLOON_COLORS)]
+            quad = [rows[r][k], rows[r][j], rows[r + 1][j], rows[r + 1][k]]
+            if profile[r + 1][0] < 1e-6:
+                quad = quad[:3]
+            mesh.add(quad, [list(range(len(quad)))], color, smooth=True, outward_from=(0, 1.8, 0))
+    # Горелка и рама над корзиной.
+    lathe(mesh, [(0.0, 0.62), (0.1, 0.62), (0.12, 0.72), (0.0, 0.74)], (0, 0, 0), STEEL, segments=8)
+    # Стропы от корзины к куполу.
+    for k in range(4):
+        angle = math.pi / 4 + k * math.pi / 2
+        bottom = (math.cos(angle) * 0.2, 0.42, math.sin(angle) * 0.2)
+        top = (math.cos(angle) * 0.24, 0.97, math.sin(angle) * 0.24)
+        tube(mesh, [bottom, top], 0.012, WOOD_DARK, segments=4)
+    # Корзина: короб, светлый обод, полоски плетения.
+    box(mesh, (0.44, 0.38, 0.44), (0, 0.19, 0), WOOD, bevel=0.03)
+    box(mesh, (0.5, 0.06, 0.5), (0, 0.4, 0), STRAW, bevel=0.02)
+    for y in (0.1, 0.22):
+        box(mesh, (0.455, 0.025, 0.455), (0, y, 0), WOOD_DARK, bevel=0.008)
+    return mesh
+
+
+def parcel():
+    """Посылка: коробка с лентой и бантом. Начало координат — дно коробки."""
+    mesh = Mesh()
+    box(mesh, (0.32, 0.24, 0.26), (0, 0.12, 0), (0.82, 0.62, 0.40), bevel=0.02)
+    box(mesh, (0.335, 0.245, 0.06), (0, 0.122, 0), RED, bevel=0.01)
+    box(mesh, (0.06, 0.245, 0.275), (0, 0.122, 0), RED, bevel=0.01)
+    for side in (-1, 1):
+        ball(mesh, (0.06, 0.035, 0.04), (side * 0.05, 0.255, 0), RED, segments=7, rings=4)
+    return mesh
+
+
+def parachute():
+    """Парашютик посылки: купол на четырёх стропах (над коробкой parcel)."""
+    mesh = Mesh()
+    canopy = [(0.0, 0.95), (0.25, 0.93), (0.42, 0.84), (0.5, 0.7), (0.47, 0.66)]
+    lathe(mesh, list(reversed(canopy)), (0, 0, 0), (1.0, 0.97, 0.90), segments=10)
+    for k in range(4):
+        angle = math.pi / 4 + k * math.pi / 2
+        tube(mesh, [(math.cos(angle) * 0.13, 0.25, math.sin(angle) * 0.11),
+                    (math.cos(angle) * 0.45, 0.67, math.sin(angle) * 0.45)], 0.006, PAPER_DARK, segments=3)
+    return mesh
+
+
+CLOVER = (0.48, 0.92, 0.30)
+CLOVER_LIGHT = (0.95, 1.0, 0.86)
+CLOVER_STEM = (0.30, 0.62, 0.24)
+
+
+def clover():
+    """Клевер-четырёхлистник на высоком стебле: четыре листика-сердечка со
+    светлой серединкой, ярче травы. Игра увеличивает его, чтобы листья
+    поднимались над травой."""
+    mesh = Mesh()
+    top = np.array([0.0, 0.45, 0.0])
+    tube(mesh, [(0, 0, 0), (0.02, 0.24, 0.01), top], 0.012, CLOVER_STEM, segments=5)
+    for k in range(4):
+        angle = math.pi / 4 + k * math.pi / 2
+        out = np.array([math.cos(angle), 0.0, math.sin(angle)])
+        side = np.array([-out[2], 0.0, out[0]])
+        # Сердечко: две доли по бокам от оси листика.
+        for lobe in (-1, 1):
+            center = top + out * 0.075 + side * lobe * 0.034 + np.array([0, 0.012, 0])
+            ring = [center + (out * math.cos(a) * 0.055 + side * math.sin(a) * 0.045) for a in
+                    np.linspace(0, 2 * math.pi, 9)[:-1]]
+            mesh.add([center + np.array([0, 0.006, 0])] + ring, [[0, i + 1, (i + 1) % 8 + 1] for i in range(8)],
+                     CLOVER, smooth=False, outward_from=center - np.array([0, 1.0, 0]))
+        mesh.add([top + np.array([0, 0.02, 0]), top + out * 0.07 + side * 0.02 + np.array([0, 0.021, 0]),
+                  top + out * 0.07 - side * 0.02 + np.array([0, 0.021, 0])], [[0, 1, 2]], CLOVER_LIGHT,
+                 smooth=False, outward_from=top - np.array([0, 1.0, 0]))
+    return mesh
+
+
+BIRD = (0.36, 0.40, 0.50)
+BIRD_BELLY = (0.90, 0.86, 0.78)
+
+
+def bird_body():
+    """Птица в полёте (тело): веретено, светлое брюшко, клюв, хвост. Клюв на −Z."""
+    mesh = Mesh()
+    ball(mesh, (0.06, 0.055, 0.15), (0, 0, 0), BIRD, segments=8, rings=5)
+    ball(mesh, (0.045, 0.03, 0.1), (0, -0.025, -0.01), BIRD_BELLY, segments=7, rings=4)
+    cone(mesh, (0, 0.005, -0.14), (0, 0.0, -0.2), 0.02, (0.96, 0.66, 0.24), segments=5)
+    mesh.add([(0, 0.01, 0.12), (-0.06, 0.0, 0.24), (0.06, 0.0, 0.24)], [[0, 1, 2]], BIRD, smooth=False,
+             outward_from=(0, -1, 0.15))
+    return mesh
+
+
+def bird_wing():
+    """Крыло птицы (правое; левое — отражение): от плеча вдоль +X."""
+    mesh = Mesh()
+    outline = [(0.0, -0.05), (0.12, -0.07), (0.26, -0.03), (0.3, 0.02), (0.16, 0.06), (0.0, 0.06)]
+    vertices = [np.array([x, 0.0, z]) for x, z in outline]
+    for order in ([0, 1, 2, 3, 4, 5], [5, 4, 3, 2, 1, 0]):
+        part = Mesh()
+        part.vertices = [np.asarray(v, dtype=float) for v in vertices]
+        for k in range(1, 5):
+            part.faces.append((order[0], order[k], order[k + 1], BIRD, False))
+        mesh.merge(part)
+    return mesh
+
+
 def mailbox():
     """Почтовый ящик «Бюро находок» на столбике: щель спереди (+Z), флажок сбоку."""
     mesh = Mesh()
@@ -1181,6 +1307,12 @@ if __name__ == "__main__":
     write(compost_bin(), "compost_bin")
     write(compost_pile(), "compost_pile", smooth_angle=70.0, normal_mode="up")
     write(fx_leaf(), "fx_leaf", normal_mode="up")
+    write(hot_air_balloon(), "hot_air_balloon")
+    write(parcel(), "parcel")
+    write(parachute(), "parachute")
+    write(clover(), "clover", sway_from=0.3, sway=0.6)
+    write(bird_body(), "bird_body")
+    write(bird_wing(), "bird_wing", normal_mode="up")
     write(fx_clipping(), "fx_clipping", normal_mode="up")
     write(fx_clump(), "fx_clump", normal_mode=(0.0, 0.0, 0.0))
     write(mailbox(), "mailbox")

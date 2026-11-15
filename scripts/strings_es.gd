@@ -172,4 +172,12 @@ const MESSAGES := {
 	"клад в жестянке": "tesoro en una lata",
 	"гном-рыбак": "gnomo pescador",
 	"Второй! Теперь у них будет компания.": "¡Otro más! Ahora se harán compañía.",
+	"Мимо пробегает почтальон… Ой, письмо выпало!": "Pasa el cartero corriendo… ¡Uy, se le ha caído una carta!",
+	"Письмо! В нём открытка и монеты: +%d": "¡Una carta! Dentro hay una postal y monedas: +%d",
+	"Грибной дождик! Пока он идёт, компоста вдвое больше": "¡Lluvia con sol! Mientras dure, el compost se duplica",
+	"Дождик кончился — трава блестит": "Ha parado de llover: la hierba brilla",
+	"Над деревней летит воздушный шар!": "¡Un globo aerostático sobrevuela el pueblo!",
+	"Посылка с воздушного шара: +%d монет": "Un paquete del globo: +%d monedas",
+	"В траве клевер-четырёхлистник! Скосите его, пока не завял": "¡Un trébol de cuatro hojas en la hierba! Siégalo antes de que se marchite",
+	"Четырёхлистник — на удачу! +%d монет": "Un trébol de cuatro hojas: ¡buena suerte! +%d monedas",
 }
