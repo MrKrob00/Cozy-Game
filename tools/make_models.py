@@ -232,10 +232,13 @@ def jitter(mesh, amount, seed=1.0):
     return mesh
 
 
-def write(mesh, name, smooth_angle=50.0, sway_from=None, sway=0.35):
+def write(mesh, name, smooth_angle=50.0, sway_from=None, sway=0.35, normal_mode=None):
     """Пишет .gltf с цветом вершин. Соседние грани с углом меньше smooth_angle
     сглаживаются, остальные рёбра остаются жёсткими. sway_from — высота, выше
-    которой модель качается на ветру (сила — в альфе цвета, до sway)."""
+    которой модель качается на ветру (сила — в альфе цвета, до sway).
+    normal_mode="up" — тонкие плоские вещи (лист, травинка): обе стороны освещены
+    как верхняя (иначе нижняя сторона тёмная); normal_mode=(x, y, z) — нормали от
+    этой точки наружу, как у шара (комок травинок светится целиком)."""
     vertices = np.array(mesh.vertices)
     normals = []
     for a, b, c, _, _ in mesh.faces:
@@ -266,6 +269,11 @@ def write(mesh, name, smooth_angle=50.0, sway_from=None, sway=0.35):
             colors.append((*color, 0.0))
     pos = np.array(positions, dtype=np.float32)
     nrm = np.array(out_normals, dtype=np.float32)
+    if normal_mode == "up":
+        nrm[:] = (0.0, 1.0, 0.0)
+    elif normal_mode is not None:
+        out = pos - np.asarray(normal_mode, dtype=np.float32) + np.array([0.0, 0.05, 0.0], dtype=np.float32)
+        nrm = out / np.maximum(np.linalg.norm(out, axis=1, keepdims=True), 1e-6)
     col = np.array(colors, dtype=np.float32)
     if sway_from == "all":
         # Вся модель качается одинаково: шейдер сам усиливает качание с высотой.
@@ -620,12 +628,158 @@ def compost_bin(size=(1.3, 0.9, 1.1)):
 
 
 def compost_pile():
-    """Куча в ящике: игра растягивает её по высоте. Начало координат — в середине."""
+    """Куча в ящике: тёмная перепревшая земля, сверху свежие травинки и
+    палые листья, пара веточек. Игра растягивает её по высоте; начало
+    координат — у дна ящика (низ уходит под доски)."""
     mesh = Mesh()
-    ball(mesh, (0.5, 0.5, 0.42), (0, 0, 0), COMPOST, segments=9, rings=5)
-    ball(mesh, (0.26, 0.3, 0.24), (0.22, 0.2, 0.12), COMPOST_DARK, segments=7, rings=4)
-    ball(mesh, (0.24, 0.26, 0.22), (-0.2, 0.22, -0.1), COMPOST_DARK, segments=7, rings=4)
-    jitter(mesh, 0.025, 3.0)
+    profile = [(0.0, -0.3), (0.55, -0.3), (0.56, -0.05), (0.5, 0.12), (0.38, 0.27), (0.2, 0.36), (0.0, 0.39)]
+    lathe(mesh, profile, (0, 0, 0), SOIL, segments=12)
+    lathe(mesh, [(0.0, -0.12), (0.3, -0.12), (0.28, 0.05), (0.14, 0.13), (0.0, 0.15)], (0.18, 0.2, -0.08),
+          SOIL_DARK, segments=9)
+    jitter(mesh, 0.022, 5.0)
+
+    def surface(x, z):
+        """Высота кучи над точкой (по профилю), чтобы класть на неё мелочи."""
+        r = math.hypot(x, z)
+        pts = list(reversed(profile[2:]))
+        for (r0, y0), (r1, y1) in zip(pts, pts[1:]):
+            if r0 <= r <= r1:
+                return y0 + (y1 - y0) * (r - r0) / max(r1 - r0, 1e-6)
+        return -0.05
+
+    # Свежая трава сверху: лежащие изогнутые травинки.
+    for i in range(44):
+        angle = i * 2.39996
+        radius = 0.44 * math.sqrt((i + 0.5) / 44)
+        x, z = math.cos(angle) * radius, math.sin(angle) * radius
+        y = surface(x, z) + 0.015
+        length = 0.16 + 0.05 * (i % 3)
+        points = [(0.0, 0.0, -length / 2), (0.0, 0.02, 0.0), (0.0, 0.0, length / 2)]
+        blade = ribbon(Mesh(), points, [0.045, 0.04, 0.008], (1, 0, 0), [CLUMP_GREENS[i % 4]] * 2)
+        mesh.merge(turned(blade, yaw=angle * 1.7, pitch=0.0, roll=0.0, offset=(x, y, z)))
+    # Палые листья и веточки.
+    for i, (x, z, yaw) in enumerate([(0.2, 0.12, 0.5), (-0.24, -0.06, 2.1), (0.02, -0.28, 3.6), (-0.1, 0.3, 4.9)]):
+        mesh.merge(turned(dry_leaf(i), yaw=yaw, offset=(x, surface(x, z) + 0.005, z), scale=1.2))
+    for (x, z, yaw) in [(-0.15, 0.08, 0.7), (0.25, -0.15, 2.6)]:
+        y = surface(x, z) + 0.02
+        dx, dz = math.cos(yaw) * 0.14, math.sin(yaw) * 0.14
+        tube(mesh, [(x - dx, y, z - dz), (x, y + 0.02, z), (x + dx, y, z + dz)], 0.011, WOOD_DARK, segments=5)
+    return mesh
+
+
+def ribbon(mesh, points, widths, side, colors):
+    """Плоская лента с двух сторон (травинка, обрезок): точки осевой линии,
+    ширина в каждой, направление «вбок» и цвет каждого отрезка."""
+    side = np.asarray(side, dtype=float)
+    for i in range(len(points) - 1):
+        a, b = np.asarray(points[i], dtype=float), np.asarray(points[i + 1], dtype=float)
+        wa, wb = widths[i] * 0.5, widths[i + 1] * 0.5
+        quad = [a - side * wa, a + side * wa, b + side * wb, b - side * wb]
+        if wb < 1e-6:
+            quad = quad[:3]
+        for order in (list(range(len(quad))), list(reversed(range(len(quad))))):
+            part = Mesh()
+            part.vertices = [np.asarray(v, dtype=float) for v in quad]
+            for k in range(1, len(order) - 1):
+                part.faces.append((order[0], order[k], order[k + 1], colors[i], True))
+            mesh.merge(part)
+    return mesh
+
+
+def turned(mesh, yaw=0.0, pitch=0.0, roll=0.0, offset=(0.0, 0.0, 0.0), scale=1.0):
+    """Копия модели, повёрнутая (вокруг Y, потом X, потом Z) и сдвинутая."""
+    cy, sy = math.cos(yaw), math.sin(yaw)
+    cp, sp = math.cos(pitch), math.sin(pitch)
+    cr, sr = math.cos(roll), math.sin(roll)
+    rot_y = np.array([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]])
+    rot_x = np.array([[1, 0, 0], [0, cp, -sp], [0, sp, cp]])
+    rot_z = np.array([[cr, -sr, 0], [sr, cr, 0], [0, 0, 1]])
+    matrix = rot_y @ rot_x @ rot_z
+    out = Mesh()
+    out.vertices = [matrix @ (np.asarray(v) * scale) + np.asarray(offset) for v in mesh.vertices]
+    out.faces = list(mesh.faces)
+    return out
+
+
+# Светлые модели эффектов: цвет даёт материал (листья — каждый свой оттенок).
+FX_LIGHT = (0.97, 0.97, 0.95)
+FX_MID = (0.86, 0.86, 0.84)
+FX_DARK = (0.74, 0.74, 0.72)
+
+
+def fx_leaf():
+    """Лист, слетающий с кроны: овальный с острым кончиком, мелкие зубчики по
+    краю, сложен «лодочкой» по средней жилке, боковые жилки, черешок; кончик
+    чуть загнут. Верх светлее низа. Две стороны (крутится в полёте).
+    Длина около 0,26 м; цвет даёт материал (у каждого листа свой оттенок)."""
+    mesh = Mesh()
+    length, width = 0.22, 0.075
+    steps = 14
+    spine, left, right = [], [], []
+    for i in range(steps + 1):
+        t = i / steps
+        z = -length / 2 + length * t
+        # Ширина: округлое основание, самое широкое место в первой трети, острый кончик.
+        w = width * math.sin(math.pi * t ** 0.8) ** 0.9
+        # Зубчики: каждая вторая точка края чуть внутрь.
+        if 0 < i < steps and i % 2 == 1:
+            w *= 0.86
+        curl = 0.03 * max(0.0, t - 0.7) ** 2 / 0.09
+        y = curl
+        spine.append(np.array([0.0, y, z]))
+        left.append(np.array([-w, y + 0.32 * w, z]))
+        right.append(np.array([w, y + 0.32 * w, z]))
+    for edge, top in ((left, FX_LIGHT), (right, FX_MID)):
+        for i in range(steps):
+            quad = [spine[i], edge[i], edge[i + 1], spine[i + 1]]
+            for flip, color in ((False, top), (True, FX_DARK)):
+                part = Mesh()
+                part.vertices = [np.asarray(v, dtype=float) for v in quad]
+                order = [0, 3, 2, 1] if flip else [0, 1, 2, 3]
+                for k in range(1, 3):
+                    part.faces.append((order[0], order[k], order[k + 1], color, False))
+                mesh.merge(part)
+    lift = np.array([0.0, 0.003, 0.0])
+    # Средняя жилка и черешок.
+    ribbon(mesh, [spine[0] + lift, spine[steps // 2] + lift, spine[-2] + lift], [0.007, 0.005, 0.002], (1, 0, 0),
+           [FX_DARK, FX_DARK])
+    ribbon(mesh, [spine[0], spine[0] + np.array([0.0, 0.012, -0.045])], [0.009, 0.006], (1, 0, 0), [FX_DARK])
+    # Боковые жилки: от середины к краю, вперёд.
+    for i in (3, 6, 9):
+        for edge in (left, right):
+            start = spine[i] + lift
+            end = spine[i] * 0.4 + edge[i + 2] * 0.6 + lift + np.array([0.0, 0.002, 0.0])
+            side = np.cross(end - start, np.array([0.0, 1.0, 0.0]))
+            side /= max(np.linalg.norm(side), 1e-6)
+            ribbon(mesh, [start, end], [0.004, 0.0015], side, [FX_DARK])
+    return mesh
+
+
+def fx_clipping():
+    """Срезанная травинка, вылетающая из-под косилки: узкая, изогнутая,
+    светлый срез внизу. Две стороны. Длина около 0,15 м (мельче сверху не видно)."""
+    mesh = Mesh()
+    points = [(0.0, 0.0, -0.075), (0.0, 0.016, -0.025), (0.0, 0.02, 0.025), (0.0, 0.012, 0.075)]
+    ribbon(mesh, points, [0.05, 0.046, 0.032, 0.0], (1, 0, 0), [FX_MID, FX_LIGHT, FX_LIGHT])
+    return mesh
+
+
+CLUMP_GREENS = [(0.50, 0.78, 0.32), (0.64, 0.86, 0.38), (0.44, 0.70, 0.30), (0.78, 0.84, 0.40)]
+
+
+def fx_clump():
+    """Комок скошенной травы (летит из мешка в компост): спутанные изогнутые
+    травинки разных оттенков. Около 0,18 м."""
+    mesh = Mesh()
+    for i in range(11):
+        yaw = i * 2.4
+        pitch = math.sin(i * 1.7) * 0.9
+        bend = 0.03 + 0.02 * (i % 3)
+        length = 0.15 + 0.04 * ((i * 5) % 3) / 2
+        half = length / 2
+        points = [(0.0, 0.0, -half), (0.0, bend, -half * 0.3), (0.0, bend * 0.8, half * 0.4), (0.0, -0.01, half)]
+        blade = ribbon(Mesh(), points, [0.03, 0.034, 0.026, 0.008], (1, 0, 0), [CLUMP_GREENS[i % 4]] * 3)
+        mesh.merge(turned(blade, yaw=yaw, pitch=pitch, roll=i * 0.9, offset=(0.0, 0.0, 0.0)))
     return mesh
 
 
@@ -953,7 +1107,10 @@ if __name__ == "__main__":
     write(letter(), "letter")
     write(teapot(), "teapot")
     write(compost_bin(), "compost_bin")
-    write(compost_pile(), "compost_pile")
+    write(compost_pile(), "compost_pile", smooth_angle=70.0)
+    write(fx_leaf(), "fx_leaf", normal_mode="up")
+    write(fx_clipping(), "fx_clipping", normal_mode="up")
+    write(fx_clump(), "fx_clump", normal_mode=(0.0, 0.0, 0.0))
     write(mailbox(), "mailbox")
     for variant in range(2):
         write(bush(variant), f"bush_{variant}", smooth_angle=70.0, sway_from=0.3, sway=0.15)

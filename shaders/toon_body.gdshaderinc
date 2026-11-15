@@ -23,14 +23,13 @@ uniform float pusher_radius = 0.8;
 uniform float sway_strength = 0.0;
 
 #ifdef RECEIVE_SHADE
-// Свет считается на вершинах в двух частях: без тени и «сколько снимает
-// тень». Пикселю остаётся одно чтение картинки теней и одно умножение.
-// Дымка тоже на вершинах: она меняется на десятках метров (30–95 м), а
-// вершины у луга и дорог не реже чем через 2 м.
-varying vec3 v_lit;
-varying vec3 v_drop;
-varying vec2 v_world_xz;
-varying float v_haze;
+// Весь цвет считается на вершинах дважды: на солнце и в полной тени (с
+// насыщенностью и дымкой). Пикселю остаётся одно чтение картинки теней
+// по координатам с вершин и одно смешивание. Дымка меняется на десятках
+// метров (30–95 м), а вершины у луга и дорог не реже чем через 2 м.
+varying vec3 v_sun;
+varying vec3 v_dark;
+varying vec3 v_shade;
 #else
 // Объёмные модели: весь цвет (свет, градиент у земли, насыщенность, дымка)
 // считается на вершинах, пиксель его только выводит.
@@ -58,11 +57,13 @@ void vertex() {
 	vec3 normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 #ifdef RECEIVE_SHADE
-	v_world_xz = world.xz;
-	v_haze = day_haze(distance(world, CAMERA_POSITION_WORLD));
+	float haze = day_haze(distance(world, CAMERA_POSITION_WORLD));
 	vec3 base = albedo * COLOR.rgb;
-	v_lit = base * day_light(normal, 0.0);
-	v_drop = base * day_shadow(normal) * shade_strength;
+	vec3 lit = base * day_light(normal, 0.0);
+	vec3 drop = base * day_shadow(normal) * shade_strength;
+	v_sun = mix(day_grade(lit), haze_color, haze);
+	v_dark = mix(day_grade(lit - drop), haze_color, haze);
+	v_shade = shade_coords(world.xz);
 #else
 	// Низ предмета темнее (как градиент палитры у Alba): мягкая тень у земли.
 	// Траву и цветы (у них есть качание) не затемняем: они сами у земли.
@@ -88,8 +89,7 @@ void fragment() {
 	}
 #endif
 #ifdef RECEIVE_SHADE
-	vec3 color = day_grade(v_lit - v_drop * shade_raw(v_world_xz));
-	ALBEDO = mix(color, haze_color, v_haze);
+	ALBEDO = mix(v_sun, v_dark, shade_lookup(v_shade));
 #else
 	ALBEDO = v_color;
 #endif

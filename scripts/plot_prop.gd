@@ -270,7 +270,7 @@ func bumped(push: Vector3) -> void:
 		Kind.TREE:
 			if _crown:
 				Juice.wobble(_crown, push, 0.07, 1.3)
-				Juice.leaves(get_parent(), global_position + Vector3.UP * 2.4, 14, 1.45)
+				Juice.leaves(get_parent(), global_position + Vector3.UP * 2.4, 18, 1.45)
 		Kind.BENCH:
 			for child in get_children():
 				if child is MeshInstance3D:

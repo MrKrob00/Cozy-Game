@@ -215,16 +215,21 @@ static func confetti(host: Node, at: Vector3, amount := 70) -> void:
 static func leaves(host: Node, at: Vector3, amount := 9, spread_radius := 1.4) -> void:
 	var particles := _burst(host, at, amount, 2.2)
 	particles.explosiveness = 0.55
-	particles.mesh = Placeholder.box(Vector3(0.26, 0.015, 0.18))
-	var leaf := StandardMaterial3D.new()
-	leaf.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	leaf.vertex_color_use_as_albedo = true
-	particles.material_override = leaf
+	# Лист — своя модель (tools/make_models.py, fx_leaf): сложен по прожилке,
+	# с черешком; свет дня как у всего остального. Оттенок у каждого свой.
+	particles.mesh = Models.mesh("fx_leaf")
+	particles.material_override = Placeholder.material(Color.WHITE)
 	var colors := Gradient.new()
 	colors.interpolation_mode = Gradient.GRADIENT_INTERPOLATE_CONSTANT
-	colors.offsets = PackedFloat32Array([0.0, 0.4, 0.8])
-	colors.colors = PackedColorArray([Color(0.72, 0.88, 0.36), Color(0.92, 0.84, 0.34), Color(0.95, 0.66, 0.30)])
+	colors.offsets = PackedFloat32Array([0.0, 0.3, 0.55, 0.8])
+	colors.colors = PackedColorArray([Color(0.56, 0.80, 0.30).srgb_to_linear(),
+			Color(0.72, 0.86, 0.34).srgb_to_linear(), Color(0.94, 0.80, 0.30).srgb_to_linear(),
+			Color(0.95, 0.60, 0.26).srgb_to_linear()])
 	particles.color_initial_ramp = colors
+	# Крона большая (около 3 м): лист в полтора-два раза крупнее настоящего,
+	# иначе сверху его не разглядеть.
+	particles.scale_amount_min = 1.4
+	particles.scale_amount_max = 1.9
 	# С края кроны, кольцом: изнутри листьев не было бы видно.
 	particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
 	particles.emission_ring_axis = Vector3.UP
@@ -303,10 +308,11 @@ static func wobble(node: Node3D, push: Vector3, amount := 0.07, duration := 1.1)
 
 ## Комочки летят дугой из from в to (трава из мешка в компостный ящик).
 ## Возвращает, сколько секунд до прилёта последнего.
-static func toss(host: Node, from: Vector3, to: Vector3, color: Color, count := 8, duration := 0.45,
+static func toss(host: Node, from: Vector3, to: Vector3, count := 8, duration := 0.45,
 		height := 1.1) -> float:
-	var mesh := Placeholder.box(Vector3(0.14, 0.1, 0.16))
-	var material := Placeholder.material(color)
+	# Комок спутанных травинок — своя модель (tools/make_models.py, fx_clump).
+	var mesh := Models.mesh("fx_clump")
+	var material := Placeholder.vertex_material()
 	var stagger := 0.04
 	for i in count:
 		var clump := MeshInstance3D.new()

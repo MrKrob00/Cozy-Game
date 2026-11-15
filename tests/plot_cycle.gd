@@ -90,7 +90,7 @@ func _run() -> void:
 	for i in 120:
 		await frames(1)
 		for child in yard_node.get_children():
-			if child is MeshInstance3D and child.mesh is BoxMesh and not child.has_meta("vertex_colors"):
+			if child is MeshInstance3D and child.mesh and str(child.mesh.resource_name).contains("fx_clump"):
 				clumps_seen = true
 	Input.action_release("move_down"); Input.action_release("move_left")
 	await frames(20)

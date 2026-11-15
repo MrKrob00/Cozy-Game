@@ -5,7 +5,6 @@ extends Interactable
 
 const SIZE := Vector3(1.3, 0.9, 1.1)
 const ARROW_HEIGHT := 2.3
-const CLUMP := Color(0.55, 0.78, 0.30)
 const TOSS_CLUMPS := 9
 
 var _arrow: Node3D
@@ -46,7 +45,7 @@ func interact(player: Player) -> void:
 	GameState.save_game()
 	# Трава комочками летит из мешка в ящик; ящик отзывается, когда она долетела.
 	var flight := Juice.toss(get_parent(), player.get_bag_position(), global_position + Vector3.UP * 0.75,
-			CLUMP, TOSS_CLUMPS)
+			TOSS_CLUMPS)
 	Sfx.buzz(20)
 	await get_tree().create_timer(flight * 0.75).timeout
 	_burst.restart()
@@ -66,7 +65,8 @@ func _on_bag_changed(_fill: float, _capacity: float) -> void:
 func _update_pile(compost: int) -> void:
 	# Куча растёт вместе с накопленным компостом.
 	var amount := clampf(compost / 20.0, 0.0, 1.0)
-	_pile.scale = Vector3(1.0, lerpf(0.3, 1.25, amount), 1.0)
+	# По Z ящик уже, чем по X: куча чуть сжата, чтобы не выходить сквозь доски.
+	_pile.scale = Vector3(1.0, lerpf(0.3, 1.25, amount), 0.85)
 
 
 func _build_visuals() -> void:
@@ -74,7 +74,7 @@ func _build_visuals() -> void:
 	add_child(_model)
 	# Ящик из досок и куча в нём — свои модели (tools/make_models.py).
 	Models.place(_model, "compost_bin", Vector3.ZERO, 1.0)
-	_pile = Models.place(_model, "compost_pile", Vector3(0.0, 0.25, 0.0), 1.0)
+	_pile = Models.place(_model, "compost_pile", Vector3(0.0, 0.3, 0.0), 1.0)
 	_pile.set_meta("no_bake", true)
 	_model.add_to_group("shadow_dynamic")
 
@@ -91,7 +91,7 @@ func _build_visuals() -> void:
 	_burst.explosiveness = 0.85
 	_burst.amount = 40
 	_burst.lifetime = 0.8
-	_burst.mesh = Placeholder.box(Vector3(0.06, 0.015, 0.13))
+	_burst.mesh = Models.mesh("fx_clipping")
 	_burst.material_override = Placeholder.material(Color(0.62, 0.86, 0.34))
 	_burst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_burst.direction = Vector3.UP

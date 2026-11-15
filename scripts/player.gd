@@ -675,24 +675,33 @@ func _build_mower() -> void:
 	_clippings.name = "Clippings"
 	_clippings.position = Vector3(0.0, 0.2, 0.15)
 	_clippings.emitting = false
-	_clippings.amount = 48
+	_clippings.amount = 60
 	_clippings.lifetime = 0.55
 	_clippings.local_coords = false
-	_clippings.mesh = Placeholder.box(Vector3(0.05, 0.012, 0.11))
+	# Срезанная травинка — своя модель (tools/make_models.py, fx_clipping):
+	# узкая, изогнутая, с двух сторон; цвет даёт материал, оттенки — разброс.
+	_clippings.mesh = Models.mesh("fx_clipping")
 	_clippings.material_override = Placeholder.material(CLIPPINGS_GRASS)
+	var tones := Gradient.new()
+	tones.interpolation_mode = Gradient.GRADIENT_INTERPOLATE_CONSTANT
+	tones.offsets = PackedFloat32Array([0.0, 0.4, 0.75])
+	tones.colors = PackedColorArray([Color(1.0, 1.0, 1.0), Color(0.78, 0.84, 0.74), Color(1.0, 0.96, 0.8)])
+	_clippings.color_initial_ramp = tones
 	_clipping_weeds = false
 	_clippings.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_clippings.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
 	_clippings.emission_box_extents = Vector3(get_cut_width() * 0.5, 0.03, 0.12)
 	_clippings.direction = Vector3(0.0, 1.0, 0.25)
 	_clippings.spread = 38.0
-	_clippings.initial_velocity_min = 1.6
-	_clippings.initial_velocity_max = 3.2
+	# Сильнее, чем можно было бы: из высокой травы обрезки должны вылетать
+	# над ней, иначе их не видно.
+	_clippings.initial_velocity_min = 2.4
+	_clippings.initial_velocity_max = 4.0
 	_clippings.angular_velocity_min = -360.0
 	_clippings.angular_velocity_max = 360.0
 	_clippings.gravity = Vector3(0.0, -9.0, 0.0)
-	_clippings.scale_amount_min = 0.7
-	_clippings.scale_amount_max = 1.3
+	_clippings.scale_amount_min = 0.9
+	_clippings.scale_amount_max = 1.5
 	_mower.add_child(_clippings)
 
 	# Маленькие облачка из мотора: косилку не слышно, зато видно, что она работает.
