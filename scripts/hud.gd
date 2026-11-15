@@ -59,10 +59,8 @@ var _compost_icon: HudIcon
 @onready var _joystick: VirtualJoystick = $VirtualJoystick
 @onready var _controls_button: Button = %ControlsButton
 @onready var _camera_button: Button = %CameraButton
-@onready var _probe_button: Button = %ProbeButton
 @onready var _language_button: Button = %LanguageButton
 @onready var _title_language_button: Button = %TitleLanguageButton
-@onready var _reset_button: Button = %ResetButton
 @onready var _quit_button: Button = %QuitButton
 @onready var _workshop_panel: Control = %WorkshopPanel
 @onready var _workshop_window: PanelContainer = %WorkshopWindow
@@ -89,7 +87,6 @@ var _toasts: Array[String] = []
 var _toast_busy := false
 var _hint_hidden := false
 var _bag_pulse: Tween
-var _reset_armed := false
 var _shown_percent := -1
 # Числа, которые сейчас показаны на счётчиках (они досчитываются плавно).
 var _shown_coins := 0
@@ -112,8 +109,10 @@ var _goal_mark: ColorRect
 ## и при съёмке трейлера это выключают и показывают сами).
 var auto_reveal := true
 var _revealing := false
-## Замер кадра (FrameProbe), если он идёт сейчас.
-var _probe: FrameProbe
+## Окно, начатое нажатием мимо него: отпускание тоже мимо — окно закрывается.
+var _outside_press: Control
+## Значки кнопок настроек: меняются вместе с состоянием (выключено — перечёркнут).
+var _setting_icons: Dictionary = {}
 ## Игра идёт (не титульный экран): сенсорное управление включено.
 var _controls_live := true
 
@@ -197,19 +196,12 @@ func _ready() -> void:
 	_controls_button.pressed.connect(func() -> void:
 		GameState.set_touch_controls(GameState.touch_controls + 1)
 		_update_settings_buttons())
-	_camera_button.pressed.connect(func() -> void:
-		GameState.set_camera_mode(GameState.camera_mode + 1)
-		_update_settings_buttons())
-	# Кнопки паузы стоят в два столбца одинаковой ширины: одним столбцом
-	# они не помещались по высоте экрана.
-	for child in _resume_button.get_parent().get_children():
-		(child as Control).size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_probe_button.pressed.connect(_run_probe)
+	_camera_button.pressed.connect(_switch_camera)
+	_decorate_buttons()
 	for button: Button in [_language_button, _title_language_button]:
 		button.pressed.connect(_switch_language)
 	# Выбор сенсорной схемы нужен только там, где есть сенсорный экран.
 	_controls_button.visible = _touch
-	_reset_button.pressed.connect(_on_reset_pressed)
 	_quit_button.pressed.connect(func() -> void:
 		GameState.save_game()
 		get_tree().quit())
@@ -225,9 +217,9 @@ func _ready() -> void:
 	_quit_button.visible = not (OS.has_feature("mobile") or OS.has_feature("web"))
 	_update_settings_buttons()
 	for button: Button in [_action_button, _pause_button, _resume_button, _sound_button,
-			_music_button, _graphics_button, _fps_button, _controls_button, _camera_button, _probe_button,
+			_music_button, _graphics_button, _fps_button, _controls_button, _camera_button,
 			_language_button,
-			_title_language_button, _reset_button, _quit_button, _continue_button,
+			_title_language_button, _quit_button, _continue_button,
 			_workshop_close]:
 		button.pressed.connect(_on_any_button_pressed.bind(button))
 
@@ -264,9 +256,6 @@ func _process(delta: float) -> void:
 		_fps_label.text = "%d FPS" % Engine.get_frames_per_second()
 	if _pause_panel.visible:
 		_diag_label.text = _diagnostics()
-	if _probe and _probe.status != "":
-		_toast_label.text = _probe.status
-		_toast.visible = true
 
 
 func is_title_shown() -> bool:
@@ -350,12 +339,68 @@ func _input(event: InputEvent) -> void:
 		_action_button.pressed.emit()
 		get_viewport().set_input_as_handled()
 		return
+	if _close_on_outside_tap(event):
+		get_viewport().set_input_as_handled()
+		return
+	if event.is_action_pressed("camera") and not get_tree().paused:
+		_camera_button.pressed.emit()
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("pause"):
 		if _workshop_panel.visible:
 			close_workshop()
 		else:
 			_set_paused(not get_tree().paused)
 		get_viewport().set_input_as_handled()
+
+
+# Нажатие мимо открытого окна (пауза, мастерская, бюро, итоги участка)
+# закрывает его, когда палец или кнопка мыши отпущены тоже мимо. Само нажатие
+# тоже съедаем: иначе оно ушло бы в игру (герой поехал бы за мышью).
+func _close_on_outside_tap(event: InputEvent) -> bool:
+	var point := Vector2.ZERO
+	var pressed := false
+	if event is InputEventScreenTouch:
+		if event.index != 0:
+			return false
+		point = event.position
+		pressed = event.pressed
+	elif event is InputEventMouseButton and event.device != InputEvent.DEVICE_ID_EMULATION \
+			and event.button_index == MOUSE_BUTTON_LEFT:
+		point = event.position
+		pressed = event.pressed
+	else:
+		return false
+	var window := _open_window_panel()
+	if window == null:
+		_outside_press = null
+		return false
+	var outside := not window.get_global_rect().has_point(point)
+	if pressed:
+		_outside_press = window if outside else null
+		return outside
+	var close := outside and _outside_press == window
+	_outside_press = null
+	if close:
+		Sfx.play("click")
+		if window == _pause_window:
+			_set_paused(false)
+		elif window == _workshop_window:
+			close_workshop()
+		else:
+			_continue_button.pressed.emit()
+	return close
+
+
+# Окно, которое сейчас открыто поверх игры (титульный экран не в счёт).
+func _open_window_panel() -> Control:
+	if _workshop_panel.visible:
+		return _workshop_window
+	if _pause_panel.visible:
+		return _pause_window
+	if _completion.visible:
+		return _completion_panel
+	return null
 
 
 ## Показывает короткое сообщение; несколько подряд встают в очередь.
@@ -736,21 +781,10 @@ func _kill_stamp_tweens() -> void:
 func _set_paused(paused: bool) -> void:
 	get_tree().paused = paused
 	_pause_panel.visible = paused
-	_reset_armed = false
-	_reset_button.text = "Начать заново"
 	if paused and _plot:
 		_pause_title.text = L.t(_plot.plot_name)
 		_fill_stamps(_pause_stamps, _plot)
 		Juice.pop_in(_pause_window, 0.22)
-
-
-func _on_reset_pressed() -> void:
-	# Стирание прогресса требует второго нажатия.
-	if not _reset_armed:
-		_reset_armed = true
-		_reset_button.text = "Стереть весь прогресс? Нажмите ещё раз"
-		return
-	GameState.reset_game()
 
 
 func _on_any_button_pressed(button: Button) -> void:
@@ -808,59 +842,97 @@ func _update_settings_buttons() -> void:
 	_language_button.text = L.t("Язык: %s") % language_name
 	_title_language_button.text = "Language / Язык: %s" % language_name
 	_controls_button.text = L.t("Управление: %s") % L.t(GameState.TOUCH_CONTROLS[GameState.touch_controls])
-	_camera_button.text = L.t("Камера: %s") % L.t(GameState.CAMERA_MODES[GameState.camera_mode])
+	_camera_button.tooltip_text = L.t("Камера: %s") % L.t(GameState.CAMERA_MODES[GameState.camera_mode])
 	_sound_button.text = "Звуки: включены" if GameState.sound_enabled else "Звуки: выключены"
 	_music_button.text = "Музыка: включена" if GameState.music_enabled else "Музыка: выключена"
 	_graphics_button.text = L.t("Графика: %s") % L.t(Graphics.preset["title"])
 	_fps_button.text = "Счётчик FPS: включён" if GameState.show_fps else "Счётчик FPS: выключен"
 	_fps_label.visible = GameState.show_fps
+	# Сведения об устройстве — вместе со счётчиком FPS: в обычной игре они не нужны.
+	_diag_label.visible = GameState.show_fps
+	# Выключенное — светлая кнопка и перечёркнутый значок.
+	for button: Button in _setting_icons:
+		var on := true
+		if button == _sound_button:
+			on = GameState.sound_enabled
+		elif button == _music_button:
+			on = GameState.music_enabled
+		elif button == _fps_button:
+			on = GameState.show_fps
+		button.theme_type_variation = &"SettingButton" if on else &"SettingButtonOff"
+		var icon: HudIcon = _setting_icons[button]
+		icon.tint = Color.WHITE if on else INK
+		icon.crossed = not on and icon.kind in [HudIcon.Kind.SOUND, HudIcon.Kind.MUSIC]
+		icon.queue_redraw()
 
 
-# Замер кадра: игра снимается с паузы, слои картинки по очереди выключаются,
-# таблица с ценой каждого показывается в меню паузы и копируется в буфер.
-func _run_probe() -> void:
-	if _probe:
-		return
-	_set_paused(false)
-	if _player:
-		_player.controls_enabled = false
-	_probe = FrameProbe.new()
-	add_child(_probe)
-	_probe.finished.connect(func(text: String) -> void:
-		_probe.queue_free()
-		_probe = null
-		_toast.visible = false
-		if _player:
-			_player.controls_enabled = true
-		_set_paused(true)
-		_show_probe_result(text))
-	_probe.run()
+# Значки на кнопках: пауза и камера в углу (на компьютере под ними клавиша),
+# в меню паузы — значок слева на каждой кнопке.
+func _decorate_buttons() -> void:
+	_icon_on(_pause_button, HudIcon.Kind.PAUSE, 56.0, true)
+	_icon_on(_camera_button, HudIcon.Kind.CAMERA, 60.0, true)
+	if not _touch:
+		_key_hint(_pause_button, "Esc")
+		_key_hint(_camera_button, "C")
+	_icon_on(_resume_button, HudIcon.Kind.PLAY, 60.0, false)
+	_resume_button.theme_type_variation = &"SettingButton"
+	var kinds := {_sound_button: HudIcon.Kind.SOUND, _music_button: HudIcon.Kind.MUSIC,
+			_graphics_button: HudIcon.Kind.GRAPHICS, _fps_button: HudIcon.Kind.FPS,
+			_controls_button: HudIcon.Kind.CONTROLS, _language_button: HudIcon.Kind.LANGUAGE,
+			_quit_button: HudIcon.Kind.QUIT}
+	for button: Button in kinds:
+		_setting_icons[button] = _icon_on(button, kinds[button], 52.0, false)
+		button.theme_type_variation = &"SettingButton"
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 
-# Окно с таблицей замера поверх меню паузы.
-func _show_probe_result(text: String) -> void:
-	var shade := ColorRect.new()
-	shade.name = "ProbeResult"
-	shade.color = Color(0.0, 0.0, 0.0, 0.55)
-	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_root.add_child(shade)
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	shade.add_child(center)
-	var panel := PanelContainer.new()
-	center.add_child(panel)
-	var rows := VBoxContainer.new()
-	rows.add_theme_constant_override("separation", 16)
-	panel.add_child(rows)
-	var label := Label.new()
-	label.text = text + L.t("\n\nТаблица скопирована в буфер обмена — пришлите её.")
-	label.add_theme_font_size_override("font_size", 26)
-	rows.add_child(label)
-	var close := Button.new()
-	close.text = "Закрыть"
-	close.focus_mode = Control.FOCUS_NONE
-	close.pressed.connect(shade.queue_free)
-	rows.add_child(close)
+# Значок на кнопке: посередине (кнопка без надписи) или слева от надписи.
+func _icon_on(button: Button, kind: HudIcon.Kind, side: float, centered: bool) -> HudIcon:
+	var icon := HudIcon.make(kind, side)
+	button.add_child(icon)
+	if centered:
+		icon.set_anchors_preset(Control.PRESET_CENTER)
+		icon.offset_left = -side * 0.5
+		icon.offset_top = -side * 0.5
+	else:
+		icon.set_anchors_preset(Control.PRESET_CENTER_LEFT)
+		icon.offset_left = 30.0
+		icon.offset_top = -side * 0.5
+	icon.offset_right = icon.offset_left + side
+	icon.offset_bottom = icon.offset_top + side
+	return icon
+
+
+# Клавиша под кнопкой (на компьютере): нажать её — то же, что нажать кнопку.
+func _key_hint(button: Button, key: String) -> void:
+	var cap := Label.new()
+	cap.text = key
+	cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cap.add_theme_font_size_override("font_size", 26)
+	cap.add_theme_color_override("font_color", INK)
+	var box := _box(CREAM, 8)
+	box.border_color = Color(0.86, 0.78, 0.62)
+	box.set_border_width_all(2)
+	box.border_width_bottom = 4
+	box.content_margin_left = 10
+	box.content_margin_right = 10
+	box.content_margin_top = 1
+	box.content_margin_bottom = 2
+	cap.add_theme_stylebox_override("normal", box)
+	cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.add_child(cap)
+	cap.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	cap.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	cap.offset_top = 10.0
+	cap.offset_bottom = 10.0
+
+
+# Камера сверху или сзади: кнопка в углу экрана или клавиша C.
+func _switch_camera() -> void:
+	GameState.set_camera_mode(GameState.camera_mode + 1)
+	_update_settings_buttons()
+	show_toast(_camera_button.tooltip_text)
 
 
 # Сведения об устройстве: помогают разобраться, если на телефоне что-то не так.
@@ -1131,6 +1203,25 @@ func _build_theme() -> Theme:
 		ui.set_stylebox(state, "Button", button)
 	for color_name: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 		ui.set_color(color_name, "Button", Color.WHITE)
+
+	# Кнопки меню со значком слева; выключенная настройка — светлая.
+	for variation: StringName in [&"SettingButton", &"SettingButtonOff"]:
+		ui.set_type_variation(variation, &"Button")
+		var off := variation == &"SettingButtonOff"
+		var base := Color(0.91, 0.86, 0.74) if off else GREEN
+		var edge := Color(0.78, 0.70, 0.55) if off else GREEN_DARK.darkened(0.15)
+		for state: String in ["normal", "hover", "pressed", "focus"]:
+			var button := _box(base.darkened(0.08) if state == "pressed" else base, 28)
+			button.set_content_margin_all(22)
+			button.content_margin_left = 100
+			button.content_margin_right = 28
+			button.border_color = edge
+			button.border_width_bottom = 2 if state == "pressed" else 8
+			if state == "hover":
+				button.bg_color = base.lightened(0.1)
+			ui.set_stylebox(state, variation, button)
+		for color_name: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+			ui.set_color(color_name, variation, INK if off else Color.WHITE)
 
 	ui.set_stylebox("background", "ProgressBar", _box(Color(0.0, 0.0, 0.0, 0.14), 12))
 	ui.set_stylebox("fill", "ProgressBar", _box(GREEN, 12))

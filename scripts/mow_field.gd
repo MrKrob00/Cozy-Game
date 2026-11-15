@@ -467,16 +467,6 @@ func get_uncut_positions(max_count: int) -> PackedVector3Array:
 	return result
 
 
-## Показывает или прячет слой поля: «grass» — траву, «ground» — землю
-## (для замера кадра, см. FrameProbe).
-func set_layer_visible(layer: String, on: bool) -> void:
-	if layer == "grass":
-		for node in _grass_nodes:
-			node.visible = on
-	else:
-		(get_node("Ground") as Node3D).visible = on
-
-
 ## Состояние покоса для сохранения.
 func get_state() -> PackedByteArray:
 	return _data.compress(FileAccess.COMPRESSION_ZSTD)

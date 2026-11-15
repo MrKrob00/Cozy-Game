@@ -122,12 +122,17 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "Компост: 0"
 
+[node name="CameraButton" type="Button" parent="Root/Margin/Corner"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 0)
+layout_mode = 2
+focus_mode = 0
+
 [node name="PauseButton" type="Button" parent="Root/Margin/Corner"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(96, 0)
 layout_mode = 2
 focus_mode = 0
-text = "II"
 
 [node name="FpsLabel" type="Label" parent="Root/Margin"]
 unique_name_in_owner = true
@@ -297,74 +302,63 @@ layout_mode = 2
 size_flags_vertical = 4
 theme_override_constants/separation = 6
 
-[node name="Buttons" type="GridContainer" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns"]
+[node name="Side" type="VBoxContainer" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns"]
 custom_minimum_size = Vector2(980, 0)
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 18
+
+[node name="ResumeButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Side"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(0, 110)
+focus_mode = 0
+theme_override_font_sizes/font_size = 40
+text = "Продолжить"
+
+[node name="Buttons" type="GridContainer" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Side"]
 layout_mode = 2
 theme_override_constants/h_separation = 14
 theme_override_constants/v_separation = 12
 columns = 2
 
-[node name="ResumeButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
-unique_name_in_owner = true
-layout_mode = 2
-focus_mode = 0
-text = "Продолжить"
-
-[node name="SoundButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
+[node name="SoundButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Side/Buttons"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 text = "Звук: включён"
 
-[node name="MusicButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
+[node name="MusicButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Side/Buttons"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 text = "Музыка: включена"
 
-[node name="GraphicsButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
+[node name="GraphicsButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Side/Buttons"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 text = "Графика: высокая"
 
-[node name="FpsButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
+[node name="FpsButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Side/Buttons"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 text = "Счётчик FPS: выключен"
 
-[node name="ControlsButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
+[node name="ControlsButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Side/Buttons"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 text = "Управление: джойстик слева"
 
-[node name="CameraButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
-unique_name_in_owner = true
-layout_mode = 2
-focus_mode = 0
-text = "Камера: сверху"
-
-[node name="LanguageButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
+[node name="LanguageButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Side/Buttons"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 text = "Язык: Русский"
 
-[node name="ProbeButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
-unique_name_in_owner = true
-layout_mode = 2
-focus_mode = 0
-text = "Замер кадра (полминуты)"
-
-[node name="ResetButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
-unique_name_in_owner = true
-layout_mode = 2
-focus_mode = 0
-text = "Начать заново"
-
-[node name="QuitButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
+[node name="QuitButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Side/Buttons"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0

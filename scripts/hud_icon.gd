@@ -5,7 +5,9 @@ extends Control
 ## компоста (те же, что летят к счётчикам, RewardIcon), мешок, трава, нож,
 ## мотор. Или кружки уровня (LEVELS).
 
-enum Kind { COIN, COMPOST, BAG, GRASS, BLADE, MOTOR, LEVELS }
+enum Kind { COIN, COMPOST, BAG, GRASS, BLADE, MOTOR, LEVELS,
+	# Значки кнопок: рисуются одним цветом (tint) поверх кнопки.
+	PAUSE, PLAY, CAMERA, SOUND, MUSIC, GRAPHICS, FPS, CONTROLS, LANGUAGE, QUIT }
 
 const INK := Color(0.27, 0.22, 0.17)
 const LEAF := Color(0.42, 0.72, 0.30)
@@ -20,6 +22,9 @@ const RED := Color(0.86, 0.30, 0.26)
 ## Для LEVELS: сколько всего уровней и сколько уже есть.
 @export var levels := 3
 @export var level := 1
+## Цвет значков кнопок; crossed — перечёркнут (звук или музыка выключены).
+@export var tint := Color.WHITE
+@export var crossed := false
 ## Подложка-кружок под значком (в окнах, где значок стоит отдельно).
 @export var badge := false
 
@@ -63,6 +68,28 @@ func _draw() -> void:
 			_motor(c, s)
 		Kind.LEVELS:
 			_levels()
+		Kind.PAUSE:
+			_pause(c, s)
+		Kind.PLAY:
+			_play(c, s)
+		Kind.CAMERA:
+			_camera(c, s)
+		Kind.SOUND:
+			_sound(c, s)
+		Kind.MUSIC:
+			_music(c, s)
+		Kind.GRAPHICS:
+			_graphics(c, s)
+		Kind.FPS:
+			_fps(c, s)
+		Kind.CONTROLS:
+			_controls(c, s)
+		Kind.LANGUAGE:
+			_language(c, s)
+		Kind.QUIT:
+			_quit(c, s)
+	if crossed:
+		draw_line(c + Vector2(-s, -s) * 0.4, c + Vector2(s, s) * 0.4, tint, maxf(s * 0.1, 2.5), true)
 
 
 func _bag(c: Vector2, s: float) -> void:
@@ -124,3 +151,91 @@ func _levels() -> void:
 			draw_circle(center, r * 0.62, LEAF)
 		else:
 			draw_arc(center, r * 0.85, 0.0, TAU, 20, Color(INK, 0.35), maxf(r * 0.22, 2.0), true)
+
+
+func _width(s: float) -> float:
+	return maxf(s * 0.09, 2.0)
+
+
+func _pause(c: Vector2, s: float) -> void:
+	for x: float in [-0.15, 0.15]:
+		draw_rect(Rect2(c + Vector2(x - 0.07, -0.3) * s, Vector2(0.14, 0.6) * s), tint)
+
+
+func _play(c: Vector2, s: float) -> void:
+	draw_colored_polygon(PackedVector2Array([c + Vector2(-0.2, -0.3) * s, c + Vector2(0.3, 0.0) * s,
+			c + Vector2(-0.2, 0.3) * s]), tint)
+
+
+func _camera(c: Vector2, s: float) -> void:
+	# Фотоаппарат: корпус, выступ сверху, объектив.
+	var body := Rect2(c + Vector2(-0.4, -0.2) * s, Vector2(0.8, 0.52) * s)
+	draw_rect(body, tint, false, _width(s))
+	draw_rect(Rect2(c + Vector2(-0.16, -0.32) * s, Vector2(0.32, 0.12) * s), tint)
+	draw_arc(c + Vector2(0.0, 0.06) * s, s * 0.15, 0.0, TAU, 20, tint, _width(s), true)
+	draw_circle(c + Vector2(0.27, -0.09) * s, s * 0.035, tint)
+
+
+func _sound(c: Vector2, s: float) -> void:
+	# Динамик и две волны.
+	draw_colored_polygon(PackedVector2Array([c + Vector2(-0.38, -0.12) * s, c + Vector2(-0.22, -0.12) * s,
+			c + Vector2(-0.02, -0.32) * s, c + Vector2(-0.02, 0.32) * s, c + Vector2(-0.22, 0.12) * s,
+			c + Vector2(-0.38, 0.12) * s]), tint)
+	for radius: float in [0.16, 0.3]:
+		draw_arc(c + Vector2(0.02, 0.0) * s, s * radius, -0.8, 0.8, 10, tint, _width(s) * 0.8, true)
+
+
+func _music(c: Vector2, s: float) -> void:
+	# Две ноты с перемычкой.
+	for x: float in [-0.22, 0.22]:
+		draw_circle(c + Vector2(x - 0.08, 0.26 - (0.06 if x > 0.0 else 0.0)) * s, s * 0.11, tint)
+		draw_line(c + Vector2(x + 0.02, 0.26 - (0.06 if x > 0.0 else 0.0)) * s,
+				c + Vector2(x + 0.02, -0.26 - (0.06 if x > 0.0 else 0.0)) * s, tint, _width(s) * 0.8, true)
+	draw_colored_polygon(PackedVector2Array([c + Vector2(-0.21, -0.26) * s, c + Vector2(0.25, -0.38) * s,
+			c + Vector2(0.25, -0.26) * s, c + Vector2(-0.21, -0.14) * s]), tint)
+
+
+func _graphics(c: Vector2, s: float) -> void:
+	# Картинка: рамка, горы, солнце.
+	draw_rect(Rect2(c + Vector2(-0.4, -0.3) * s, Vector2(0.8, 0.6) * s), tint, false, _width(s))
+	draw_colored_polygon(PackedVector2Array([c + Vector2(-0.34, 0.25) * s, c + Vector2(-0.1, -0.06) * s,
+			c + Vector2(0.06, 0.12) * s, c + Vector2(0.16, 0.02) * s, c + Vector2(0.34, 0.25) * s]), tint)
+	draw_circle(c + Vector2(0.18, -0.14) * s, s * 0.07, tint)
+
+
+func _fps(c: Vector2, s: float) -> void:
+	# Спидометр: дуга и стрелка.
+	draw_arc(c + Vector2(0.0, 0.12) * s, s * 0.36, PI, TAU, 16, tint, _width(s), true)
+	draw_line(c + Vector2(0.0, 0.12) * s, c + Vector2(0.2, -0.12) * s, tint, _width(s), true)
+	draw_circle(c + Vector2(0.0, 0.12) * s, s * 0.07, tint)
+
+
+func _controls(c: Vector2, s: float) -> void:
+	# Джойстик: круг основания и шарик.
+	draw_arc(c, s * 0.36, 0.0, TAU, 24, tint, _width(s), true)
+	draw_circle(c + Vector2(0.08, -0.06) * s, s * 0.16, tint)
+
+
+func _language(c: Vector2, s: float) -> void:
+	# Глобус: круг, меридиан, параллели.
+	var w := _width(s) * 0.8
+	draw_arc(c, s * 0.36, 0.0, TAU, 24, tint, w, true)
+	draw_line(c + Vector2(-0.36, 0.0) * s, c + Vector2(0.36, 0.0) * s, tint, w, true)
+	var meridian := PackedVector2Array()
+	for k in 17:
+		var angle := -PI * 0.5 + PI * k / 16.0
+		meridian.append(c + Vector2(cos(angle) * 0.16, sin(angle) * 0.36) * s)
+	draw_polyline(meridian, tint, w, true)
+	for k in 17:
+		meridian[k] = c * 2.0 - meridian[k]
+	draw_polyline(meridian, tint, w, true)
+
+
+func _quit(c: Vector2, s: float) -> void:
+	# Дверь и стрелка наружу.
+	draw_polyline(PackedVector2Array([c + Vector2(0.04, -0.2) * s, c + Vector2(0.04, -0.36) * s,
+			c + Vector2(-0.36, -0.36) * s, c + Vector2(-0.36, 0.36) * s, c + Vector2(0.04, 0.36) * s,
+			c + Vector2(0.04, 0.2) * s]), tint, _width(s), true)
+	draw_line(c + Vector2(-0.14, 0.0) * s, c + Vector2(0.34, 0.0) * s, tint, _width(s), true)
+	draw_colored_polygon(PackedVector2Array([c + Vector2(0.42, 0.0) * s, c + Vector2(0.24, -0.14) * s,
+			c + Vector2(0.24, 0.14) * s]), tint)

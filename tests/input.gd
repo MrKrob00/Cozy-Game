@@ -146,9 +146,9 @@ func _run() -> void:
 	# 3b'. Камера «сзади»: кнопка в паузе, камера за спиной героя, «вверх» — от камеры.
 	var camera_button = hud_node.get_node("%CameraButton")
 	var camera3d = current_scene.get_node("Camera")
-	check(game_state.camera_mode == 0 and camera_button.text == "Камера: сверху", "camera starts from above")
+	check(game_state.camera_mode == 0 and camera_button.tooltip_text == "Камера: сверху", "camera starts from above")
 	camera_button.pressed.emit()
-	check(game_state.camera_mode == 1 and camera_button.text == "Камера: сзади", "the pause menu switches the camera to behind the hero")
+	check(game_state.camera_mode == 1 and camera_button.tooltip_text == "Камера: сзади", "the HUD button switches the camera to behind the hero")
 	player.global_position = Vector3(0, 0, 3.0)
 	player.rotation = Vector3.ZERO
 	await frames(120)
@@ -167,6 +167,27 @@ func _run() -> void:
 	camera_button.pressed.emit()
 	check(game_state.camera_mode == 0, "and back to the camera from above")
 	await frames(90)
+	var camera_key := InputEventAction.new()
+	camera_key.action = "camera"
+	camera_key.pressed = true
+	Input.parse_input_event(camera_key)
+	await frames(2)
+	check(game_state.camera_mode == 1, "the C key switches the camera too")
+	Input.parse_input_event(camera_key)
+	await frames(60)
+	check(game_state.camera_mode == 0, "and back with C")
+
+	# 3b''. Нажатие мимо окна паузы закрывает его, нажатие по окну — нет.
+	hud_node.call("_set_paused", true)
+	var window: Control = hud_node.get_node("%PauseWindow")
+	await frames(20)
+	var on_window: Vector2 = window.get_global_rect().position + Vector2(12, 12)
+	touch(0, on_window, true); touch(0, on_window, false)
+	await frames(2)
+	check(paused and hud_node.get_node("%PausePanel").visible, "a tap on the pause window keeps it open")
+	touch(0, Vector2(6, 700), true); touch(0, Vector2(6, 700), false)
+	await frames(2)
+	check(not paused and not hud_node.get_node("%PausePanel").visible, "a tap outside the pause window closes it")
 
 	# 3c. Разворот: направление за спиной — косилка доворачивает в одну сторону.
 	player.global_position = Vector3(0, 0, 3.0)

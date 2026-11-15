@@ -200,17 +200,6 @@ func _in_window(at: Vector3) -> bool:
 	return absf(at.x - _center.x) < half and absf(at.z - _center.y) < half
 
 
-## Включает или выключает тени целиком (для замера кадра, см. FrameProbe).
-func set_enabled(on: bool) -> void:
-	set_process(on)
-	if on:
-		# Окно ставится заново, картинки перерисовываются.
-		_center = Vector2(INF, INF)
-		_shift = Shift.NONE
-	else:
-		Graphics.set_shade(_final_view.get_texture(), Vector4.ZERO)
-
-
 ## Сколько моделей отбрасывают тень (для проверок).
 func caster_count() -> int:
 	return get_tree().get_nodes_in_group("shadow_caster").size()
