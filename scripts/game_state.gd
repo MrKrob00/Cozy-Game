@@ -142,7 +142,10 @@ func add_grass(units: float) -> void:
 	var was_full := is_bag_full()
 	bag_fill = minf(bag_fill + units, bag_capacity)
 	bag_changed.emit(bag_fill, bag_capacity)
-	if is_bag_full() and not was_full:
+	# Подсказка — только в первый раз; дальше хватает рыжей полосы мешка и
+	# светящегося круга у ящика.
+	if is_bag_full() and not was_full and not has_flag("hint_bag_full"):
+		set_flag("hint_bag_full")
 		toast("Мешок полон — отвезите траву в компостный ящик")
 
 
@@ -245,6 +248,11 @@ func plot_state(plot_id: String) -> Dictionary:
 
 func is_plot_completed(plot_id: String) -> bool:
 	return plots.has(plot_id) and plots[plot_id].get("completed", false)
+
+
+## Выкошен ли участок целиком (100 %).
+func is_plot_perfect(plot_id: String) -> bool:
+	return plots.has(plot_id) and plots[plot_id].get("perfect", false)
 
 
 ## Открыл ли участок дорогу на следующий: для этого хватает выкосить его

@@ -1,6 +1,7 @@
 class_name Workshop
 extends Interactable
-## Мастерская в сарае. Открывается, когда найден ключ; здесь улучшают косилку.
+## Мастерская в сарае. Открывается, когда найден ключ и двор выкошен целиком
+## (тогда же возвращается Мастер и камера показывает его); здесь улучшают косилку.
 
 ## Сарай, который отпирается ключом.
 @export var shed_path: NodePath
@@ -11,13 +12,18 @@ var _open := false
 
 
 func _ready() -> void:
-	if GameState.has_flag(key_flag):
+	if _ready_to_open():
 		_unlock(false)
 
 
 func _process(_delta: float) -> void:
-	if not _open and GameState.has_flag(key_flag):
+	if not _open and _ready_to_open():
 		_unlock(true)
+
+
+func _ready_to_open() -> bool:
+	var plot := Plot.of(self)
+	return GameState.has_flag(key_flag) and (plot == null or GameState.is_plot_perfect(plot.plot_id))
 
 
 func get_prompt() -> String:
@@ -38,7 +44,5 @@ func _unlock(announce: bool) -> void:
 	if shed:
 		shed.set_unlocked(announce)
 	if announce:
+		# Показ (камера, объяснение) — вместе с возвращением Мастера.
 		Sfx.play("plant", -4.0)
-		# Камера едет к сараю, сообщение объясняет, что это и зачем.
-		get_tree().call_group("hud", "show_place", global_position + Vector3.UP * 0.8,
-				L.t("Ключ подошёл к сараю! Там мастерская — можно улучшить косилку"))

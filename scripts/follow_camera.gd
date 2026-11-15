@@ -43,6 +43,10 @@ var _nudge_tween: Tween
 var _flyover: Tween
 # Показ точки (show_point): куда смотреть и насколько камера уже там, 0–1.
 var _reveal_point := Vector3.ZERO
+## Насколько отъехать при показе (минус — приблизиться: показ жителя вблизи).
+var _reveal_pull := REVEAL_PULL_BACK
+## Насколько ниже наклон при показе вблизи, градусы.
+var _reveal_tilt := 0.0
 var _reveal_weight := 0.0
 var _reveal: Tween
 ## Насколько камера отъезжает, когда цель быстро едет по дороге, метры.
@@ -170,10 +174,13 @@ func set_menu(on: bool) -> void:
 ## Показывает точку вдали от игрока (калитку нового участка): камера едет
 ## к ней, задерживается и возвращается. on_arrive вызывается, когда камера
 ## на месте; в конце — сигнал reveal_finished.
-func show_point(point: Vector3, on_arrive := Callable(), hold := 1.4) -> void:
+func show_point(point: Vector3, on_arrive := Callable(), hold := 1.4, pull := REVEAL_PULL_BACK,
+		tilt := 0.0) -> void:
 	if _reveal:
 		_reveal.kill()
 	_reveal_point = point
+	_reveal_pull = pull
+	_reveal_tilt = tilt
 	var travel := clampf(_focus.distance_to(point) / 16.0, 0.8, 1.6)
 	_reveal = create_tween()
 	_reveal.tween_property(self, "_reveal_weight", 1.0, travel) \
@@ -203,10 +210,10 @@ func nudge(amount := 1.2, duration := 0.8) -> void:
 
 
 func _apply() -> void:
-	var pitch := pitch_degrees
+	var pitch := pitch_degrees - _reveal_tilt * _reveal_weight
 	var yaw := deg_to_rad(yaw_degrees + _yaw_offset)
 	var focus := _focus.lerp(_reveal_point, _reveal_weight)
-	var distance := _distance + _distance_offset + _nudge + REVEAL_PULL_BACK * _reveal_weight \
+	var distance := _distance + _distance_offset + _nudge + _reveal_pull * _reveal_weight \
 			+ TRAVEL_PULL_BACK * _travel
 	# Сзади: на время показа калитки камера уходит наверх.
 	var chase := _chase * (1.0 - _reveal_weight)

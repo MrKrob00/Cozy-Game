@@ -33,9 +33,6 @@ const MESSAGES := {
 	"День %d": "Day %d",
 	"День 2": "Day 2",
 	"Доброе утро! На выкошенных участках подросла трава": "Good morning! The grass has grown back a little on the mowed plots",
-	"четверть позади": "a quarter done",
-	"половина!": "halfway there!",
-	"осталось чуть-чуть": "almost done",
 	"Мешок полон — отвезите траву в компостный ящик": "The bag is full — take the grass to the compost bin",
 
 	# Завершение участка и финал.
@@ -106,7 +103,6 @@ const MESSAGES := {
 	"%s — уровень %d из %d": "%s — level %d of %d",
 	"Максимум": "Max",
 	"%d монет": "%d coins",
-	"Ключ подошёл к сараю! Там мастерская — можно улучшить косилку": "The key fits! It's a workshop — you can upgrade your mower here",
 	"Бурьян этот нож не берёт. Нужен нож второго уровня — он есть в мастерской":
 		"This blade can't cut weeds. You need a level 2 blade — the workshop has one",
 
@@ -144,7 +140,7 @@ const MESSAGES := {
 	"Двор": "Yard",
 	"Двор выкошен!": "The yard is mowed!",
 	"Мастер": "Handyman",
-	"В деревню вернулся Мастер — он ждёт у сарая": "The Handyman is back in the village — he's waiting by the workshop",
+	"Вернулся Мастер! В сарае его мастерская — здесь улучшают косилку": "The Handyman is back! His workshop is in the shed — upgrade your mower there",
 	"Хорошая работа! Загляни в сарай — подкрутим твою косилку.": "Nice work! Drop by the workshop — we'll tune up your mower.",
 	"Сад бабушки — за поляной с колодцем, по дороге налево. Он совсем зарос.":
 		"Grandma's garden is past the green with the well, down the road on the left. It's badly overgrown.",
@@ -185,7 +181,7 @@ const MESSAGES := {
 	"ключик от почтового ящика": "mailbox key",
 	"Вот он где! А я ящик проволокой закрывал.": "So that's where it was! I've been tying the box shut with wire.",
 	"кошелёк с мелочью": "purse with small change",
-	"В деревню вернулся почтальон — он у калитки площади": "The Postman is back in the village — he's by the square's gate",
+	"Вернулся почтальон! У почтового ящика — бюро находок: несите сюда вещи из травы": "The Postman is back! The mailbox is the Lost & Found: bring the things you find in the grass here",
 	"Нашёл в траве чужую вещь? Неси в «Бюро находок» — верну хозяину.":
 		"Found someone's thing in the grass? Bring it to the Lost & Found — I'll get it back to its owner.",
 	"Фонтан бы починить… С водой площадь совсем другая.": "If only the fountain were fixed… The square feels so different with water.",
@@ -205,18 +201,9 @@ const MESSAGES := {
 	"Второй! Теперь у них будет компания.": "A second one! Now they'll keep each other company.",
 
 	# События.
-	"Письмо! В нём открытка и монеты: +%d": "A letter! A postcard and coins inside: +%d",
-	"Грибной дождик! Трава намокла": "A sun shower! The grass is getting wet",
-	"Дождик кончился — трава блестит от росы": "The shower is over — the grass sparkles with dew",
-	"Над деревней летит воздушный шар!": "A hot air balloon is flying over the village!",
-	"Посылка с воздушного шара: +%d монет": "A parcel from the balloon: +%d coins",
 	"В траве клевер-четырёхлистник! Скосите его, пока не завял": "A four-leaf clover in the grass! Mow it before it wilts",
-	"Четырёхлистник — на удачу! +%d монет": "A four-leaf clover — good luck! +%d coins",
-	"Бюро находок открыто! Несите сюда вещи, найденные в траве, — хозяева отблагодарят монетами": "The Lost & Found is open! Bring the things you find in the grass here — their owners will thank you with coins",
 	"Что-то потерялось: %s": "Something lost: %s",
-	"Морковка, которую бросил кролик: +%d монет": "The carrot the rabbit dropped: +%d coins",
 	"В траве кто-то хрумкает морковкой… Подъедьте поближе": "Someone is munching a carrot in the grass… Drive up closer",
-	"Над фонтаном радуга!": "A rainbow over the fountain!",
 	"Хорошо тут, яблоками пахнет. Посижу минутку.": "Lovely here, it smells of apples. I'll sit for a minute.",
 	"Ох, ноги уже не те. Посижу, посмотрю, как ты косишь.": "Oh, my legs aren't what they used to be. I'll sit and watch you mow.",
 	"Пять минут без писем… Красота!": "Five minutes without letters… Bliss!",

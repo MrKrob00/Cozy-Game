@@ -14,6 +14,9 @@ signal next_opened
 signal unlocked
 ## Скошена очередная четверть участка (25, 50 или 75 %).
 signal milestone(percent: int)
+## Участок выкошен целиком (100 %): облёт камеры, потом возвращаются Мастер
+## и почтальон.
+signal perfected
 
 ## Идентификатор для сохранения.
 @export var plot_id := "yard"
@@ -39,6 +42,8 @@ signal milestone(percent: int)
 const WALK_MARGIN := 1.1
 const MILESTONES := [25, 50, 75]
 const MAX_HINTS := 10
+## Сколько длится облёт камеры на 100 %, секунд.
+const FLYOVER_TIME := 6.0
 ## Один светлячок на столько квадратных метров нескошенной травы: чем меньше
 ## её осталось, тем меньше их (над последним пучком — один).
 const HINT_AREA := 0.35
@@ -258,8 +263,9 @@ func _on_progress_changed(ratio: float) -> void:
 		# Облёт камеры — только когда выкошено всё (на 95 % его нет).
 		var camera := get_viewport().get_camera_3d() as FollowCamera
 		if camera:
-			camera.play_flyover()
+			camera.play_flyover(FLYOVER_TIME)
 		GameState.save_game()
+		perfected.emit()
 
 
 # Убирает мелкие остатки травы по всему участку: поле обходит себя само,

@@ -63,7 +63,6 @@ func _found() -> void:
 	Sfx.play("chime", -6.0, 1.2)
 	Juice.sparkle(get_parent(), global_position + Vector3.UP * 0.5, Color(0.8, 1.0, 0.5), 22)
 	GameState.add_coins(coins, global_position + Vector3.UP * 0.6)
-	GameState.toast(L.t("Четырёхлистник — на удачу! +%d монет") % coins)
 	queue_free()
 
 

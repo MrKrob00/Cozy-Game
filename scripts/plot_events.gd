@@ -224,7 +224,7 @@ func _letter() -> bool:
 
 ## Письмо долетело до земли (зовёт EventPostman).
 func drop_letter(landing: Vector3) -> void:
-	EventGift.spawn(self, "letter", landing, LETTER_COINS, "Письмо! В нём открытка и монеты: +%d",
+	EventGift.spawn(self, "letter", landing, LETTER_COINS, "",
 			_village.current_plot.field if _village.current_plot else null)
 
 
@@ -235,7 +235,6 @@ func _start_rain() -> bool:
 		return false
 	raining = true
 	_rain_left = RAIN_TIME
-	GameState.toast("Грибной дождик! Трава намокла")
 	_rain = CPUParticles3D.new()
 	_rain.name = "Rain"
 	_rain.amount = 420
@@ -276,7 +275,6 @@ func _update_rain(delta: float) -> void:
 		if _rain_sound:
 			_rain_sound.fade_out()
 			_rain_sound = null
-		GameState.toast("Дождик кончился — трава блестит от росы")
 		Juice.sparkle(self, _player.global_position + Vector3.UP * 0.4, Color(0.8, 0.95, 1.0), 24)
 		var finished := _rain
 		_rain = null
@@ -313,13 +311,12 @@ func _balloon() -> bool:
 		ahead.y = 0.0
 		ahead = ahead.normalized() if ahead.length() > 0.01 else Vector3.FORWARD
 	EventBalloon.spawn(self, ahead, ahead.cross(Vector3.UP), _open_spot())
-	GameState.toast("Над деревней летит воздушный шар!")
 	return true
 
 
 ## Посылка с шара приземлилась (зовёт EventBalloon).
 func drop_parcel(landing: Vector3) -> void:
-	EventGift.spawn(self, "parcel", landing, PARCEL_COINS, "Посылка с воздушного шара: +%d монет", null)
+	EventGift.spawn(self, "parcel", landing, PARCEL_COINS, "", null)
 
 
 # --- Случайные ---
@@ -329,7 +326,9 @@ func _clover() -> bool:
 	if spot == null:
 		return false
 	EventClover.spawn(self, spot, _village.current_plot.field, CLOVER_TIME, CLOVER_COINS)
-	GameState.toast("В траве клевер-четырёхлистник! Скосите его, пока не завял")
+	if not GameState.has_flag("hint_clover"):
+		GameState.set_flag("hint_clover")
+		GameState.toast("В траве клевер-четырёхлистник! Скосите его, пока не завял")
 	return true
 
 

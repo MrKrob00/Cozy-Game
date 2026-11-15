@@ -121,6 +121,8 @@ var _outside_press: Control
 var _setting_icons: Dictionary = {}
 ## Окно выбора языка (строится при первом открытии).
 var _language_panel: ColorRect
+## Сколько показов места ждут своей очереди (окно итогов, другой показ).
+var _pending_shows := 0
 var _language_window: PanelContainer
 ## Игра идёт (не титульный экран): сенсорное управление включено.
 var _controls_live := true
@@ -479,6 +481,21 @@ func _open_window(fill: Callable) -> void:
 func close_workshop() -> void:
 	_workshop_panel.visible = false
 	get_tree().paused = false
+	_release_stick()
+
+
+# Окно открылось, пока палец держал джойстик: отпускание пришлось на паузу,
+# и джойстик его не услышал — после окна он «держал» старое направление и не
+# слушался. Отпускаем его сами (касания всех пальцев и действия движения).
+func _release_stick() -> void:
+	for action in ["move_left", "move_right", "move_up", "move_down"]:
+		Input.action_release(action)
+	for index in 4:
+		var release := InputEventScreenTouch.new()
+		release.index = index
+		release.pressed = false
+		release.position = Vector2(-10000.0, -10000.0)
+		Input.parse_input_event(release)
 
 
 ## Показывает реплику жителя внизу экрана (вызывается через группу «hud»).
@@ -585,9 +602,8 @@ func _on_progress_changed(ratio: float) -> void:
 	_shown_percent = percent
 
 
+# Отметки 25/50/75 %: без надписи (их было слишком много) — звон и полоса.
 func _on_milestone(percent: int, plot: Plot) -> void:
-	var words := {25: "четверть позади", 50: "половина!", 75: "осталось чуть-чуть"}
-	show_toast("%s: %s" % [L.t(plot.plot_name), L.t(words.get(percent, "%d %%" % percent))])
 	Sfx.play("chime", -4.0, 1.0 + (percent - 25) / 200.0, 0.0)
 	Sfx.buzz(20)
 	if plot == _plot:
@@ -786,12 +802,19 @@ func _reveal_next_plot() -> void:
 	_revealing = false
 
 
+## Идёт показ камерой или он ещё впереди (ждёт окна итогов).
+func is_showing() -> bool:
+	return _revealing or _pending_shows > 0
+
+
 ## Показывает новое место (открылась мастерская, бюро находок): камера едет
 ## к нему, сообщение объясняет, что это и зачем, и камера возвращается.
 ## Ждёт, пока закроется окно итогов участка и закончится другой показ.
-func show_place(point: Vector3, text: String) -> void:
+func show_place(point: Vector3, text: String, close := false) -> void:
+	_pending_shows += 1
 	while _completion.visible or _revealing or _title_panel.visible:
 		await get_tree().create_timer(0.3).timeout
+	_pending_shows -= 1
 	var camera := get_viewport().get_camera_3d() as FollowCamera
 	if camera == null:
 		GameState.toast(text)
@@ -799,7 +822,9 @@ func show_place(point: Vector3, text: String) -> void:
 	_revealing = true
 	if _player:
 		_player.controls_enabled = false
-	camera.show_point(point, GameState.toast.bind(text), PLACE_HOLD)
+	# Вблизи (житель вернулся): камера подъезжает и чуть опускается.
+	camera.show_point(point, GameState.toast.bind(text), PLACE_HOLD, -9.0 if close else FollowCamera.REVEAL_PULL_BACK,
+			16.0 if close else 0.0)
 	await camera.reveal_finished
 	if _player and not _title_panel.visible:
 		_player.controls_enabled = true
@@ -828,6 +853,8 @@ func _kill_stamp_tweens() -> void:
 func _set_paused(paused: bool) -> void:
 	get_tree().paused = paused
 	_pause_panel.visible = paused
+	if not paused:
+		_release_stick()
 	if paused and _plot:
 		_pause_title.text = L.t(_plot.plot_name)
 		_fill_stamps(_pause_stamps, _plot)
@@ -872,12 +899,10 @@ func _apply_touch_controls() -> void:
 	_joystick.visible = stick
 	_joystick.process_mode = Node.PROCESS_MODE_PAUSABLE if stick else Node.PROCESS_MODE_DISABLED
 	if scheme == 0:
-		# Закреплённый джойстик: всегда виден, стоит слева внизу и никуда не
-		# уезжает. Слушает касания только в своей части экрана.
-		_joystick.joystick_mode = VirtualJoystick.JOYSTICK_FIXED
-		# Без сенсорного экрана (компьютер) джойстик не показываем.
-		_joystick.visibility_mode = VirtualJoystick.VISIBILITY_ALWAYS if _touch \
-				else VirtualJoystick.VISIBILITY_WHEN_TOUCHED
+		# Джойстик слева: ставится центром под палец в левом нижнем углу (зона
+		# не подсвечена), как с камерой сзади. Слушает касания только там.
+		_joystick.joystick_mode = VirtualJoystick.JOYSTICK_DYNAMIC
+		_joystick.visibility_mode = VirtualJoystick.VISIBILITY_WHEN_TOUCHED
 		_joystick.anchor_left = 0.0
 		_joystick.anchor_top = 0.3
 		_joystick.anchor_right = 0.45

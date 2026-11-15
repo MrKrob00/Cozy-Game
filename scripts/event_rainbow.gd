@@ -42,7 +42,6 @@ func _ready() -> void:
 	add_child(_arc)
 	Sfx.play("chime", -10.0, 1.3)
 	Juice.sparkle(get_parent(), global_position + Vector3.UP * 1.5, Color(0.9, 0.95, 1.0), 20)
-	GameState.toast("Над фонтаном радуга!")
 
 
 func _process(delta: float) -> void:

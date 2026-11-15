@@ -165,22 +165,18 @@ func _run() -> void:
 	check(hands.grips.size() == 2 and hands.updates > placed and hands.last_miss < 0.02,
 			"the hero's hands stay on the mower handle (%.3f m off)" % hands.last_miss)
 
-	# 4. Мастерская: закрыта без ключа, открывается с ключом.
+	# 4. Мастерская: открывается, когда найден ключ и двор выкошен целиком
+	# (тогда же возвращается Мастер). Здесь двор отмечается выкошенным вручную.
 	var workshop = yard.get_node("Workshop")
 	check(not workshop.can_interact(player), "workshop is closed without the key")
 	gs.set_flag("find_shed_key")
 	await frames(3)
-	check(workshop.can_interact(player), "key opens the workshop")
+	check(not workshop.can_interact(player), "the key alone does not open it: the yard must be mowed to the last blade")
+	gs.plot_state("yard")["perfect"] = true
+	await frames(3)
+	check(workshop.can_interact(player), "key and a fully mowed yard open the workshop")
 	check(not yard.get_node("Shed").get("_padlock").visible, "padlock is gone")
-	# Камера сама показывает открывшуюся мастерскую и объясняет, что это.
-	await frames(40)
-	check(village.get_node("Camera").is_revealing(), "the camera goes to show the opened workshop")
-	for i in 600:
-		if not hud.get("_revealing"):
-			break
-		await process_frame
-	check(toasts.any(func(t): return t.begins_with("Ключ подошёл к сараю")), "and says what it is for")
-	check(not hud.get("_revealing") and player.controls_enabled, "after the workshop is shown the player moves again")
+	gs.plot_state("yard")["perfect"] = false
 	workshop.interact(player)
 	await frames(2)
 	check(paused and hud.get_node("%WorkshopPanel").visible, "workshop window opens and pauses the game")
@@ -272,10 +268,23 @@ func _run() -> void:
 	check(garden.get("_birds").is_empty(), "and not on an overgrown plot")
 	var sounds = root.get_node("Sfx")
 	check(sounds.call("_variants", "coin").size() == 2 and sounds.call("_variants", "gate").size() == 1 and sounds.call("_variants", "stamp").size() == 3 and sounds.call("_variants", "rustle").size() == 3, "coins, the gate, stamps and the compost rustle have real recorded sounds")
-	for i in 460:
+	# На 100 %: облёт камеры, потом появляется Мастер, камера подъезжает к нему
+	# вблизи, сообщение объясняет, что у него мастерская.
+	check(not master.is_present(), "master is not back before the fly-over ends")
+	for i in 900:
+		hud.get_node("%Completion").visible = false
+		if master.is_present() and camera.is_revealing():
+			break
 		await process_frame
-	check(master.is_present() and master.visible, "master returns after the yard is mowed")
-	hud.get_node("%Completion").visible = false
+	check(master.is_present() and master.visible, "master returns after the yard is mowed to the last blade")
+	var far_view: float = camera.global_position.distance_to(master.global_position)
+	await frames(100)
+	check(camera.global_position.distance_to(master.global_position) < far_view - 2.0, "the camera comes close to him")
+	for i in 900:
+		if not hud.get("_revealing"):
+			break
+		await process_frame
+	check(toasts.any(func(t): return t.begins_with("Вернулся Мастер")), "and the message says his workshop is in the shed")
 	await frames(5)
 	check(not camera.is_revealing() and player.controls_enabled, "the gate is not shown a second time")
 

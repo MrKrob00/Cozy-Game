@@ -203,7 +203,14 @@ func _run() -> void:
 	await frames(240)
 	var pond: Node3D = orchard.get_node("Pond")
 	var on_bank: int = chorus.get("_frogs").filter(func(f): return (f["node"] as Node3D).global_position.distance_to(pond.global_position) > 2.7).size()
-	check(on_bank == 5, "five frogs sit on the bank and croak (%d)" % on_bank)
+	check(on_bank == 4, "four frogs sit on the bank and croak (%d)" % on_bank)
+	# Подъехал к каждой — она ныряет; спугнули всех — хор кончился.
+	for frog in chorus.get("_frogs"):
+		player.global_position = (frog["node"] as Node3D).global_position + Vector3(0.6, 0.0, 0.6)
+		await frames(50)
+	check(chorus.frogs_left() == 0, "each frog is scared into the pond one by one")
+	var chorus_over := await wait_for(func() -> bool: return village.find_child("FrogChorus", true, false) == null, 200)
+	check(chorus_over, "with all four scared the chorus stops")
 	check(events.fire("bench"), "a villager comes to sit on the orchard bench")
 	var visitor = village.find_child("Visitor", true, false)
 	var bench: Node3D = orchard.get_node("Bench")

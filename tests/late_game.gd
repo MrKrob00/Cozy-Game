@@ -50,6 +50,15 @@ func mow_all(plot) -> void:
 ## n кадров. Возвращает, насколько игрок прошёл за калитку, в метрах
 ## (отрицательное — остался снаружи). Работает при любом повороте участка.
 func enter_gate(plot, player, n: int) -> float:
+	# Сначала дождаться конца показов камерой (житель вернулся и т. п.); окно
+	# итогов закрываем — показы ждут его.
+	var hud = current_scene.get_node("HUD")
+	await frames(120)
+	for i in 1500:
+		hud.get_node("%Completion").visible = false
+		if not hud.is_showing() and player.controls_enabled:
+			break
+		await process_frame
 	var gate: Vector3 = plot.fence.get_gate_position()
 	var outward: Vector3 = plot.fence.global_basis.z.normalized()
 	var inward := -outward
@@ -175,16 +184,20 @@ func _run() -> void:
 	check(not repair.can_interact(player), "fountain cannot be repaired before the square is mowed")
 	await mow_all(square)
 	check(square.is_completed() and orchard.is_unlocked(), "square completes and unlocks the orchard")
-	check(gs.has_flag("bureau_shown"), "the opened Lost & Found is shown by the camera once")
+	check(gs.is_plot_perfect("square") and not square.get_node("Postman").is_present(), "mowed to the last blade, the postman comes after the fly-over")
 	check(repair.can_interact(player), "fountain can be repaired after mowing")
 	coins = gs.coins
 	repair.interact(player)
 	check(repair.is_repaired() and gs.coins == coins - 80, "fountain repair costs 80 coins")
 	check(square.get_node("Fountain").get("_fountain_fixed").visible, "repaired fountain shows water")
+	hud.get_node("%Completion").visible = false
 	await wait(8.0)
 	orchard.reveal()
-	hud.get_node("%Completion").visible = false
 	check(square.get_node("Postman").is_present(), "postman returns after the square is mowed")
+	for i in 900:
+		if not hud.get("_revealing"):
+			break
+		await process_frame
 
 	# 6. Бюро находок: вещи с владельцем возвращаются за монеты.
 	var glasses = garden.get_node("FindGlasses")

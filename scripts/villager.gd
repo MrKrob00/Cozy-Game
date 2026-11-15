@@ -11,6 +11,9 @@ enum Look { MASTER, GRANDMA, POSTMAN }
 @export var appears_after_plot := ""
 ## Сообщение о возвращении жителя.
 @export var arrival_text := ""
+## Возвращается, когда участок выкошен целиком (100 %), после облёта камеры;
+## камера подъезжает к нему вблизи, а сообщение объясняет, зачем к нему идти.
+@export var appears_when_perfect := false
 ## Реплики; показываются по очереди при каждом подходе игрока.
 @export var lines: PackedStringArray = []
 ## Если этот флаг ещё не получен, житель говорит needs_flag_line вместо обычных реплик.
@@ -42,7 +45,8 @@ func _ready() -> void:
 	add_to_group("shadow_dynamic")
 	_build_visuals()
 	global_rotation.y = deg_to_rad(facing_degrees)
-	_present = appears_after_plot == "" or GameState.is_plot_completed(appears_after_plot)
+	_present = appears_after_plot == "" or (GameState.is_plot_perfect(appears_after_plot) if appears_when_perfect
+			else GameState.is_plot_completed(appears_after_plot))
 	var village := get_tree().get_first_node_in_group("village") as Village
 	if village:
 		village.festival_started.connect(func(_announce: bool) -> void: _festive = true)
@@ -51,7 +55,10 @@ func _ready() -> void:
 	if not _present:
 		for plot: Plot in get_tree().get_nodes_in_group("plot"):
 			if plot.plot_id == appears_after_plot:
-				plot.completed.connect(_on_plot_completed)
+				if appears_when_perfect:
+					plot.perfected.connect(_on_plot_perfected)
+				else:
+					plot.completed.connect(_on_plot_completed)
 
 
 func _process(delta: float) -> void:
@@ -84,8 +91,22 @@ func is_present() -> bool:
 	return _present
 
 
+# Участок выкошен целиком: после облёта камеры житель появляется, камера
+# подъезжает к нему вблизи, сообщение объясняет, что у него и зачем.
+func _on_plot_perfected() -> void:
+	if _present:
+		return
+	await get_tree().create_timer(Plot.FLYOVER_TIME + 0.4).timeout
+	_appear(false)
+	get_tree().call_group("hud", "show_place", global_position + Vector3.UP * 1.0, L.t(arrival_text), true)
+
+
 func _on_plot_completed() -> void:
 	await get_tree().create_timer(ARRIVAL_DELAY).timeout
+	_appear(true)
+
+
+func _appear(announce: bool) -> void:
 	_present = true
 	visible = true
 	_body.process_mode = Node.PROCESS_MODE_INHERIT
@@ -95,7 +116,7 @@ func _on_plot_completed() -> void:
 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	Juice.sparkle(self, global_position + Vector3.UP * 0.8, Color(1.0, 0.9, 0.6), 26)
 	Sfx.play("plant", -3.0, 0.8)
-	if arrival_text != "":
+	if announce and arrival_text != "":
 		GameState.toast(arrival_text)
 
 

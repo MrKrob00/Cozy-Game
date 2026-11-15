@@ -2,10 +2,14 @@ class_name EventFrogs
 extends Node3D
 ## Фруктовый сад: лягушки выпрыгивают из пруда на берег и квакают по
 ## очереди; скосишь траву у лягушки — она перепрыгивает на лист кувшинки и
-## квакает оттуда. Через минуту все ныряют обратно. Просто красота.
+## квакает оттуда. Подъедешь к лягушке вплотную — она пугается и ныряет
+## в пруд; спугнёшь всех — хор кончается. Иначе через минуту все ныряют сами.
+## Просто красота.
 ## Лягушка — Quaternius (CC0), кваканье — записи с OpenGameArt (CREDITS.md).
 
-const COUNT := 5
+const COUNT := 4
+## Ближе этого к косилке лягушка пугается и ныряет, метры.
+const SCARE := 1.6
 const HEIGHT := 0.4
 const LIFE := 60.0
 const HOP := 0.5
@@ -55,7 +59,7 @@ func _ready() -> void:
 		var bank := _pond.global_position + out * (PlotProp.POND_RADIUS + BANK)
 		holder.global_position = water
 		holder.scale = Vector3.ONE * 0.01
-		var frog := {"node": holder, "model": model, "at": bank, "on_lily": false, "busy": true}
+		var frog := {"node": holder, "model": model, "at": bank, "on_lily": false, "busy": true, "gone": false}
 		_frogs.append(frog)
 		# Выныривают по очереди и прыгают на берег.
 		get_tree().create_timer(0.3 + i * 0.35).timeout.connect(func() -> void:
@@ -69,12 +73,25 @@ func _process(delta: float) -> void:
 	if _time > LIFE and not _leaving:
 		_leaving = true
 		for frog in _frogs:
-			_hop(frog, _pond.global_position + (frog["at"] - _pond.global_position).normalized() * 1.2, true)
+			if not frog["gone"]:
+				frog["gone"] = true
+				_hop(frog, _pond.global_position + (frog["at"] - _pond.global_position).normalized() * 1.2, true)
 		get_tree().create_timer(HOP + 0.6).timeout.connect(queue_free)
 	if _leaving:
 		return
+	# Косилка вплотную — лягушка пугается и ныряет; спугнули всех — хор кончился.
 	for frog in _frogs:
-		if frog["busy"] or frog["on_lily"] or _lilies.is_empty():
+		if frog["busy"] or frog["gone"] or _player == null:
+			continue
+		var at: Vector3 = (frog["node"] as Node3D).global_position
+		if Vector2(at.x - _player.global_position.x, at.z - _player.global_position.z).length() < SCARE:
+			_scare(frog)
+	if _frogs.all(func(f: Dictionary) -> bool: return f["gone"]):
+		_leaving = true
+		get_tree().create_timer(HOP + 0.6).timeout.connect(queue_free)
+		return
+	for frog in _frogs:
+		if frog["busy"] or frog["on_lily"] or frog["gone"] or _lilies.is_empty():
 			continue
 		# Траву у лягушки скосили — она перебирается на кувшинку. Сразу у воды
 		# травы нет вовсе (берег), поэтому смотрим чуть дальше от пруда.
@@ -91,7 +108,7 @@ func _process(delta: float) -> void:
 
 
 func _croak_frog(frog: Dictionary) -> void:
-	if frog["busy"]:
+	if frog["busy"] or frog["gone"]:
 		return
 	var node: Node3D = frog["node"]
 	var distance := _player.global_position.distance_to(node.global_position) if _player else 8.0
@@ -102,6 +119,21 @@ func _croak_frog(frog: Dictionary) -> void:
 	var tween := model.create_tween()
 	tween.tween_property(model, "scale", Vector3(1.25, 0.85, 1.25), 0.12)
 	tween.tween_property(model, "scale", Vector3.ONE, 0.25)
+
+
+# Испуг: квак-вскрик и нырок в пруд.
+func _scare(frog: Dictionary) -> void:
+	frog["gone"] = true
+	Sfx.play("frog", -6.0, 1.35, 0.0)
+	var node: Node3D = frog["node"]
+	var into := _pond.global_position + (node.global_position - _pond.global_position).normalized() \
+			* (PlotProp.POND_RADIUS - 1.0)
+	_hop(frog, into, true)
+
+
+## Сколько лягушек ещё сидит (не спугнуты).
+func frogs_left() -> int:
+	return _frogs.filter(func(f: Dictionary) -> bool: return not f["gone"]).size()
 
 
 # Прыжок дугой к точке; dive — нырок в пруд (исчезает).

@@ -186,7 +186,8 @@ script = ExtResource("11_villager")
 look = 2
 display_name = "Почтальон"
 appears_after_plot = "square"
-arrival_text = "В деревню вернулся почтальон — он у калитки площади"
+arrival_text = "Вернулся почтальон! У почтового ящика — бюро находок: несите сюда вещи из травы"
+appears_when_perfect = true
 lines = PackedStringArray("Нашёл в траве чужую вещь? Неси в «Бюро находок» — верну хозяину.", "Фонтан бы починить… С водой площадь совсем другая.", "Фруктовый сад рядом. Говорят, в пруду там живут лягушки.")
 
 [node name="PropsMarketA" type="Node3D" parent="."]

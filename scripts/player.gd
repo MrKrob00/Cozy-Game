@@ -220,7 +220,10 @@ func _physics_process(delta: float) -> void:
 		target_speed *= 1.0 + (ROAD_SPEED_BOOST - 1.0) * _road_boost
 		var ahead := _grass_height_at(get_blade_position() + forward * 0.25)
 		_grass_ahead = ahead
-		if ahead > 0.9:
+		# Мешок полон — нож не режет, и трава не тормозит: к ящику едем быстро.
+		if GameState.is_bag_full():
+			pass
+		elif ahead > 0.9:
 			# Бурьян: ехать можно, но медленно; срезает его только нож получше.
 			target_speed *= weed_speed
 			if not can_cut_weeds():
@@ -486,7 +489,7 @@ func _weeds_hint() -> void:
 	_cut_amount = 1.0
 	if _time < _weed_hint_time:
 		return
-	_weed_hint_time = _time + 12.0
+	_weed_hint_time = _time + 60.0
 	Sfx.play("deny", -8.0)
 	GameState.toast("Бурьян этот нож не берёт. Нужен нож второго уровня — он есть в мастерской")
 
@@ -585,7 +588,9 @@ func _steer_step(delta: float) -> float:
 	target *= 1.0 + (ROAD_SPEED_BOOST - 1.0) * _road_boost
 	var ahead := _grass_height_at(get_blade_position() - global_basis.z * 0.25)
 	_grass_ahead = ahead
-	if ahead > 0.9:
+	if GameState.is_bag_full():
+		pass
+	elif ahead > 0.9:
 		target *= weed_speed
 		if not can_cut_weeds():
 			_weeds_hint()

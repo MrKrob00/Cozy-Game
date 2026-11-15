@@ -119,9 +119,9 @@ func _run() -> void:
 	var stick = hud_node.get_node("VirtualJoystick")
 	var pad = hud_node.get_node("TouchPad")
 	var touch_screen := DisplayServer.is_touchscreen_available()
-	check(stick.joystick_mode == 0 and stick.visible and not pad.visible, "by default the joystick is fixed in place")
-	check((stick.visibility_mode == 0) == touch_screen, "it is always shown on a touch screen and hidden on a computer")
-	check(stick.anchor_right < 0.5 and stick.size.x < root.get_visible_rect().size.x * 0.5, "the fixed joystick listens only on the left of the screen")
+	check(stick.joystick_mode == 1 and stick.visible and not pad.visible, "by default the joystick appears under the finger (dynamic)")
+	check(stick.visibility_mode == 1, "it is drawn only while touched (no zone shown)")
+	check(stick.anchor_right < 0.5 and stick.size.x < root.get_visible_rect().size.x * 0.5, "it listens only in the lower left of the screen")
 	game_state.set_touch_controls(1)
 	check(stick.joystick_mode == 2 and stick.visibility_mode == 1 and stick.size.x > root.get_visible_rect().size.x * 0.9, "second scheme: a joystick that follows the finger anywhere")
 	game_state.set_touch_controls(2)
@@ -141,7 +141,29 @@ func _run() -> void:
 	await frames(30)
 	check(not pad.held and player.velocity.length() < 0.05, "lifting the finger stops the mower")
 	game_state.set_touch_controls(0)
-	check(stick.joystick_mode == 0 and stick.visible and not pad.visible and player.touch_pad == null, "back to the fixed joystick")
+	check(stick.joystick_mode == 1 and stick.visible and not pad.visible and player.touch_pad == null, "back to the joystick in the lower left")
+
+	# Палец держит джойстик, открылась мастерская (пауза), палец отпущен в
+	# паузе, окно закрыто — джойстик снова слушается (раньше залипал).
+	touch(0, Vector2(300, 800), true)
+	await frames(2)
+	drag(0, Vector2(430, 800), Vector2(130, 0))
+	await frames(3)
+	var held_right: bool = move_vector().x > 0.5
+	hud_node.call("open_workshop")
+	await frames(3)
+	touch(0, Vector2(430, 800), false)
+	await frames(3)
+	hud_node.call("close_workshop")
+	await frames(3)
+	check(move_vector() == Vector2.ZERO, "after the window the stick is let go")
+	touch(0, Vector2(300, 800), true)
+	await frames(2)
+	drag(0, Vector2(300, 670), Vector2(0, -130))
+	await frames(3)
+	check(held_right and move_vector().y < -0.5, "and it drives again after a window opened while it was held")
+	touch(0, Vector2(300, 670), false)
+	await frames(5)
 
 	# 3b'. Камера «сзади»: кнопка в паузе, камера за спиной героя, «вверх» — от камеры.
 	var camera_button = hud_node.get_node("%CameraButton")

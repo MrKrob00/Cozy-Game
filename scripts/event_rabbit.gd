@@ -109,6 +109,6 @@ func _run(drop_carrot: bool) -> void:
 		var at := _carrot.global_position
 		_carrot.queue_free()
 		EventGift.spawn(get_parent(), "carrot", Vector3(at.x, global_position.y, at.z), CARROT_COINS,
-				"Морковка, которую бросил кролик: +%d монет", field)
+				"", field)
 	else:
 		_carrot.reparent(_holder)
