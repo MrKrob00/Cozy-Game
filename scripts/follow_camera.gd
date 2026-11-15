@@ -2,6 +2,12 @@ class_name FollowCamera
 extends Camera3D
 ## Камера сверху-сбоку: фиксированный наклон и поворот, плавно следует
 ## за целью с небольшим опережением, три ступени масштаба.
+##
+## Второй режим (настройка «Камера: сзади», GameState.camera_mode) — за
+## спиной героя, ниже и ближе: камера поворачивается следом за героем, пока
+## он едет от неё; развернувшись к камере, герой едет на неё, и она не
+## крутится (иначе управление «на себя» закручивало бы всё по кругу).
+## Показ калиток и титульный экран — всегда сверху; переходы плавные.
 
 ## Камера вернулась к игроку после показа точки (show_point).
 signal reveal_finished
@@ -44,6 +50,27 @@ const TRAVEL_PULL_BACK := 2.2
 var _travel := 0.0
 ## Насколько камера отъезжает, пока показывает точку, метры.
 const REVEAL_PULL_BACK := 3.0
+## Камера сзади: наклон, расстояния по ступеням масштаба, куда смотрит
+## (над землёй у героя и впереди него), как быстро догоняет поворот героя.
+const CHASE_PITCH := 28.0
+const CHASE_DISTANCES: Array[float] = [6.0, 7.6, 9.8]
+const CHASE_HEIGHT := 0.6
+const CHASE_AHEAD := 1.2
+const CHASE_TURN := 2.2
+## Камера чуть сбоку (радианы вокруг героя): видно и героя, и косилку перед ним.
+const CHASE_SIDE := 0.7
+## Если сзади стена или холм, камера поднимается (до такого наклона), пока
+## путь до героя не станет свободным; расстояние не меняется.
+const CHASE_PITCH_HIGH := 72.0
+## Дальше этого угла (герой повернулся к камере) камера за ним не поворачивает.
+const CHASE_FOLLOW_ANGLE := 1.9
+
+## Насколько камера сейчас «сзади», 0–1, и её поворот (как у героя).
+var _chase := 0.0
+var _chase_yaw := 0.0
+var _chase_distance := 6.4
+## Насколько камера сейчас поднята из-за стены, 0–1.
+var _chase_lift := 0.0
 
 
 func _ready() -> void:
@@ -56,6 +83,9 @@ func _ready() -> void:
 	_distance = zoom_distances[zoom_index]
 	if _target:
 		_focus = _target.global_position
+		_chase_yaw = _target.global_rotation.y
+	_chase = 1.0 if GameState.camera_mode == 1 else 0.0
+	_chase_distance = CHASE_DISTANCES[zoom_index]
 	_apply()
 
 
@@ -81,7 +111,29 @@ func _process(delta: float) -> void:
 	# В дороге камера плавно отъезжает, на участке возвращается.
 	var travelling: float = _target.get("travel") if _target and _target.get("travel") != null else 0.0
 	_travel = lerpf(_travel, travelling, 1.0 - exp(-1.5 * delta))
+	_update_chase(delta)
 	_apply()
+
+
+# Режим «сзади»: насколько он включён и куда смотрит камера.
+func _update_chase(delta: float) -> void:
+	var wanted := 1.0 if GameState.camera_mode == 1 and not _menu else 0.0
+	if _chase <= 0.0 and wanted > 0.0 and _target:
+		_chase_yaw = _target.global_rotation.y
+	_chase = move_toward(_chase, wanted, delta * 1.2)
+	if _chase <= 0.0 or _target == null:
+		return
+	var body := _target as CharacterBody3D
+	var pace := clampf(body.velocity.length() / 2.0, 0.2, 1.0) if body else 1.0
+	_chase_distance = lerpf(_chase_distance, CHASE_DISTANCES[zoom_index], 1.0 - exp(-zoom_speed * delta))
+	var forward := Vector3(-sin(_chase_yaw), 0.0, -cos(_chase_yaw))
+	var lift := _clear_lift(_focus + Vector3.UP * CHASE_HEIGHT + forward * CHASE_AHEAD, _chase_distance)
+	# Вверх — быстро (стена не должна закрыть героя), обратно — плавно.
+	var rate := 8.0 if lift > _chase_lift else 1.5
+	_chase_lift = lerpf(_chase_lift, lift, 1.0 - exp(-rate * delta))
+	var turn := angle_difference(_chase_yaw, _target.global_rotation.y)
+	if absf(turn) < CHASE_FOLLOW_ANGLE:
+		_chase_yaw += turn * (1.0 - exp(-CHASE_TURN * pace * delta))
 
 
 ## Меняет ступень масштаба: -1 — ближе, +1 — дальше.
@@ -151,7 +203,38 @@ func nudge(amount := 1.2, duration := 0.8) -> void:
 
 
 func _apply() -> void:
-	rotation_degrees = Vector3(-pitch_degrees, yaw_degrees + _yaw_offset, 0.0)
+	var pitch := pitch_degrees
+	var yaw := deg_to_rad(yaw_degrees + _yaw_offset)
 	var focus := _focus.lerp(_reveal_point, _reveal_weight)
-	global_position = focus + global_basis.z * (_distance + _distance_offset + _nudge
-			+ REVEAL_PULL_BACK * _reveal_weight + TRAVEL_PULL_BACK * _travel)
+	var distance := _distance + _distance_offset + _nudge + REVEAL_PULL_BACK * _reveal_weight \
+			+ TRAVEL_PULL_BACK * _travel
+	# Сзади: на время показа калитки камера уходит наверх.
+	var chase := _chase * (1.0 - _reveal_weight)
+	if chase > 0.0:
+		var forward := Vector3(-sin(_chase_yaw), 0.0, -cos(_chase_yaw))
+		var chase_focus := _focus + Vector3.UP * CHASE_HEIGHT + forward * CHASE_AHEAD
+		var weight := smoothstep(0.0, 1.0, chase)
+		pitch = lerpf(pitch, lerpf(CHASE_PITCH, CHASE_PITCH_HIGH, _chase_lift), weight)
+		yaw = lerp_angle(yaw, _chase_yaw + CHASE_SIDE, weight)
+		focus = focus.lerp(chase_focus, weight)
+		distance = lerpf(distance, _chase_distance + _nudge * 0.5, weight)
+	rotation = Vector3(deg_to_rad(-pitch), yaw, 0.0)
+	global_position = focus + global_basis.z * distance
+
+
+# Камера сзади не залезает в дома и холмы: наименьший подъём (0–1), при
+# котором путь от героя до камеры свободен.
+func _clear_lift(focus: Vector3, distance: float) -> float:
+	if not is_inside_tree():
+		return 0.0
+	var space := get_world_3d().direct_space_state
+	for step in 5:
+		var lift := step / 4.0
+		var pitch := deg_to_rad(lerpf(CHASE_PITCH, CHASE_PITCH_HIGH, lift))
+		var back := Basis.from_euler(Vector3(-pitch, _chase_yaw + CHASE_SIDE, 0.0)).z
+		var query := PhysicsRayQueryParameters3D.create(focus, focus + back * distance)
+		if _target is CollisionObject3D:
+			query.exclude = [(_target as CollisionObject3D).get_rid()]
+		if space.intersect_ray(query).is_empty():
+			return lift
+	return 1.0

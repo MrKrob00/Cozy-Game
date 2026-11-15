@@ -82,6 +82,8 @@ var show_fps := false
 ## Сенсорное управление: 0 — джойстик закреплён слева внизу, 1 — джойстик
 ## появляется под пальцем и идёт за ним, 2 — косилка едет к пальцу.
 var touch_controls := 0
+## Камера: 0 — сверху (вся округа видна), 1 — сзади, за спиной героя.
+var camera_mode := 0
 ## Язык: «ru», «en» или пусто — выбрать по языку устройства.
 var language := ""
 ## Прежнее название игры (и её папки с сохранением на компьютере).
@@ -90,6 +92,7 @@ const LANGUAGES := {"ru": "Русский", "en": "English"}
 ## Языки устройства, при которых игра стартует на русском.
 const RUSSIAN_LOCALES := ["ru", "uk", "be", "kk"]
 const TOUCH_CONTROLS := ["джойстик слева", "джойстик под пальцем", "вести пальцем"]
+const CAMERA_MODES := ["сверху", "сзади"]
 
 
 func _ready() -> void:
@@ -298,6 +301,12 @@ func apply_language() -> void:
 	TranslationServer.set_locale(get_language())
 
 
+func set_camera_mode(mode: int) -> void:
+	camera_mode = posmod(mode, CAMERA_MODES.size())
+	settings_changed.emit()
+	save_game()
+
+
 func set_touch_controls(scheme: int) -> void:
 	touch_controls = posmod(scheme, TOUCH_CONTROLS.size())
 	settings_changed.emit()
@@ -324,6 +333,7 @@ func save_game() -> void:
 		"graphics_quality": graphics_quality,
 		"show_fps": show_fps,
 		"touch_controls": touch_controls,
+		"camera_mode": camera_mode,
 		"language": language,
 		"bag_fill": bag_fill,
 		"upgrade_levels": upgrade_levels,
@@ -362,6 +372,7 @@ func load_game() -> void:
 	graphics_quality = data.get("graphics_quality", -1)
 	show_fps = data.get("show_fps", false)
 	touch_controls = clampi(data.get("touch_controls", 0), 0, TOUCH_CONTROLS.size() - 1)
+	camera_mode = clampi(data.get("camera_mode", 0), 0, CAMERA_MODES.size() - 1)
 	language = data.get("language", "")
 	bag_fill = data.get("bag_fill", 0.0)
 	upgrade_levels = data.get("upgrade_levels", {})

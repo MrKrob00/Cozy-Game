@@ -143,6 +143,31 @@ func _run() -> void:
 	game_state.set_touch_controls(0)
 	check(stick.joystick_mode == 0 and stick.visible and not pad.visible and player.touch_pad == null, "back to the fixed joystick")
 
+	# 3b'. Камера «сзади»: кнопка в паузе, камера за спиной героя, «вверх» — от камеры.
+	var camera_button = hud_node.get_node("%CameraButton")
+	var camera3d = current_scene.get_node("Camera")
+	check(game_state.camera_mode == 0 and camera_button.text == "Камера: сверху", "camera starts from above")
+	camera_button.pressed.emit()
+	check(game_state.camera_mode == 1 and camera_button.text == "Камера: сзади", "the pause menu switches the camera to behind the hero")
+	player.global_position = Vector3(0, 0, 3.0)
+	player.rotation = Vector3.ZERO
+	await frames(120)
+	var cam_flat: Vector3 = -camera3d.global_basis.z
+	cam_flat.y = 0.0
+	var hero_forward: Vector3 = -player.global_basis.z
+	var cam_distance: float = Vector2(camera3d.global_position.x - player.global_position.x,
+			camera3d.global_position.z - player.global_position.z).length()
+	check(cam_flat.normalized().dot(hero_forward) > 0.6 and cam_distance < 10.0, "the camera stands behind the hero, close")
+	var start_at: Vector3 = player.global_position
+	Input.action_press("move_up")
+	await frames(60)
+	Input.action_release("move_up")
+	await frames(10)
+	check((player.global_position - start_at).dot(cam_flat.normalized()) > 1.0, "up moves the hero away from the camera")
+	camera_button.pressed.emit()
+	check(game_state.camera_mode == 0, "and back to the camera from above")
+	await frames(90)
+
 	# 3c. Разворот: направление за спиной — косилка доворачивает в одну сторону.
 	player.global_position = Vector3(0, 0, 3.0)
 	player.rotation = Vector3.ZERO

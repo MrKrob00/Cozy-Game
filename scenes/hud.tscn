@@ -340,6 +340,12 @@ layout_mode = 2
 focus_mode = 0
 text = "Управление: джойстик слева"
 
+[node name="CameraButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Камера: сверху"
+
 [node name="LanguageButton" type="Button" parent="Root/PausePanel/Center/PauseWindow/Rows/Columns/Buttons"]
 unique_name_in_owner = true
 layout_mode = 2

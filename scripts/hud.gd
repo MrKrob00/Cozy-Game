@@ -53,6 +53,7 @@ const FIXED_STICK_AT := Vector2(0.36, 0.62)
 @onready var _fps_label: Label = %FpsLabel
 @onready var _joystick: VirtualJoystick = $VirtualJoystick
 @onready var _controls_button: Button = %ControlsButton
+@onready var _camera_button: Button = %CameraButton
 @onready var _probe_button: Button = %ProbeButton
 @onready var _language_button: Button = %LanguageButton
 @onready var _title_language_button: Button = %TitleLanguageButton
@@ -190,6 +191,9 @@ func _ready() -> void:
 	_controls_button.pressed.connect(func() -> void:
 		GameState.set_touch_controls(GameState.touch_controls + 1)
 		_update_settings_buttons())
+	_camera_button.pressed.connect(func() -> void:
+		GameState.set_camera_mode(GameState.camera_mode + 1)
+		_update_settings_buttons())
 	# Кнопки паузы стоят в два столбца одинаковой ширины: одним столбцом
 	# они не помещались по высоте экрана.
 	for child in _resume_button.get_parent().get_children():
@@ -215,7 +219,8 @@ func _ready() -> void:
 	_quit_button.visible = not (OS.has_feature("mobile") or OS.has_feature("web"))
 	_update_settings_buttons()
 	for button: Button in [_action_button, _pause_button, _resume_button, _sound_button,
-			_music_button, _graphics_button, _fps_button, _controls_button, _probe_button, _language_button,
+			_music_button, _graphics_button, _fps_button, _controls_button, _camera_button, _probe_button,
+			_language_button,
 			_title_language_button, _reset_button, _quit_button, _continue_button,
 			_workshop_close]:
 		button.pressed.connect(_on_any_button_pressed.bind(button))
@@ -796,6 +801,7 @@ func _update_settings_buttons() -> void:
 	_language_button.text = L.t("Язык: %s") % language_name
 	_title_language_button.text = "Language / Язык: %s" % language_name
 	_controls_button.text = L.t("Управление: %s") % L.t(GameState.TOUCH_CONTROLS[GameState.touch_controls])
+	_camera_button.text = L.t("Камера: %s") % L.t(GameState.CAMERA_MODES[GameState.camera_mode])
 	_sound_button.text = "Звуки: включены" if GameState.sound_enabled else "Звуки: выключены"
 	_music_button.text = "Музыка: включена" if GameState.music_enabled else "Музыка: выключена"
 	_graphics_button.text = L.t("Графика: %s") % L.t(Graphics.preset["title"])
