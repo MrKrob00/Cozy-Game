@@ -2,10 +2,10 @@ class_name HudIcon
 extends Control
 ## Значок интерфейса, нарисованный фигурами (без символов шрифта: в шрифте
 ## их может не быть, а на телефоне поиск символа дорог): монета и листик
-## компоста (те же, что летят к счётчикам, RewardIcon), мешок, трава, нож,
+## компоста (те же, что летят к счётчикам, RewardIcon), мешок, нож,
 ## мотор. Или кружки уровня (LEVELS).
 
-enum Kind { COIN, COMPOST, BAG, GRASS, BLADE, MOTOR, LEVELS,
+enum Kind { COIN, COMPOST, BAG, BLADE, MOTOR, LEVELS,
 	# Значки кнопок: рисуются одним цветом (tint) поверх кнопки.
 	PAUSE, PLAY, CAMERA, SOUND, MUSIC, GRAPHICS, FPS, CONTROLS, LANGUAGE, QUIT, CHECK }
 
@@ -48,7 +48,7 @@ static func pips(total: int, filled: int, side := 26.0) -> HudIcon:
 
 
 ## Значки, снятые с моделей игры (IconStudio); остальные рисуются фигурами.
-const RENDERED := {Kind.GRASS: "grass", Kind.BAG: "bag", Kind.COMPOST: "compost", Kind.MOTOR: "motor"}
+const RENDERED := {Kind.BAG: "bag", Kind.COMPOST: "compost", Kind.MOTOR: "motor"}
 
 var _texture: Texture2D
 
@@ -82,8 +82,6 @@ func _draw() -> void:
 			RewardIcon.draw_leaf(self, c, s * 0.46)
 		Kind.BAG:
 			_bag(c, s)
-		Kind.GRASS:
-			_grass(c, s)
 		Kind.BLADE:
 			_blade(c, s)
 		Kind.MOTOR:
@@ -130,17 +128,6 @@ func _bag(c: Vector2, s: float) -> void:
 	draw_line(c + Vector2(-s * 0.14, -s * 0.19), c + Vector2(s * 0.14, -s * 0.19), CANVAS_DARK, maxf(s * 0.09, 2.0), true)
 	draw_line(c + Vector2(s * 0.14, -s * 0.19), c + Vector2(s * 0.24, -s * 0.06), CANVAS_DARK, maxf(s * 0.05, 1.5), true)
 	draw_circle(c + Vector2(-s * 0.16, s * 0.04), s * 0.07, Color(1.0, 1.0, 1.0, 0.25))
-
-
-func _grass(c: Vector2, s: float) -> void:
-	# Пучок травы из пяти травинок.
-	var ground := c.y + s * 0.4
-	for blade: Array in [[-0.28, 0.5, -0.4, LEAF_DARK], [-0.12, 0.78, -0.15, LEAF], [0.04, 0.88, 0.05, LEAF_DARK],
-			[0.18, 0.7, 0.25, LEAF], [0.3, 0.48, 0.42, LEAF_DARK]]:
-		var x: float = c.x + blade[0] * s
-		var tip := Vector2(c.x + blade[2] * s, ground - blade[1] * s)
-		draw_colored_polygon(PackedVector2Array([Vector2(x - s * 0.07, ground), Vector2(x + s * 0.07, ground), tip]),
-				blade[3])
 
 
 func _blade(c: Vector2, s: float) -> void:

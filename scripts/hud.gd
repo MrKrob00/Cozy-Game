@@ -1130,22 +1130,12 @@ func _on_return_pressed(find: FindItem) -> void:
 
 
 # Строки мастерской: по одной на апгрейд, с ценой следующего уровня.
-# Значки рядом с надписями: монета и листик у счётчиков, трава у участка,
-# мешок у его полоски. Надписи остаются как есть.
+# Значки рядом с надписями: монета и компост у счётчиков, мешок у его
+# полоски. Надписи остаются как есть.
 func _add_counter_icons() -> void:
 	_coins_icon = _icon_before(_coins_label, HudIcon.Kind.COIN, 52.0)
 	_compost_icon = _icon_before(_compost_label, HudIcon.Kind.COMPOST, 60.0)
 	_icon_before(_bag_bar.get_parent().get_child(0) as Control, HudIcon.Kind.BAG, 56.0)
-	# Строка участка: значок травы и подпись в один ряд.
-	var rows := _progress_label.get_parent()
-	var line := HBoxContainer.new()
-	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	line.add_theme_constant_override("separation", 10)
-	rows.add_child(line)
-	rows.move_child(line, _progress_label.get_index())
-	_progress_label.reparent(line)
-	line.add_child(HudIcon.make(HudIcon.Kind.GRASS, 56.0))
-	line.move_child(line.get_child(1), 0)
 
 
 func _icon_before(label: Control, kind: HudIcon.Kind, side: float) -> HudIcon:
@@ -1167,7 +1157,7 @@ func _fill_workshop() -> void:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 28)
 		_workshop_rows.add_child(row)
-		var badge := HudIcon.make(UPGRADE_ICONS.get(id, HudIcon.Kind.GRASS), 100.0)
+		var badge := HudIcon.make(UPGRADE_ICONS[id], 100.0)
 		badge.badge = true
 		row.add_child(badge)
 

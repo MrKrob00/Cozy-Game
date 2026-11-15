@@ -1,7 +1,6 @@
 class_name IconStudio
 extends Node
-## Значки интерфейса, снятые с настоящих моделей игры: кочка травы (участок),
-## мешок косилки, компостный ящик с травой, мотор. Каждая картинка снимается
+## Значки интерфейса, снятые с настоящих моделей игры: мешок косилки, компостный ящик с травой, мотор. Каждая картинка снимается
 ## один раз за запуск в своей маленькой сцене (свой мир, прозрачный фон) и
 ## дальше только показывается (HudIcon).
 
@@ -10,17 +9,13 @@ const SIZE := 192
 const FRAMES := 6
 ## Что снимать: модели (имя, где стоит, масштаб) и откуда смотреть.
 const SETS := {
-	"grass": [["tuft_2", Vector3.ZERO, Vector3.ONE * 1.1], ["tuft_1", Vector3(0.14, 0.0, 0.08), Vector3.ONE * 0.9],
-			["tuft_0", Vector3(-0.13, 0.0, 0.1), Vector3.ONE * 0.85]],
 	"bag": [["mower_bag", Vector3.ZERO, Vector3.ONE]],
 	"compost": [["compost_bin", Vector3.ZERO, Vector3.ONE],
 			["compost_pile", Vector3(0.0, 0.3, 0.0), Vector3(1.0, 1.5, 0.85)]],
 	"motor": [["mower_engine", Vector3.ZERO, Vector3.ONE], ["mower_cap", Vector3.ZERO, Vector3.ONE]],
 }
-## Откуда смотрит камера: сверху-сбоку, как камера игры; траву — ниже,
-## сбоку: сверху тонкие травинки сливаются.
+## Откуда смотрит камера: сверху-сбоку, как камера игры.
 const VIEW := Vector3(0.55, 0.8, 1.0)
-const VIEWS := {"grass": Vector3(0.25, 0.3, 1.0)}
 
 static var _studio: IconStudio
 static var _textures: Dictionary = {}
@@ -64,7 +59,7 @@ static func texture(name: String) -> Texture2D:
 	var center := box.get_center()
 	var radius := box.size.length() * 0.5
 	var distance := radius / sin(deg_to_rad(camera.fov * 0.5)) * 0.86
-	var eye := center + (VIEWS.get(name, VIEW) as Vector3).normalized() * distance
+	var eye := center + VIEW.normalized() * distance
 	camera.transform = Transform3D(Basis.looking_at(center - eye, Vector3.UP), eye)
 	_textures[name] = view.get_texture()
 	return _textures[name]
