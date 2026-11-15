@@ -611,59 +611,131 @@ def teapot():
     return mesh
 
 
-def compost_bin(size=(1.3, 0.9, 1.1)):
-    """Компостный ящик из досок с щелями, верх открыт. Стоит на земле."""
-    mesh = Mesh()
-    hx, hz = size[0] / 2, size[2] / 2
-    for side in (-1, 1):
-        for row in range(3):
-            y = 0.17 + row * 0.29
-            box(mesh, (size[0], 0.22, 0.06), (0, y, hz * side), WOOD, bevel=0.018)
-            box(mesh, (0.06, 0.22, size[2]), (hx * side, y, 0), WOOD, bevel=0.018)
-        for z_side in (-1, 1):
-            box(mesh, (0.13, size[1] + 0.1, 0.13), (hx * side, (size[1] + 0.1) / 2, hz * z_side), WOOD_DARK,
-                bevel=0.03)
-    box(mesh, (size[0] - 0.1, 0.06, size[2] - 0.1), (0, 0.03, 0), SOIL, bevel=0.01)
+def srgb(color):
+    """Цвет из шейдера игры (sRGB, как source_color) → линейный цвет вершин."""
+    return tuple(c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in color)
+
+
+# Цвета травы игры (shaders/grass.gdshader): корень, верхушка, верхушка высокой.
+GRASS_ROOT = srgb((0.16, 0.45, 0.22))
+GRASS_TIP = srgb((0.55, 0.82, 0.30))
+GRASS_TALL_TIP = srgb((0.80, 0.86, 0.38))
+
+
+def visible_only(mesh, min_normal_y=-0.7):
+    """Убирает грани, смотрящие вниз: их закрывает земля или то, на чём
+    деталь лежит (низ досок, дно кучи). Камера смотрит сверху и сбоку."""
+    kept = []
+    for face in mesh.faces:
+        a, b, c = (np.asarray(mesh.vertices[i]) for i in face[:3])
+        normal = np.cross(b - a, c - a)
+        length = np.linalg.norm(normal)
+        if length > 1e-12 and normal[1] / length < min_normal_y:
+            continue
+        kept.append(face)
+    mesh.faces = kept
     return mesh
 
 
-def compost_pile():
-    """Куча в ящике: тёмная перепревшая земля, сверху свежие травинки и
-    палые листья, пара веточек. Игра растягивает её по высоте; начало
-    координат — у дна ящика (низ уходит под доски)."""
+def compost_bin(size=(1.3, 0.9, 1.1)):
+    """Компостный ящик: сплошные стенки из плотно сбитых досок (без щелей),
+    угловые столбики, верх открыт. Стоит на земле. Невидимое (низ досок и
+    столбиков, дно) убрано."""
     mesh = Mesh()
-    profile = [(0.0, -0.3), (0.55, -0.3), (0.56, -0.05), (0.5, 0.12), (0.38, 0.27), (0.2, 0.36), (0.0, 0.39)]
-    lathe(mesh, profile, (0, 0, 0), SOIL, segments=12)
-    lathe(mesh, [(0.0, -0.12), (0.3, -0.12), (0.28, 0.05), (0.14, 0.13), (0.0, 0.15)], (0.18, 0.2, -0.08),
-          SOIL_DARK, segments=9)
-    jitter(mesh, 0.022, 5.0)
+    hx, hz = size[0] / 2, size[2] / 2
+    rows = 3
+    board = size[1] / rows
+    for side in (-1, 1):
+        for row in range(rows):
+            y = board * (row + 0.5)
+            tone = WOOD if (row + (side > 0)) % 2 == 0 else WOOD_DARK
+            box(mesh, (size[0], board, 0.07), (0, y, hz * side), tone, bevel=0.012)
+            box(mesh, (0.07, board, size[2]), (hx * side, y, 0), tone, bevel=0.012)
+        for z_side in (-1, 1):
+            box(mesh, (0.13, size[1] + 0.1, 0.13), (hx * side, (size[1] + 0.1) / 2, hz * z_side), WOOD_DARK,
+                bevel=0.03)
+    # Верхняя обвязка по краю стенок.
+    for side in (-1, 1):
+        box(mesh, (size[0] + 0.06, 0.05, 0.11), (0, size[1] + 0.02, hz * side), WOOD_DARK, bevel=0.012)
+        box(mesh, (0.11, 0.05, size[2] + 0.06), (hx * side, size[1] + 0.02, 0), WOOD_DARK, bevel=0.012)
+    box(mesh, (size[0] - 0.1, 0.06, size[2] - 0.1), (0, 0.03, 0), SOIL, bevel=0.01)
+    return visible_only(mesh)
+
+
+def compost_pile():
+    """Куча в ящике: горка скошенной травы игры — сотни травинок её цветов
+    (от тёмного корня к светлой верхушке), лежат вповалку, часть торчит.
+    Под ними тёмная зелёная масса. Игра растягивает кучу по высоте; начало
+    координат — у дна ящика. Только то, что видно: низа нет, лежащие
+    травинки — одной стороной вверх."""
+    import random
+    rng = random.Random(7)
+    mesh = Mesh()
+    profile = [(0.56, -0.3), (0.56, -0.05), (0.5, 0.12), (0.38, 0.27), (0.2, 0.36), (0.0, 0.39)]
+    lathe(mesh, profile, (0, 0, 0), srgb((0.36, 0.60, 0.26)), segments=14)
+
+    def squared(x, z):
+        """Круг → почти квадрат: ящик квадратный, трава доходит до углов."""
+        r = math.hypot(x, z)
+        if r < 1e-6:
+            return x, z
+        c, s_ = abs(x) / r, abs(z) / r
+        k = (1.0 / max(c, s_)) ** 0.85
+        return x * k, z * k
+
+    mesh.vertices = [np.array([*squared(v[0], v[2])[:1], v[1], squared(v[0], v[2])[1]]) for v in mesh.vertices]
+    jitter(mesh, 0.02, 5.0)
+    visible_only(mesh, min_normal_y=-0.2)
 
     def surface(x, z):
-        """Высота кучи над точкой (по профилю), чтобы класть на неё мелочи."""
+        """Высота кучи над точкой (по профилю)."""
         r = math.hypot(x, z)
-        pts = list(reversed(profile[2:]))
-        for (r0, y0), (r1, y1) in zip(pts, pts[1:]):
+        points = list(reversed(profile))
+        for (r0, y0), (r1, y1) in zip(points, points[1:]):
             if r0 <= r <= r1:
                 return y0 + (y1 - y0) * (r - r0) / max(r1 - r0, 1e-6)
         return -0.05
 
-    # Свежая трава сверху: лежащие изогнутые травинки.
-    for i in range(44):
-        angle = i * 2.39996
-        radius = 0.44 * math.sqrt((i + 0.5) / 44)
+    def blade(base, yaw, tilt, length, width, tip_color, two_sided):
+        """Травинка как у травы игры: сужается к острому концу, чуть изогнута."""
+        direction = np.array([math.cos(yaw) * math.cos(tilt), math.sin(tilt), math.sin(yaw) * math.cos(tilt)])
+        side = np.array([-math.sin(yaw), 0.0, math.cos(yaw)])
+        up = np.cross(side, direction)
+        points, widths, colors = [], [], []
+        for k in range(4):
+            t = k / 3
+            bend = 0.12 * length * t * t
+            points.append(np.asarray(base) + direction * length * t - up * bend * 0.3 + np.array([0, bend * 0.2, 0]))
+            widths.append(width * (1.0 - t) ** 0.8 if k < 3 else 0.0)
+        for k in range(3):
+            t = (k + 0.5) / 3
+            colors.append(tuple(GRASS_ROOT[i] + (tip_color[i] - GRASS_ROOT[i]) * min(1.0, 0.6 + 0.5 * t) for i in range(3)))
+        strip = ribbon(Mesh(), points, widths, side, colors)
+        if not two_sided:
+            # Лежит: остаётся только сторона, что смотрит вверх.
+            visible_only(strip, min_normal_y=0.0)
+        mesh.merge(strip)
+
+    count = 460
+    for i in range(count):
+        angle = i * 2.39996 + rng.uniform(-0.3, 0.3)
+        radius = 0.5 * math.sqrt((i + 0.5) / count)
         x, z = math.cos(angle) * radius, math.sin(angle) * radius
-        y = surface(x, z) + 0.015
-        length = 0.16 + 0.05 * (i % 3)
-        points = [(0.0, 0.0, -length / 2), (0.0, 0.02, 0.0), (0.0, 0.0, length / 2)]
-        blade = ribbon(Mesh(), points, [0.045, 0.04, 0.008], (1, 0, 0), [CLUMP_GREENS[i % 4]] * 2)
-        mesh.merge(turned(blade, yaw=angle * 1.7, pitch=0.0, roll=0.0, offset=(x, y, z)))
-    # Палые листья и веточки.
-    for i, (x, z, yaw) in enumerate([(0.2, 0.12, 0.5), (-0.24, -0.06, 2.1), (0.02, -0.28, 3.6), (-0.1, 0.3, 4.9)]):
-        mesh.merge(turned(dry_leaf(i), yaw=yaw, offset=(x, surface(x, z) + 0.005, z), scale=1.2))
-    for (x, z, yaw) in [(-0.15, 0.08, 0.7), (0.25, -0.15, 2.6)]:
-        y = surface(x, z) + 0.02
-        dx, dz = math.cos(yaw) * 0.14, math.sin(yaw) * 0.14
-        tube(mesh, [(x - dx, y, z - dz), (x, y + 0.02, z), (x + dx, y, z + dz)], 0.011, WOOD_DARK, segments=5)
+        y = surface(x, z) + rng.uniform(0.0, 0.03)
+        x, z = squared(x, z)
+        standing = rng.random() < 0.18
+        tilt = rng.uniform(0.5, 1.1) if standing else rng.uniform(-0.05, 0.3)
+        # Лежащие у края свисают наружу, по склону кучи.
+        yaw = angle + rng.uniform(-1.4, 1.4) if not standing else rng.uniform(0, math.tau)
+        tip = GRASS_TALL_TIP if rng.random() < 0.25 else GRASS_TIP
+        length = rng.uniform(0.16, 0.3)
+        # Стенки сплошные: травинка не должна проходить сквозь них (ящик внутри
+        # 1,2 × 1,0 м; игра сжимает кучу по Z до 0,85).
+        reach = length * math.cos(tilt)
+        end = (x + math.cos(yaw) * reach, z + math.sin(yaw) * reach)
+        if abs(end[0]) > 0.6 or abs(end[1]) > 0.58:
+            yaw += math.pi
+        blade((x, y, z), yaw, tilt, length, rng.uniform(0.035, 0.05), tip, standing)
     return mesh
 
 
@@ -1107,7 +1179,7 @@ if __name__ == "__main__":
     write(letter(), "letter")
     write(teapot(), "teapot")
     write(compost_bin(), "compost_bin")
-    write(compost_pile(), "compost_pile", smooth_angle=70.0)
+    write(compost_pile(), "compost_pile", smooth_angle=70.0, normal_mode="up")
     write(fx_leaf(), "fx_leaf", normal_mode="up")
     write(fx_clipping(), "fx_clipping", normal_mode="up")
     write(fx_clump(), "fx_clump", normal_mode=(0.0, 0.0, 0.0))

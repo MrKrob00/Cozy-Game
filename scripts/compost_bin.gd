@@ -66,7 +66,7 @@ func _update_pile(compost: int) -> void:
 	# Куча растёт вместе с накопленным компостом.
 	var amount := clampf(compost / 20.0, 0.0, 1.0)
 	# По Z ящик уже, чем по X: куча чуть сжата, чтобы не выходить сквозь доски.
-	_pile.scale = Vector3(1.0, lerpf(0.3, 1.25, amount), 0.85)
+	_pile.scale = Vector3(1.0, lerpf(0.3, 1.5, amount), 0.85)
 
 
 func _build_visuals() -> void:
