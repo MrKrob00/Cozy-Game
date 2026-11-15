@@ -22,8 +22,10 @@ static func spawn(host: Node, at: Vector3, grass: MowField, seconds: float, rewa
 	clover.field = grass
 	clover.life = seconds
 	clover.coins = reward
+	# Хозяин (PlotEvents) стоит в начале координат: позиция задаётся до
+	# добавления, чтобы _ready уже знал, где событие.
+	clover.position = at
 	host.add_child(clover)
-	clover.global_position = at
 	return clover
 
 

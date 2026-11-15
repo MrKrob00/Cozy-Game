@@ -25,7 +25,8 @@ Kevin MacLeod ([incompetech.com](https://incompetech.com)), лицензия [Cr
 Модели [Kenney](https://kenney.nl), лицензия CC0 (`assets/characters/`, `assets/animals/`):
 
 - [Mini Characters](https://kenney.nl/assets/mini-characters) — герой, Мастер, Бабушка, Почтальон, со своими анимациями;
-- [Cube Pets](https://kenney.nl/assets/cube-pets) — кот и цыплята на выкошенных газонах;
+- [Cube Pets](https://kenney.nl/assets/cube-pets) — кот и цыплята на выкошенных газонах; для событий — пчёлы, кролик и голуби (попугай, перекрашенный в сизый);
+- [Food Kit](https://kenney.nl/assets/food-kit) — морковка кролика (переведена в цвет вершин);
 - [Graveyard Kit](https://kenney.nl/assets/graveyard-kit) — садовая скамейка (переведена в цвет вершин тем же скриптом);
 - [Fantasy Town Kit](https://kenney.nl/assets/fantasy-town-kit) — фонтан на площади, забор участков, столбы калиток, засов мастерской;
 - [Platformer Kit](https://kenney.nl/assets/platformer-kit) — указатели у калиток, замок мастерской, ключ и монеты (находки), цветы на клумбах, грибы, камни, яблоня с круглой кроной;
@@ -45,6 +46,14 @@ Kevin MacLeod ([incompetech.com](https://incompetech.com)), лицензия [Cr
 
 - [Interface Sounds](https://kenney.nl/assets/interface-sounds) — нажатия, всплывающие окна (глухой «drop» со срезанным верхом: звонкий «pluck» раздражал), отказ, находка, посадка цветов;
 - [Impact Sounds](https://kenney.nl/assets/impact-sounds) — штамп, удар косилки о препятствие, шорох травы (компост долетел до счётчика);
-- [RPG Audio](https://kenney.nl/assets/rpg-audio) — монеты, высыпание травы, калитка (короткий низкий скрип со срезанным верхом).
+- [RPG Audio](https://kenney.nl/assets/rpg-audio) — монеты, высыпание травы, калитка (короткий низкий скрип со срезанным верхом);
+- Impact Sounds ещё — шаги почтальона и глухой стук упавшего яблока.
+
+Звуки событий с [OpenGameArt](https://opengameart.org) (верх срезан, громкость выровнена; `tools/import_sounds.py`):
+
+- лягушки — [Ribbit Frog Sounds](https://opengameart.org/content/ribbit-frog-sounds) и [Frog Croaks](https://opengameart.org/content/frog-croaks), автор ezduzziteh, CC0;
+- дождь — [Rain (loopable)](https://opengameart.org/content/rain-loopable), автор Ylmir, CC0;
+- взмахи крыльев голубей — [Large Wings Flap](https://opengameart.org/content/large-wings-flap), автор AntumDeluge, CC0;
+- жужжание пчёл — [Single Bee Sound](https://opengameart.org/content/single-bee-sound), автор IMadeIt, [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) (изменения: моно, срез верхних частот, громкость).
 
 Мелодичные звуки (завершение участка, отметки прогресса, птицы, «голоса» жителей) синтезированы скриптом `tools/make_placeholder_sounds.py`. Косилка беззвучна.

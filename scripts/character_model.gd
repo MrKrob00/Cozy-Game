@@ -60,6 +60,21 @@ func combine(new_name: String, base: String, overlay: String, bones: Array[Strin
 	animation.get_animation_library("").add_animation(new_name, result)
 
 
+## Перекраска модели: цвет текстуры обесцвечивается до saturation и
+## умножается на tint (попугай Kenney → сизый голубь). Свои материалы.
+func recolor(tint: Color, saturation: float) -> void:
+	for node in body.find_children("*", "MeshInstance3D", true, false):
+		var instance := node as MeshInstance3D
+		for surface in instance.mesh.get_surface_count():
+			var material := instance.get_surface_override_material(surface) as ShaderMaterial
+			if material == null:
+				continue
+			var own := material.duplicate() as ShaderMaterial
+			own.set_shader_parameter("albedo", tint)
+			own.set_shader_parameter("tint_saturation", saturation)
+			instance.set_surface_override_material(surface, Graphics.track(own))
+
+
 ## Узел, привязанный к кости: на него вешают шляпу и другие предметы.
 ## Размеры на нём — в метрах мира, масштаб модели уже учтён.
 func attach(bone: String) -> Node3D:

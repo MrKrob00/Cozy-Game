@@ -42,6 +42,7 @@ PACKS = {
     "platformer": ("platformer-kit", "Models/GLB format"),
     "nature": ("nature-kit", "Models/GLTF format"),
     "survival": ("survival-kit", "Models/GLB format"),
+    "food": ("food-kit", "Models/GLB format"),
 }
 
 # (файл в наборе hex или «набор:файл», имя у нас, качание: None — нет, число —
@@ -104,6 +105,7 @@ MODELS = [
     # яблоня с пышной кроной (Kenney Platformer Kit), ветвистое дерево и дуб
     # (Kenney Nature Kit, листва — сочнее). Высота — как у деревьев KayKit.
     ("platformer:tree.glb", "fruit_tree", 0.5, "", "bark", "h1.2"),
+    ("food:carrot.glb", "carrot", None),
     ("nature:tree_detailed.glb", "tree_leafy", 0.45, "", "tree", "h1.2"),
     ("nature:tree_oak.glb", "tree_oak", 0.4, "", "tree", "h1.2"),
     # Kenney Platformer Kit: указатель, замок, ключ, монета, цветы, грибы, валун.

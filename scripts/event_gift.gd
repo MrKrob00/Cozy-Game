@@ -29,8 +29,10 @@ static func spawn(host: Node, model: String, at: Vector3, reward: int, text: Str
 	gift.coins = reward
 	gift.message = text
 	gift.field = grass
+	# Хозяин (PlotEvents) стоит в начале координат: позиция задаётся до
+	# добавления, чтобы _ready уже знал, где событие.
+	gift.position = at
 	host.add_child(gift)
-	gift.global_position = at
 	return gift
 
 
@@ -70,7 +72,8 @@ func collect() -> void:
 	Sfx.play("find", -4.0)
 	Juice.sparkle(get_parent(), global_position + Vector3.UP * 0.4)
 	GameState.add_coins(coins, global_position + Vector3.UP * 0.6)
-	GameState.toast(L.t(message) % coins)
+	if message != "":
+		GameState.toast(L.t(message) % coins)
 	GameState.save_game()
 	var target := _player.global_position + Vector3.UP * 1.2 if _player else global_position
 	var tween := create_tween()

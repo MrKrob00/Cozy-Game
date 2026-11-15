@@ -181,4 +181,10 @@ const MESSAGES := {
 	"Четырёхлистник — на удачу! +%d монет": "Un trébol de cuatro hojas: ¡buena suerte! +%d monedas",
 	"Бюро находок открыто! Несите сюда вещи, найденные в траве, — хозяева отблагодарят монетами": "¡Objetos perdidos está abierto! Trae aquí lo que encuentres en la hierba: sus dueños te lo agradecerán con monedas",
 	"Что-то потерялось: %s": "Algo perdido: %s",
+	"Морковка, которую бросил кролик: +%d монет": "La zanahoria que dejó el conejo: +%d monedas",
+	"В траве кто-то хрумкает морковкой… Подъедьте поближе": "Alguien mordisquea una zanahoria en la hierba… Acércate",
+	"Над фонтаном радуга!": "¡Un arcoíris sobre la fuente!",
+	"Хорошо тут, яблоками пахнет. Посижу минутку.": "Qué bien se está aquí, huele a manzanas. Me siento un minuto.",
+	"Ох, ноги уже не те. Посижу, посмотрю, как ты косишь.": "Ay, las piernas ya no son lo que eran. Me siento a verte segar.",
+	"Пять минут без писем… Красота!": "Cinco minutos sin cartas… ¡Qué maravilla!",
 }

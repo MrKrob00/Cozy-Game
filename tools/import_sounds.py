@@ -9,6 +9,7 @@
   interface  Kenney Interface Sounds  https://kenney.nl/assets/interface-sounds
   impact     Kenney Impact Sounds     https://kenney.nl/assets/impact-sounds
   rpg        Kenney RPG Audio         https://kenney.nl/assets/rpg-audio
+  oga        записи с OpenGameArt (см. CREDITS.md): лягушки, дождь, крылья, пчела
 
 Мелодичные звуки (завершение участка, птицы, «голоса» жителей) остаются
 синтезированными: tools/make_placeholder_sounds.py.
@@ -36,6 +37,15 @@ SOUNDS = {
     "step_1": ("impact", "footstep_concrete_000.ogg", 2500),
     "step_2": ("impact", "footstep_concrete_001.ogg", 2500),
     "step_3": ("impact", "footstep_concrete_002.ogg", 2500),
+    "frog_1": ("oga", "ribbit_02.mp3", 4000),
+    "frog_2": ("oga", "ribbit_03.mp3", 4000),
+    "frog_3": ("oga", "croak_04.mp3", 4000),
+    "frog_4": ("oga", "croak_01_0.mp3", 4000),
+    "rain": ("oga", "1.ogg", 3200),
+    "flap": ("oga", "wings_flap_large.ogg", 5000),
+    "buzz": ("oga", "bee.wav", 3500),
+    "thud_1": ("impact", "impact_soft_heavy_000.ogg", 3000),
+    "thud_2": ("impact", "impact_soft_heavy_001.ogg", 3000),
     "deny": ("interface", "error_004.wav"),
     "find": ("interface", "confirmation_002.wav"),
     "plant_1": ("interface", "drop_002.wav"),

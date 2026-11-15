@@ -57,11 +57,22 @@ func _run() -> void:
 	await frames(10)
 	check(events != null and village.current_plot == yard, "the village runs plot events; the yard is current")
 
-	# 1:30 — почтальон роняет письмо в траву; скосил — нашёл, подъехал — забрал.
+	# Своё расписание у каждого участка: во дворе на 1:30 — клевер.
+	check(events.SCHEDULE["yard"] == ["clover", "rain", "balloon"] and events.SCHEDULE["garden"] == ["cat", "bees", "rabbit"]
+			and events.SCHEDULE["square"] == ["letter", "pigeons", "rainbow"]
+			and events.SCHEDULE["orchard"] == ["frogs", "bench", "apples"], "every plot has its own three events")
+	check(events.ambient_kinds() == ["birds", "wind"], "at first only birds and wind happen at random")
 	events.plot_time["yard"] = 89.5
 	await frames(40)
-	check(gs.has_flag("event_yard_0") and village.find_child("PostmanRun", true, false) != null,
-			"at 1:30 on a plot the postman runs by")
+	check(gs.has_flag("event_yard_0") and first("event_clover") != null, "at 1:30 in the yard a four-leaf clover grows")
+	first("event_clover").queue_free()
+	gs.set_flag("event_yard_1")
+	gs.set_flag("event_square_0")
+	check("rain" in events.ambient_kinds() and "letter" in events.ambient_kinds() and not "cat" in events.ambient_kinds(),
+			"the rain and the postman become random once they have happened on their plots")
+
+	# Почтальон роняет письмо в траву; скосил — нашёл, подъехал — забрал.
+	check(events.fire("letter") and village.find_child("PostmanRun", true, false) != null, "the postman runs by")
 	var dropped := await wait_for(func() -> bool: return first("event_gift") != null, 600)
 	var letter = first("event_gift")
 	check(dropped and letter.model_name == "letter", "the postman drops a letter onto the plot")
@@ -78,7 +89,7 @@ func _run() -> void:
 	await frames(5)
 	events.plot_time["yard"] = 95.0
 	await frames(5)
-	check(village.find_child("PostmanRun", true, false) == null, "a timed event happens once per plot")
+	check(first("event_clover") == null, "a timed event happens once per plot")
 
 	# 3:00 — дождик: трава мокнет, минуту после ещё мокрая, потом сохнет.
 	check(events.fire("rain") and events.raining, "a sun shower starts")
@@ -150,6 +161,62 @@ func _run() -> void:
 	check(moved_by > 1.5 and hedgehog.global_position.distance_to(player.global_position) > 1.8,
 			"the hedgehog in its corner scurries away from the mower (%.1f m)" % moved_by)
 	check(yard.field.contains(hedgehog.global_position), "and stays on its plot")
+
+	# Сад: пчёлы кружат над клумбами.
+	var garden = village.get_node("Garden")
+	check(events.fire("bees") and village.find_child("Bees", true, false) != null
+			and village.find_child("Bees", true, false).get("_bees").size() >= 2, "bees buzz over the garden's flower beds")
+	village.find_child("Bees", true, false).queue_free()
+
+	# Кролик с морковкой в траве: скосил рядом — удирает, морковка остаётся.
+	player.global_position = yard.field.global_position + Vector3(0.0, 0.0, 2.0)
+	await frames(5)
+	check(events.fire("rabbit") and first("event_rabbit") != null, "a rabbit munches a carrot in the grass")
+	var rabbit = first("event_rabbit")
+	check(yard.field.is_open_lawn(rabbit.global_position) and not rabbit.is_fled(), "it sits in a small nibbled clearing")
+	coins = gs.coins
+	player.global_position = rabbit.global_position + Vector3(1.9, 0.0, 0.0)
+	await frames(3)
+	check(rabbit.is_fled(), "the mower coming close sends the rabbit running")
+	var carrot = get_nodes_in_group("event_gift").filter(func(g): return g.model_name == "carrot")
+	if not carrot.is_empty():
+		player.global_position = carrot[0].global_position + Vector3(0.3, 0.0, 0.0)
+	var carrots := await wait_for(func() -> bool: return gs.coins == coins + 8, 120)
+	check(carrots, "the carrot stays and gives coins")
+
+	# Площадь: голуби садятся и взлетают, когда косилка рядом; радуга над фонтаном.
+	check(events.fire("pigeons") and village.find_child("Pigeons", true, false) != null, "pigeons fly in")
+	var pigeons = village.find_child("Pigeons", true, false)
+	await frames(110)
+	var a_pigeon: Node3D = pigeons.get("_birds")[0]["node"]
+	player.global_position = a_pigeon.global_position + Vector3(0.5, 0.0, 0.0)
+	await frames(5)
+	check(pigeons.get("_leaving"), "the pigeons take off when the mower comes close")
+	var gone_pigeons := await wait_for(func() -> bool: return village.find_child("Pigeons", true, false) == null, 400)
+	check(gone_pigeons, "and fly away")
+	check(events.fire("rainbow") and village.find_child("Rainbow", true, false) != null, "a rainbow rises over the fountain")
+
+	# Фруктовый сад: лягушки на берегу, гость идёт к лавочке, яблокопад.
+	var orchard = village.get_node("Orchard")
+	check(events.fire("frogs"), "frogs come out of the pond")
+	var chorus = village.find_child("FrogChorus", true, false)
+	await frames(240)
+	var pond: Node3D = orchard.get_node("Pond")
+	var on_bank: int = chorus.get("_frogs").filter(func(f): return (f["node"] as Node3D).global_position.distance_to(pond.global_position) > 2.7).size()
+	check(on_bank == 5, "five frogs sit on the bank and croak (%d)" % on_bank)
+	check(events.fire("bench"), "a villager comes to sit on the orchard bench")
+	var visitor = village.find_child("Visitor", true, false)
+	var bench: Node3D = orchard.get_node("Bench")
+	var far: float = visitor.global_position.distance_to(bench.global_position)
+	await frames(120)
+	check(visitor.global_position.distance_to(bench.global_position) < far - 1.5, "the visitor walks towards the bench")
+	var apple_tree: Node3D = orchard.get_node("Tree1")
+	player.global_position = apple_tree.global_position + Vector3(2.0, 0.0, 2.0)
+	await frames(90)
+	check(events.fire("apples"), "an apple tree near the hero drops apples")
+	var dropped_apples := await wait_for(func() -> bool:
+		return get_nodes_in_group("event_gift").filter(func(g): return g.model_name == "apple").size() >= 3, 400)
+	check(dropped_apples, "apples land under the tree")
 
 	# Птицы и ветер: пролетают и исчезают.
 	check(events.fire("birds") and village.find_child("Birds", true, false) != null, "a flock of birds flies over")

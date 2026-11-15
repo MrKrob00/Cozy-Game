@@ -214,4 +214,10 @@ const MESSAGES := {
 	"Четырёхлистник — на удачу! +%d монет": "A four-leaf clover — good luck! +%d coins",
 	"Бюро находок открыто! Несите сюда вещи, найденные в траве, — хозяева отблагодарят монетами": "The Lost & Found is open! Bring the things you find in the grass here — their owners will thank you with coins",
 	"Что-то потерялось: %s": "Something lost: %s",
+	"Морковка, которую бросил кролик: +%d монет": "The carrot the rabbit dropped: +%d coins",
+	"В траве кто-то хрумкает морковкой… Подъедьте поближе": "Someone is munching a carrot in the grass… Drive up closer",
+	"Над фонтаном радуга!": "A rainbow over the fountain!",
+	"Хорошо тут, яблоками пахнет. Посижу минутку.": "Lovely here, it smells of apples. I'll sit for a minute.",
+	"Ох, ноги уже не те. Посижу, посмотрю, как ты косишь.": "Oh, my legs aren't what they used to be. I'll sit and watch you mow.",
+	"Пять минут без писем… Красота!": "Five minutes without letters… Bliss!",
 }

@@ -42,6 +42,8 @@ const APPLES := 10
 static var _crown_surfaces: Dictionary = {}
 
 ## Размер модели по земле (X, Z) и её высота, метры.
+## Пруд: где листья кувшинок (в координатах узла).
+var _lily_spots: Array[Vector3] = []
 var _footprint := Vector2.ZERO
 var _height := 0.0
 ## Дым из трубы и фонарь у двери: появляются, когда участок выкошен.
@@ -434,6 +436,36 @@ func _build_fountain() -> void:
 	add_child(shape)
 
 
+## Пруд: где лежат листья кувшинок (мировые координаты) — на них садятся лягушки.
+func get_lily_spots() -> Array[Vector3]:
+	var spots: Array[Vector3] = []
+	for local in _lily_spots:
+		spots.append(to_global(local))
+	return spots
+
+
+## Яблоня: точки на кроне (мировые), откуда падают яблоки при яблокопаде.
+func get_apple_drop_points(count: int) -> Array[Vector3]:
+	var points: Array[Vector3] = []
+	if not fruit or _crown == null:
+		return points
+	var model := "fruit_tree"
+	var surface := _crown_surface(model)
+	var cloud: PackedVector3Array = surface[0]
+	var turn := Basis(Vector3.UP, hash(name) % 628 / 100.0)
+	for i in count:
+		if cloud.is_empty():
+			break
+		var at: Vector3 = turn * (cloud[randi() % cloud.size()] * TREE_SCALE)
+		points.append(_crown.to_global(at))
+	return points
+
+
+## Яблоня ли это (у неё есть яблоки).
+func is_fruit_tree() -> bool:
+	return kind == Kind.TREE and fruit
+
+
 func _build_pond() -> void:
 	# Вода с кольцами: у берега мельче и светлее (своя модель).
 	var water := Models.place(self, "water_disc", Vector3(0.0, 0.06, 0.0), 1.0, 0.0, false)
@@ -450,8 +482,9 @@ func _build_pond() -> void:
 	for i in 6:
 		var angle := rng.randf() * TAU
 		var distance := rng.randf_range(0.5, POND_RADIUS - 0.6)
-		Models.place(self, "waterlily_a" if i % 2 == 0 else "waterlily_b",
-				Vector3(cos(angle) * distance, 0.07, sin(angle) * distance), rng.randf_range(3.5, 5.0),
+		var lily_at := Vector3(cos(angle) * distance, 0.07, sin(angle) * distance)
+		_lily_spots.append(lily_at)
+		Models.place(self, "waterlily_a" if i % 2 == 0 else "waterlily_b", lily_at, rng.randf_range(3.5, 5.0),
 				rng.randf() * TAU, false)
 	# Цветы кувшинок.
 	for at: Vector3 in [Vector3(0.6, 0.07, -0.4), Vector3(-1.1, 0.07, 0.9), Vector3(1.4, 0.07, 1.0)]:

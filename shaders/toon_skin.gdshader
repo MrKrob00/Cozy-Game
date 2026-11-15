@@ -7,6 +7,8 @@ render_mode unshaded, cull_back, depth_draw_opaque;
 
 uniform sampler2D albedo_tex : source_color, hint_default_white, filter_linear_mipmap;
 uniform vec3 albedo : source_color = vec3(1.0);
+// Насыщенность цвета текстуры: меньше 1 — перекраска (попугай → сизый голубь).
+uniform float tint_saturation = 1.0;
 
 varying vec3 v_light;
 varying float v_haze;
@@ -19,6 +21,8 @@ void vertex() {
 }
 
 void fragment() {
-	vec3 color = day_grade(albedo * texture(albedo_tex, UV).rgb * v_light);
+	vec3 texel = texture(albedo_tex, UV).rgb;
+	texel = mix(vec3(dot(texel, vec3(0.3, 0.55, 0.15))), texel, tint_saturation);
+	vec3 color = day_grade(albedo * texel * v_light);
 	ALBEDO = mix(color, haze_color, v_haze);
 }

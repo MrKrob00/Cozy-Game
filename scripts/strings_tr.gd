@@ -181,4 +181,10 @@ const MESSAGES := {
 	"Четырёхлистник — на удачу! +%d монет": "Uğurlu yonca! +%d altın",
 	"Бюро находок открыто! Несите сюда вещи, найденные в траве, — хозяева отблагодарят монетами": "Kayıp eşya bürosu açıldı! Çimenlerde bulduklarını buraya getir — sahipleri altınla teşekkür edecek",
 	"Что-то потерялось: %s": "Kayıp bir şey: %s",
+	"Морковка, которую бросил кролик: +%d монет": "Tavşanın bıraktığı havuç: +%d altın",
+	"В траве кто-то хрумкает морковкой… Подъедьте поближе": "Çimenlerde biri havuç kemiriyor… Biraz yaklaş",
+	"Над фонтаном радуга!": "Çeşmenin üstünde gökkuşağı!",
+	"Хорошо тут, яблоками пахнет. Посижу минутку.": "Burası çok güzel, elma kokuyor. Biraz oturayım.",
+	"Ох, ноги уже не те. Посижу, посмотрю, как ты косишь.": "Ah, bacaklar eskisi gibi değil. Oturup biçişini izleyeyim.",
+	"Пять минут без писем… Красота!": "Mektupsuz beş dakika… Harika!",
 }

@@ -11,6 +11,9 @@ extends Interactable
 ## Объект, который меняет вид после починки.
 @export var target_path: NodePath
 
+## Починили (сейчас, за монеты).
+signal repaired
+
 var _repaired := false
 
 
@@ -49,6 +52,7 @@ func interact(_player: Player) -> void:
 	_repaired = true
 	GameState.set_flag(_flag())
 	_apply(true)
+	repaired.emit()
 	Sfx.play("plant")
 	Sfx.buzz(30)
 	Juice.sparkle(self, global_position + Vector3.UP * 1.2, Color(0.7, 0.9, 1.0), 30)
