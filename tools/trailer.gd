@@ -43,8 +43,6 @@ const VOICES := 10
 ## Скорость героя, при которой цикл шагов (два шага) длится ровно долю:
 ## анимация «walk» — 0,667 с при скорости 1,9 м/с.
 const WALK_PACE := 0.6667 * 1.9 / (BEAT / FPS)
-## Скорость покоса в ускоренном показе двора.
-const LAPSE_PACE := 7.5
 ## Вспышка на смене кадра: прозрачность по кадрам от самой смены.
 const FLASH := {-2: 0.3, -1: 0.65, 0: 0.85, 1: 0.55, 2: 0.3, 3: 0.12}
 const FLASH_COLOR := Color(1.0, 0.97, 0.88)
@@ -90,6 +88,8 @@ var _quiet_until := 0
 var _find_marks: Array[float] = []
 var _find_frames: Dictionary = {}
 var _find_sounds := false
+## Кадр, к которому кончается маршрут ускоренного покоса.
+var _lapse_end := 0
 # Кадр ролика (0 — первый) и дела, назначенные на кадры.
 var _frame := 0
 var _cues: Dictionary = {}
@@ -202,7 +202,9 @@ func _run() -> void:
 	# Крючок рассчитан от ёжика: на 5-й доле косилка в 2,75 м от него.
 	var notice_at := BEAT * 5
 	var blade_start: float = hedgehog.position.z + 2.75 + WALK_PACE * notice_at / FPS
-	_set_route(_serpentine(yard, [hedgehog.position.x, 4.35, 5.1, 5.85, 6.6], blade_start, -5.6))
+	# Полосы до края двора, последняя — во всю длину (узкая кромка у забора
+	# скошена заранее, иначе герой шёл бы докашивать клочок).
+	_set_route(_serpentine(yard, [hedgehog.position.x, 4.35, 5.1, 5.85], blade_start, -5.6))
 	for find in get_nodes_in_group("find"):
 		if yard.is_ancestor_of(find) and not find.call("is_collected"):
 			var mark := _route_reach(Vector2(find.global_position.x, find.global_position.z),
@@ -230,14 +232,21 @@ func _run() -> void:
 		_hook_camera(_frame / float(AT_LAPSE))
 		await _next()
 
-	# 2. Цикл покоса: вид как в игре, двор покрывается полосами, находки.
+	# 2. Цикл покоса: вид как в игре. На смене кадра «прошло время»: двор уже
+	# скошен, кроме полос, по которым герой ещё пройдёт; он докашивает их
+	# туда-сюда, находит вещи, и последняя полоса кончается ровно на долю
+	# «Двор выкошен!». До этого двор не засчитывается.
 	_set_hud(true)
 	_follow_camera(1)
+	yard.complete_at = 1.01
+	_premow_except_route(yard)
+	_lapse_end = AT_DONE - 1
 	_find_sounds = true
 	while _frame < AT_DONE:
-		_advance(_beat_pace(LAPSE_PACE), yard)
+		_advance(_beat_pace((_route_length - _route_at) / ((_lapse_end - _frame) / FPS)), yard)
 		await _next()
 	_find_sounds = false
+	yard.complete_at = 0.95
 
 	# 3. Двор выкошен: конфетти, герой прыгает; камера уходит к новой калитке.
 	_player.set("_current_speed", 0.0)
@@ -395,6 +404,7 @@ func _caption_at(frame: int, text: String) -> void:
 
 # Скорость покоса, при которой следующая находка выпрыгнет ровно на долю:
 # доля выбирается один раз — ближайшая к тому, когда это вышло бы само.
+# После последней находки — так, чтобы маршрут кончился к _lapse_end.
 func _beat_pace(base: float) -> float:
 	for mark in _find_marks:
 		if mark <= _route_at + 0.01:
@@ -404,7 +414,52 @@ func _beat_pace(base: float) -> float:
 			_find_frames[mark] = maxi(roundi(natural / BEAT) * BEAT, _frame + BEAT)
 		var left: int = _find_frames[mark] - _frame
 		return (mark - _route_at) / (maxi(left, 1) / FPS)
-	return base
+	return (_route_length - _route_at) / (maxi(_lapse_end - _frame, 1) / FPS)
+
+
+# Всё поле, кроме полосы ещё не пройденного маршрута (шириной в нож),
+# скашивается сразу; находки там не выпрыгивают (их как будто уже нашли).
+func _premow_except_route(plot: Node3D) -> void:
+	var keep: float = _player.get_cut_width() * 0.5 + 0.04
+	var ahead := PackedVector2Array()
+	var along := _route_at
+	while along <= _route_length:
+		ahead.append(_route_point(along)[0])
+		along += 0.15
+	var keep_finds: Array = []
+	for find in get_nodes_in_group("find"):
+		if plot.is_ancestor_of(find):
+			var at := Vector2(find.global_position.x, find.global_position.z)
+			var near := false
+			for point in ahead:
+				if point.distance_to(at) < keep:
+					near = true
+					break
+			if not near:
+				find.set_process(false)
+	# Косим полосами туда-обратно, как косит герой: от направления зависит
+	# тон полосы, и двор выходит полосатым, а не одной заливкой.
+	var half: Vector2 = plot.field.size * 0.5
+	var lane_width := 0.75
+	var lane := 0
+	var x := -half.x + lane_width * 0.5
+	while x < half.x + lane_width * 0.5:
+		var forward: Vector3 = plot.global_basis.z * (1.0 if lane % 2 == 0 else -1.0)
+		var z := -half.y
+		while z < half.y + 0.2:
+			for offset: float in [-0.25, 0.0, 0.25]:
+				var world: Vector3 = plot.field.to_global(Vector3(x + offset, 0.0, z))
+				var at := Vector2(world.x, world.z)
+				var near := false
+				for point in ahead:
+					if point.distance_squared_to(at) < keep * keep:
+						near = true
+						break
+				if not near:
+					plot.field.mow(world, forward, 0.3, 0.3, true)
+			z += 0.2
+		x += lane_width
+		lane += 1
 
 
 # Где на маршруте нож впервые проходит над точкой (в пределах reach), или −1.
