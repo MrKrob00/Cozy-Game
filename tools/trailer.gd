@@ -141,6 +141,12 @@ func _run() -> void:
 	_player = get_first_node_in_group("player")
 	_camera = _village.get_node("Camera")
 	_hud = _village.get_node("HUD")
+	# Подписи клавиш (C, Esc) под кнопками — для игры за компьютером; в
+	# трейлере (и для телефонов) они лишние.
+	for button: String in ["%PauseButton", "%CameraButton"]:
+		for child in _hud.get_node(button).get_children():
+			if child is Label:
+				child.visible = false
 	_terrain = _village.get_node("Terrain")
 	_placeholder = load("res://scripts/placeholder.gd")
 	_juice = load("res://scripts/juice.gd")
@@ -193,6 +199,14 @@ func _run() -> void:
 		_at(cut, _say.bind(""))
 	# Двор выкошен: короткая мелодия на сильную долю.
 	_at(AT_DONE, _play.bind("complete", SFX_VOLUME_DB + 2.0))
+	# Ещё несколько тихих звуков в такт — фоном, не громче музыки: монетки
+	# награды, скрип калитки, кваканье у пруда, птицы на празднике.
+	_at(AT_DONE + BEAT * 2, _play.bind("coin", SFX_VOLUME_DB - 3.0))
+	_at(AT_GATE, _play.bind("gate", SFX_VOLUME_DB - 1.0))
+	_at(AT_ORCHARD + BEAT * 3, _play.bind("frog", SFX_VOLUME_DB - 2.0))
+	_at(AT_ORCHARD + BEAT * 7, _play.bind("frog", SFX_VOLUME_DB - 4.0, 1.1))
+	_at(AT_FESTIVAL, _play.bind("chirp", SFX_VOLUME_DB - 4.0))
+	_at(AT_FESTIVAL + BEAT * 3, _play.bind("chirp", SFX_VOLUME_DB - 6.0, 1.15))
 
 	# Заготовка: пара полос уже скошена, герой — в начале следующей, на ней
 	# в высокой траве сидит ёжик.
