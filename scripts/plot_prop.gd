@@ -290,8 +290,8 @@ func _build_tree() -> void:
 		for i in 10:
 			var direction := Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-0.3, 0.7),
 					rng.randf_range(-1.0, 1.0)).normalized()
-			Placeholder.part(_crown, Placeholder.sphere(0.16, 6), Color(0.92, 0.26, 0.24),
-					Vector3(0.0, 3.0, 0.0) + direction * Vector3(1.25, 1.1, 1.25))
+			Models.place(_crown, "apple", Vector3(0.0, 3.0, 0.0) + direction * Vector3(1.25, 1.1, 1.25),
+					1.35, rng.randf() * TAU)
 	var shape := CollisionShape3D.new()
 	var cylinder := CylinderShape3D.new()
 	cylinder.radius = 0.4
@@ -342,30 +342,30 @@ func set_repaired(_animated: bool) -> void:
 # Фонтан — модель Kenney Fantasy Town Kit (CC0) в двух видах: заброшенный
 # (сухая чаша во мху, обломки) и починенный (вода и струя).
 func _build_fountain() -> void:
-	const OLD_STONE := Color(0.56, 0.55, 0.52)
 	_fountain_broken = Node3D.new()
 	add_child(_fountain_broken)
 	Models.place(_fountain_broken, "fountain_dry", Vector3.ZERO, FOUNTAIN_SCALE)
-	# В сухой чаше — мох и палая листва.
-	Placeholder.part(_fountain_broken, Placeholder.cylinder(FOUNTAIN_BASIN, 0.04, FOUNTAIN_BASIN, 16),
-			Color(0.36, 0.50, 0.30), Vector3(0.0, FOUNTAIN_WATER - 0.12, 0.0))
-	for item: Array in [[Vector3(0.7, 0.0, 0.5), Color(0.72, 0.52, 0.26)], [Vector3(-0.8, 0.0, -0.2), Color(0.62, 0.44, 0.24)],
-			[Vector3(0.1, 0.0, -0.9), Color(0.76, 0.62, 0.30)], [Vector3(-0.3, 0.0, 0.95), Color(0.56, 0.60, 0.28)]]:
-		Placeholder.part(_fountain_broken, Placeholder.box(Vector3(0.22, 0.02, 0.14)), item[1],
-				item[0] + Vector3(0.0, FOUNTAIN_WATER - 0.08, 0.0), Vector3(0.0, item[0].x * 140.0, 0.0))
-	# Отколовшиеся камни у чаши.
-	for item: Array in [[Vector3(1.5, 0.16, 1.3), Vector3(0.5, 0.3, 0.4), Vector3(20.0, 30.0, 10.0)],
-			[Vector3(-1.75, 0.1, 0.6), Vector3(0.34, 0.2, 0.3), Vector3(0.0, 55.0, 14.0)],
-			[Vector3(0.5, 0.12, -1.9), Vector3(0.4, 0.22, 0.26), Vector3(8.0, -20.0, 0.0)]]:
-		Placeholder.part(_fountain_broken, Placeholder.box(item[1]), OLD_STONE, item[0], item[2])
+	# В сухой чаше — мох с кочками и палая листва (свои модели).
+	var moss := Models.place(_fountain_broken, "moss_disc", Vector3(0.0, FOUNTAIN_WATER - 0.1, 0.0), 1.0)
+	moss.scale = Vector3(FOUNTAIN_BASIN, 1.0, FOUNTAIN_BASIN)
+	var leaves := [Vector3(0.7, 0.0, 0.5), Vector3(-0.8, 0.0, -0.2), Vector3(0.1, 0.0, -0.9), Vector3(-0.3, 0.0, 0.95),
+			Vector3(0.45, 0.0, -0.35), Vector3(-0.55, 0.0, 0.45)]
+	for i in leaves.size():
+		Models.place(_fountain_broken, "dry_leaf_%d" % (i % 4), leaves[i] + Vector3(0.0, FOUNTAIN_WATER - 0.06, 0.0),
+				1.5, leaves[i].x * 2.4 + i)
+	# Отколовшиеся камни у чаши — камни KayKit, как на лугу.
+	for item: Array in [[Vector3(1.5, 0.0, 1.3), "rock_a", 2.6], [Vector3(-1.75, 0.0, 0.6), "rock_c", 2.0],
+			[Vector3(0.5, 0.0, -1.9), "rock_b", 2.2]]:
+		Models.place(_fountain_broken, item[1], item[0], item[2], item[0].x)
 
 	_fountain_fixed = Node3D.new()
 	_fountain_fixed.visible = false
 	add_child(_fountain_fixed)
 	Models.place(_fountain_fixed, "fountain", Vector3.ZERO, FOUNTAIN_SCALE)
-	var water := Placeholder.part(_fountain_fixed, Placeholder.cylinder(FOUNTAIN_BASIN, 0.04, FOUNTAIN_BASIN, 16),
-			Color(0.42, 0.72, 0.92), Vector3(0.0, FOUNTAIN_WATER, 0.0))
-	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Вода с кольцами (у края светлее) и струя — свои модели; брызги — частицы.
+	var water := Models.place(_fountain_fixed, "water_disc", Vector3(0.0, FOUNTAIN_WATER + 0.02, 0.0), 1.0, 0.0, false)
+	water.scale = Vector3(FOUNTAIN_BASIN, 1.0, FOUNTAIN_BASIN)
+	Models.place(_fountain_fixed, "water_jet", Vector3(0.0, 0.62, 0.0), 0.9, 0.0, false)
 	var jet := CPUParticles3D.new()
 	jet.position = Vector3(0.0, 0.95, 0.0)
 	jet.amount = 60
@@ -393,9 +393,9 @@ func _build_fountain() -> void:
 
 
 func _build_pond() -> void:
-	const WATER := Color(0.4, 0.68, 0.86)
-	var water := Placeholder.part(self, Placeholder.cylinder(POND_RADIUS, 0.06), WATER, Vector3(0.0, 0.03, 0.0))
-	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Вода с кольцами: у берега мельче и светлее (своя модель).
+	var water := Models.place(self, "water_disc", Vector3(0.0, 0.06, 0.0), 1.0, 0.0, false)
+	water.scale = Vector3(POND_RADIUS, 1.0, POND_RADIUS)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 21
 	# Камни по берегу и листья кувшинок.
@@ -411,7 +411,9 @@ func _build_pond() -> void:
 		Models.place(self, "waterlily_a" if i % 2 == 0 else "waterlily_b",
 				Vector3(cos(angle) * distance, 0.07, sin(angle) * distance), rng.randf_range(3.5, 5.0),
 				rng.randf() * TAU, false)
-	Placeholder.part(self, Placeholder.sphere(0.09), Color(1.0, 0.7, 0.8), Vector3(0.6, 0.16, -0.4))
+	# Цветы кувшинок.
+	for at: Vector3 in [Vector3(0.6, 0.07, -0.4), Vector3(-1.1, 0.07, 0.9), Vector3(1.4, 0.07, 1.0)]:
+		Models.place(self, "lily_flower", at, 1.5, at.x, false)
 	var shape := CollisionShape3D.new()
 	var cylinder := CylinderShape3D.new()
 	cylinder.radius = POND_RADIUS

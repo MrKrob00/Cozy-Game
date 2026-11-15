@@ -9,7 +9,6 @@ extends Interactable
 @export var bed_size := Vector2(2.0, 0.9)
 @export var compost_cost := 5
 
-const SOIL := Color(0.50, 0.38, 0.27)
 const TALL_FLOWERS := ["flowers_tall", "flowers_tall_yellow", "flowers_tall_pink"]
 const LOW_FLOWERS := ["flowers_low", "flowers_low_white", "flowers_low_violet"]
 const PETALS := [
@@ -138,8 +137,9 @@ func _plant(animated: bool) -> void:
 
 func _build_border() -> void:
 	# Земля чуть приподнята, по краю — камешки.
-	var soil := Placeholder.part(self, Placeholder.box(Vector3(bed_size.x, 0.08, bed_size.y)), SOIL,
-			Vector3(0.0, 0.03, 0.0))
+	# Насыпь с бороздками (своя модель 1 × 1 м, растянутая под клумбу).
+	var soil := Models.place(self, "soil_bed", Vector3.ZERO, 1.0)
+	soil.scale = Vector3(bed_size.x, 1.0, bed_size.y)
 	soil.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(bed_id) + 1

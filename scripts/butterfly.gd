@@ -16,25 +16,24 @@ func _ready() -> void:
 	_phase = randf() * TAU
 	_time = randf() * 10.0
 
+	# Крылья — своя модель (две лопасти, кайма, пятнышки), окрашенная в цвет
+	# бабочки; левое — отражённое правое.
 	var paint := StandardMaterial3D.new()
 	paint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	paint.cull_mode = BaseMaterial3D.CULL_DISABLED
+	paint.vertex_color_use_as_albedo = true
 	paint.albedo_color = color
-	var wing_mesh := QuadMesh.new()
-	wing_mesh.size = Vector2(0.16, 0.2)
 	for side: float in [-1.0, 1.0]:
 		var pivot := Node3D.new()
 		add_child(pivot)
 		var wing := MeshInstance3D.new()
-		wing.mesh = wing_mesh
+		wing.mesh = Models.mesh("butterfly_wing")
 		wing.material_override = paint
 		wing.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		wing.position = Vector3(0.08 * side, 0.0, 0.0)
-		wing.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+		wing.scale = Vector3(side * 1.1, 1.0, 1.1)
 		pivot.add_child(wing)
 		_wings.append(pivot)
-	var body := Placeholder.part(self, Placeholder.capsule(0.018, 0.16), Color(0.25, 0.2, 0.2),
-			Vector3.ZERO, Vector3(90.0, 0.0, 0.0))
+	var body := Models.place(self, "butterfly_body", Vector3.ZERO, 1.0, 0.0, false)
 	body.set_meta("no_bake", true)
 
 

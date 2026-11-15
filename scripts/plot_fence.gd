@@ -22,7 +22,6 @@ const GATE_POST_SCALE := 1.35
 const SIGN_SCALE := 2.5
 const GATE_OPEN_ANGLE := 1.9
 const ARROW_HEIGHT := 2.6
-const ARROW_COLOR := Color(1.0, 0.80, 0.25)
 
 var _half := Vector2.ZERO
 var _gate: Node3D
@@ -110,11 +109,7 @@ func show_guide_arrow(plot: Plot) -> void:
 	_arrow.name = "GuideArrow"
 	add_child(_arrow)
 	_arrow.global_position = get_gate_position() + Vector3.UP * ARROW_HEIGHT
-	for arrow_part in [
-		Placeholder.part(_arrow, Placeholder.cylinder(0.0, 0.7, 0.45), ARROW_COLOR, Vector3.ZERO),
-		Placeholder.part(_arrow, Placeholder.cylinder(0.17, 0.6), ARROW_COLOR, Vector3(0.0, 0.62, 0.0)),
-	]:
-		arrow_part.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	Models.place(_arrow, "guide_arrow", Vector3(0.0, -0.35, 0.0), 1.1, 0.0, false)
 	Placeholder.bake_tree(_arrow)
 	_arrow.scale = Vector3.ONE * 0.01
 	var grow := _arrow.create_tween()

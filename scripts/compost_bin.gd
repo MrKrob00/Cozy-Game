@@ -3,7 +3,6 @@ extends Interactable
 ## Компостный ящик: сюда высыпают полный мешок.
 ## Над ящиком появляется стрелка, когда мешок заполнен.
 
-const ARROW := Color(1.0, 0.80, 0.25)
 const SIZE := Vector3(1.3, 0.9, 1.1)
 const ARROW_HEIGHT := 2.3
 const CLUMP := Color(0.55, 0.78, 0.30)
@@ -83,11 +82,7 @@ func _build_visuals() -> void:
 	_arrow.position = Vector3(0.0, ARROW_HEIGHT, 0.0)
 	add_child(_arrow)
 	# Стрелка вертится и качается: тени не отбрасывает, чтобы не перерисовывать тени.
-	for arrow_part in [
-		Placeholder.part(_arrow, Placeholder.cylinder(0.0, 0.6, 0.4), ARROW, Vector3(0.0, 0.0, 0.0)),
-		Placeholder.part(_arrow, Placeholder.cylinder(0.15, 0.5), ARROW, Vector3(0.0, 0.52, 0.0)),
-	]:
-		arrow_part.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	Models.place(_arrow, "guide_arrow", Vector3(0.0, -0.3, 0.0), 0.95, 0.0, false)
 
 	_burst = CPUParticles3D.new()
 	_burst.position = Vector3(0.0, 1.0, 0.0)

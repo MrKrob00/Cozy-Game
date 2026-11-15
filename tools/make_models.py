@@ -743,6 +743,199 @@ def pebble():
     return mesh
 
 
+# --- Вместо последних примитивов: стрелка, яблоко, вода, мох, листья, бабочка, земля клумбы ---
+
+ARROW_GOLD = (1.0, 0.80, 0.25)
+ARROW_EDGE = (0.86, 0.56, 0.16)
+ARROW_SHINE = (1.0, 0.95, 0.70)
+APPLE = (0.90, 0.24, 0.22)
+APPLE_SHINE = (1.0, 0.55, 0.45)
+STEM = (0.40, 0.26, 0.16)
+LEAF = (0.36, 0.66, 0.28)
+WATER_DEEP = (0.30, 0.56, 0.78)
+WATER_MID = (0.40, 0.68, 0.86)
+WATER_SHALLOW = (0.56, 0.80, 0.90)
+WATER_FOAM = (0.86, 0.95, 1.0)
+MOSS = (0.36, 0.50, 0.30)
+MOSS_LIGHT = (0.48, 0.62, 0.34)
+DRY_LEAVES = [(0.72, 0.52, 0.26), (0.62, 0.44, 0.24), (0.76, 0.62, 0.30), (0.56, 0.60, 0.28)]
+SOIL_DARK = (0.38, 0.27, 0.19)
+SOIL_LIGHT = (0.52, 0.39, 0.28)
+LILY_PINK = (1.0, 0.68, 0.80)
+LILY_WHITE = (1.0, 0.92, 0.95)
+
+
+def guide_arrow():
+    """Стрелка-подсказка остриём вниз: круглое древко, наконечник с тёмной
+    кромкой и светлым бликом. Начало координат — у острия."""
+    mesh = Mesh()
+    # Наконечник: конус с чуть скруглённым верхним краем.
+    lathe(mesh, [(0.0, 0.0), (0.03, 0.02), (0.42, 0.5), (0.44, 0.53), (0.42, 0.56), (0.0, 0.56)], (0, 0, 0),
+          ARROW_GOLD, segments=12)
+    lathe(mesh, [(0.4, 0.5), (0.445, 0.525), (0.44, 0.55), (0.4, 0.56)], (0, 0, 0), ARROW_EDGE, segments=12)
+    # Древко со скруглённым торцом.
+    lathe(mesh, [(0.0, 0.55), (0.17, 0.55), (0.17, 1.0), (0.14, 1.06), (0.0, 1.08)], (0, 0, 0), ARROW_GOLD,
+          segments=10)
+    # Блики — узкие светлые полоски сбоку.
+    box(mesh, (0.05, 0.38, 0.03), (0.0, 0.8, -0.165), ARROW_SHINE, bevel=0.01)
+    mesh.add([(0.0, 0.08, -0.06), (-0.04, 0.45, -0.36), (0.04, 0.45, -0.36)], [[0, 1, 2]], ARROW_SHINE,
+             smooth=False, outward_from=(0.0, 0.3, 0.0))
+    return mesh
+
+
+def apple():
+    """Яблоко с хвостиком и листиком. Начало координат — в середине."""
+    mesh = Mesh()
+    profile = [(0.0, -0.1), (0.07, -0.095), (0.11, -0.05), (0.12, 0.02), (0.1, 0.075), (0.05, 0.09), (0.0, 0.07)]
+    lathe(mesh, profile, (0, 0, 0), APPLE, segments=9)
+    ball(mesh, (0.03, 0.03, 0.03), (0.06, 0.04, -0.07), APPLE_SHINE, segments=5, rings=3)
+    tube(mesh, [(0, 0.06, 0), (0.01, 0.12, 0), (0.025, 0.15, 0)], 0.012, STEM, segments=4, smooth=False)
+    mesh.add([(0.02, 0.13, 0.0), (0.09, 0.16, 0.03), (0.11, 0.13, 0.0), (0.07, 0.12, -0.02)], [[0, 1, 2, 3]], LEAF,
+             smooth=False, outward_from=(0.06, 0.0, 0.0))
+    mesh.add([(0.02, 0.13, 0.0), (0.07, 0.12, -0.02), (0.11, 0.13, 0.0), (0.09, 0.16, 0.03)], [[0, 1, 2, 3]], LEAF,
+             smooth=False, outward_from=(0.06, 0.3, 0.0))
+    return mesh
+
+
+def water_disc(rings_colors, segments=28, wobble=0.0, seed=0.0):
+    """Вода: круглая плоскость радиусом 1 с кольцами цвета от края к середине
+    (у берега мельче и светлее). Толщина 0,04, верх на y = 0."""
+    mesh = Mesh()
+    radii = [1.0, 0.9, 0.7, 0.4, 0.0]
+    vertices, colors = [], []
+    for ring, radius in enumerate(radii):
+        for k in range(segments):
+            angle = 2 * math.pi * k / segments
+            r = radius * (1.0 + wobble * math.sin(angle * 3 + seed) * (1 if radius > 0.95 else 0.4))
+            vertices.append(np.array([math.cos(angle) * r, 0.0, math.sin(angle) * r]))
+    for ring in range(len(radii) - 1):
+        color = rings_colors[ring]
+        for k in range(segments):
+            j = (k + 1) % segments
+            a, b = ring * segments + k, ring * segments + j
+            c, d = (ring + 1) * segments + j, (ring + 1) * segments + k
+            part = Mesh()
+            part.vertices = [vertices[a], vertices[b], vertices[c], vertices[d]]
+            part.faces = [(0, 2, 1, color, True), (0, 3, 2, color, True)]
+            mesh.merge(part)
+    # Бортик: короткая стенка вниз, чтобы вода не была листом бумаги.
+    for k in range(segments):
+        j = (k + 1) % segments
+        a, b = vertices[k], vertices[j]
+        part = Mesh()
+        part.vertices = [a, b, b + np.array([0, -0.04, 0]), a + np.array([0, -0.04, 0])]
+        part.faces = [(0, 1, 2, rings_colors[0], False), (0, 2, 3, rings_colors[0], False)]
+        mesh.merge(part)
+    # Блики: несколько светлых полосок на воде.
+    for i, (x, z, length) in enumerate([(-0.3, -0.35, 0.3), (0.25, 0.1, 0.22), (-0.05, 0.45, 0.18)]):
+        box(mesh, (length, 0.004, 0.03), (x, 0.003, z), WATER_FOAM, bevel=0.0, smooth=False)
+    return mesh
+
+
+def moss_disc():
+    """Мох в сухой чаше: неровный диск радиусом около 1, в два тона, с кочками."""
+    mesh = water_disc([MOSS, MOSS_LIGHT, MOSS, MOSS_LIGHT], segments=20, wobble=0.04, seed=1.3)
+    mesh.faces = [f for f in mesh.faces if f[3] != WATER_FOAM]
+    for x, z, size in [(0.4, 0.2, 0.18), (-0.3, -0.4, 0.14), (-0.5, 0.35, 0.16), (0.15, -0.6, 0.12)]:
+        ball(mesh, (size, size * 0.45, size), (x, 0.0, z), MOSS_LIGHT, segments=7, rings=3)
+    return mesh
+
+
+def dry_leaf(variant):
+    """Палый лист: заострённый, с прожилкой, чуть выгнут."""
+    mesh = Mesh()
+    color = DRY_LEAVES[variant % len(DRY_LEAVES)]
+    outline = [(0.0, -0.11), (0.05, -0.05), (0.06, 0.02), (0.035, 0.08), (0.0, 0.11), (-0.035, 0.08), (-0.06, 0.02),
+               (-0.05, -0.05)]
+    vertices = [np.array([x, 0.012 * (1 - (2 * z / 0.22) ** 2) + 0.006, z]) for x, z in outline]
+    vertices.append(np.array([0.0, 0.02, 0.0]))
+    center = len(vertices) - 1
+    faces = [[i, (i + 1) % len(outline), center] for i in range(len(outline))]
+    mesh.add(vertices, faces, color, smooth=False, outward_from=(0, -1, 0))
+    box(mesh, (0.008, 0.004, 0.2), (0, 0.022, 0), tuple(c * 0.8 for c in color), bevel=0.0, smooth=False)
+    return mesh
+
+
+def water_jet():
+    """Струя фонтана: светлая колонна, сужается кверху, с «шапкой» брызг.
+    Начало координат — у основания."""
+    mesh = Mesh()
+    lathe(mesh, [(0.0, 0.0), (0.09, 0.0), (0.06, 0.35), (0.045, 0.7), (0.0, 0.72)], (0, 0, 0), WATER_SHALLOW,
+          segments=8)
+    for i, angle in enumerate(np.linspace(0, 2 * math.pi, 7)[:-1]):
+        direction = np.array([math.cos(angle), 0.0, math.sin(angle)])
+        tube(mesh, [(0, 0.7, 0), tuple(direction * 0.18 + np.array([0, 0.78, 0])),
+                    tuple(direction * 0.3 + np.array([0, 0.62, 0]))], 0.03, WATER_FOAM, segments=5)
+    ball(mesh, 0.07, (0, 0.74, 0), WATER_FOAM, segments=7, rings=4)
+    return mesh
+
+
+def lily_flower():
+    """Цветок кувшинки на воде: два ряда лепестков и жёлтая серединка."""
+    mesh = Mesh()
+    for row, (count, length, rise, color) in enumerate([(8, 0.12, 0.03, LILY_PINK), (6, 0.08, 0.06, LILY_WHITE)]):
+        for k in range(count):
+            angle = 2 * math.pi * (k + 0.5 * row) / count
+            d = np.array([math.cos(angle), 0.0, math.sin(angle)])
+            side = np.array([-d[2], 0.0, d[0]])
+            base = np.array([0.0, 0.02 + 0.01 * row, 0.0])
+            mesh.add([base + side * 0.025, base + d * length * 0.6 + side * 0.04 + np.array([0, rise * 0.6, 0]),
+                      base + d * length + np.array([0, rise, 0]),
+                      base + d * length * 0.6 - side * 0.04 + np.array([0, rise * 0.6, 0]), base - side * 0.025],
+                     [[0, 1, 2, 3, 4]], color, smooth=False, outward_from=base - np.array([0, 0.2, 0]))
+    ball(mesh, (0.03, 0.02, 0.03), (0, 0.05, 0), FLOWER_HEART, segments=6, rings=3)
+    return mesh
+
+
+def butterfly_wing():
+    """Крыло бабочки (правое, вдоль +X): две округлые лопасти, кайма потемнее
+    и светлые пятнышки. Цвет даёт игра (цвет бабочки × цвет вершин), так что
+    кайма — тёмный оттенок того же цвета."""
+    mesh = Mesh()
+    for lobe, (cx, cz, rx, rz) in enumerate([(0.075, -0.035, 0.075, 0.06), (0.06, 0.045, 0.055, 0.045)]):
+        ring = []
+        for k in range(10):
+            angle = 2 * math.pi * k / 10
+            ring.append(np.array([cx + math.cos(angle) * rx, 0.0, cz + math.sin(angle) * rz]))
+        inner = [np.array([cx, 0.0, cz]) + (v - np.array([cx, 0.0, cz])) * 0.78 for v in ring]
+        center = np.array([cx, 0.0, cz])
+        for k in range(10):
+            j = (k + 1) % 10
+            for verts, color in (([inner[k], inner[j], center], (1.0, 1.0, 1.0)),
+                                 ([ring[k], ring[j], inner[j], inner[k]], (0.5, 0.42, 0.42))):
+                for face_up in (True, False):
+                    order = list(range(len(verts))) if face_up else list(reversed(range(len(verts))))
+                    mesh.add(verts, [order], color, smooth=False)
+        ball(mesh, (0.016, 0.004, 0.016), (cx + rx * 0.3, 0.003, cz), (1.0, 0.97, 0.85), segments=6, rings=2,
+             smooth=False)
+        ball(mesh, (0.016, 0.004, 0.016), (cx + rx * 0.3, -0.003, cz), (1.0, 0.97, 0.85), segments=6, rings=2,
+             smooth=False)
+    return mesh
+
+
+def butterfly_body():
+    """Тельце бабочки вдоль Z (голова к −Z) с усиками."""
+    mesh = Mesh()
+    lathe(mesh, [(0.0, -0.08), (0.016, -0.06), (0.02, 0.0), (0.014, 0.06), (0.0, 0.08)], (0, 0, 0), (0.25, 0.2, 0.2),
+          segments=6, axis="z")
+    ball(mesh, 0.022, (0, 0.005, -0.085), (0.25, 0.2, 0.2), segments=6, rings=3)
+    for side in (-1, 1):
+        tube(mesh, [(side * 0.008, 0.015, -0.1), (side * 0.03, 0.05, -0.14), (side * 0.045, 0.06, -0.16)], 0.004,
+             (0.2, 0.16, 0.16), segments=3, smooth=False)
+    return mesh
+
+
+def soil_bed():
+    """Земля клумбы: невысокая насыпь 1 × 1 м с бороздками (игра растягивает её
+    под размер клумбы)."""
+    mesh = Mesh()
+    box(mesh, (1.0, 0.07, 1.0), (0, 0.035, 0), SOIL_DARK, bevel=0.03)
+    for i in range(4):
+        x = -0.36 + i * 0.24
+        box(mesh, (0.13, 0.03, 0.9), (x, 0.08, 0), SOIL_LIGHT, bevel=0.012)
+    return mesh
+
+
 if __name__ == "__main__":
     for level, (width, paint) in enumerate(DECKS):
         write(deck(width, paint), f"mower_deck_{level}")
@@ -771,3 +964,14 @@ if __name__ == "__main__":
         write(tuft(variant), f"tuft_{variant}", sway_from="all", sway=1.0)
     for variant in range(4):
         write(wild_flower(variant), f"wild_flower_{variant}", sway_from="all", sway=0.8)
+    write(guide_arrow(), "guide_arrow")
+    write(apple(), "apple")
+    write(water_disc([WATER_SHALLOW, WATER_MID, WATER_MID, WATER_DEEP]), "water_disc", smooth_angle=10.0)
+    write(moss_disc(), "moss_disc")
+    for variant in range(4):
+        write(dry_leaf(variant), f"dry_leaf_{variant}")
+    write(water_jet(), "water_jet")
+    write(lily_flower(), "lily_flower")
+    write(butterfly_wing(), "butterfly_wing")
+    write(butterfly_body(), "butterfly_body")
+    write(soil_bed(), "soil_bed")
