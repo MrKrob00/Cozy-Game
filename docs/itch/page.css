@@ -1,0 +1,147 @@
+/* Cozy Grass Cut — itch.io page (Edit theme → CSS).
+   Colours from the game's HUD: cream panels, ink text, grass-green buttons.
+   Everything is inside #wrapper, as itch.io asks; the footer is left alone. */
+
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap');
+
+#wrapper {
+  --itchio_link_color: #3f7f33;
+  --itchio_button_color: #61a34d;
+  --itchio_button_fg_color: #ffffff;
+  --itchio_button_hover_color: #6db358;
+  --itchio_button_active_color: #4a8540;
+  --itchio_button_shadow_color: #3d6e33;
+  --itchio_button_border_color: #4a8540;
+  --itchio_border_color: #e8d9b5;
+  --itchio_border_radius: 14px;
+
+  /* A freshly mowed lawn: wide light and dark stripes. */
+  background-color: #7cb65a;
+  background-image: repeating-linear-gradient(90deg,
+      rgba(255, 255, 255, 0.08) 0 90px,
+      rgba(0, 0, 0, 0.05) 90px 180px);
+  color: #45382b;
+  font-family: 'Nunito', 'Segoe UI', Roboto, sans-serif;
+}
+
+/* The page: a cream card on the lawn. */
+#wrapper #inner_column {
+  background-color: #fff6dc;
+  border-radius: 24px;
+  box-shadow: 0 10px 0 rgba(61, 110, 51, 0.55), 0 18px 40px rgba(40, 60, 30, 0.35);
+  overflow: hidden;
+  margin-top: 32px;
+  margin-bottom: 40px;
+}
+
+#wrapper .header img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Description. */
+#wrapper .formatted_description {
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+#wrapper .formatted_description h1,
+#wrapper .formatted_description h2,
+#wrapper .formatted_description h3 {
+  font-family: 'Nunito', 'Segoe UI', Roboto, sans-serif;
+  font-weight: 800;
+  color: #3f7f33;
+  margin-top: 1.4em;
+}
+
+#wrapper .formatted_description h2::before {
+  content: "";
+  display: inline-block;
+  width: 0.55em;
+  height: 0.55em;
+  margin-right: 0.45em;
+  border-radius: 50%;
+  background-color: #f2a33a;
+  vertical-align: 0.08em;
+}
+
+#wrapper .formatted_description strong {
+  color: #2f5f27;
+}
+
+#wrapper .formatted_description ul {
+  padding-left: 1.2em;
+}
+
+#wrapper .formatted_description li {
+  margin: 0.35em 0;
+}
+
+#wrapper .formatted_description li::marker {
+  color: #61a34d;
+}
+
+#wrapper .formatted_description img {
+  border-radius: 14px;
+  max-width: 100%;
+  height: auto;
+}
+
+#wrapper .formatted_description hr {
+  border: 0;
+  height: 6px;
+  border-radius: 3px;
+  background: repeating-linear-gradient(90deg, #8cc66a 0 24px, #6fae52 24px 48px);
+}
+
+/* Screenshots column. */
+#wrapper .right_col img {
+  border-radius: 14px;
+  box-shadow: 0 4px 0 rgba(61, 110, 51, 0.35);
+  transition: transform 0.15s ease;
+}
+
+#wrapper .right_col a:hover img,
+#wrapper .right_col a:focus-visible img {
+  transform: translateY(-3px);
+}
+
+/* Buttons: rounded and springy, like the game's. */
+#wrapper .button {
+  border-radius: 999px;
+  font-family: 'Nunito', 'Segoe UI', Roboto, sans-serif;
+  font-weight: 800;
+  box-shadow: 0 4px 0 var(--itchio_button_shadow_color);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+#wrapper .button:hover {
+  transform: translateY(-1px);
+}
+
+#wrapper .button:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--itchio_button_shadow_color);
+}
+
+/* Phones: the card fills the screen. */
+@media (max-width: 960px) {
+  #wrapper #inner_column {
+    border-radius: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    box-shadow: none;
+  }
+
+  #wrapper .formatted_description {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #wrapper .button,
+  #wrapper .right_col img {
+    transition: none;
+  }
+}
