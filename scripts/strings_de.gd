@@ -180,4 +180,5 @@ const MESSAGES := {
 	"В траве клевер-четырёхлистник! Скосите его, пока не завял": "Ein vierblättriges Kleeblatt im Gras! Mäh es, bevor es welkt",
 	"Четырёхлистник — на удачу! +%d монет": "Ein Glücksklee! +%d Münzen",
 	"Бюро находок открыто! Несите сюда вещи, найденные в траве, — хозяева отблагодарят монетами": "Das Fundbüro hat geöffnet! Bring her, was du im Gras findest — die Besitzer danken dir mit Münzen",
+	"Что-то потерялось: %s": "Etwas verloren: %s",
 }

@@ -213,4 +213,5 @@ const MESSAGES := {
 	"В траве клевер-четырёхлистник! Скосите его, пока не завял": "A four-leaf clover in the grass! Mow it before it wilts",
 	"Четырёхлистник — на удачу! +%d монет": "A four-leaf clover — good luck! +%d coins",
 	"Бюро находок открыто! Несите сюда вещи, найденные в траве, — хозяева отблагодарят монетами": "The Lost & Found is open! Bring the things you find in the grass here — their owners will thank you with coins",
+	"Что-то потерялось: %s": "Something lost: %s",
 }

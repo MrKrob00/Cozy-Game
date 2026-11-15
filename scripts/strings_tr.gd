@@ -180,4 +180,5 @@ const MESSAGES := {
 	"В траве клевер-четырёхлистник! Скосите его, пока не завял": "Çimende dört yapraklı yonca var! Solmadan biç",
 	"Четырёхлистник — на удачу! +%d монет": "Uğurlu yonca! +%d altın",
 	"Бюро находок открыто! Несите сюда вещи, найденные в траве, — хозяева отблагодарят монетами": "Kayıp eşya bürosu açıldı! Çimenlerde bulduklarını buraya getir — sahipleri altınla teşekkür edecek",
+	"Что-то потерялось: %s": "Kayıp bir şey: %s",
 }

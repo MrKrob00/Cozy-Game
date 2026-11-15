@@ -196,7 +196,15 @@ func _run() -> void:
 	check(paused and hud.get_node("%WorkshopPanel").visible and hud.get_node("%WorkshopTitle").text == "Бюро находок", "bureau window opens")
 	var returnable := get_nodes_in_group("find").filter(func(f): return f.can_return()).size()
 	print("returnable finds: ", returnable)
-	check(returnable == 5 and hud.get_node("%WorkshopRows").get_child_count() == 5, "bureau lists five owned finds")
+	var owned := get_nodes_in_group("find").filter(func(f): return f.owner_name != "").size()
+	var rows: Array = hud.get_node("%WorkshopRows").get_children()
+	var with_button := rows.map(func(r): return r.get_children().any(func(c): return c is Button))
+	check(returnable == 5 and rows.size() == owned, "the bureau lists every owned find, found or not (%d)" % rows.size())
+	check(with_button.slice(0, 5).all(func(b): return b) and not with_button.slice(5).any(func(b): return b),
+			"the ones to return come first, then the ones not found yet")
+	var scroll: ScrollContainer = hud.get_node("%WorkshopScroll")
+	check(scroll.custom_minimum_size.y > 0.0 and scroll.custom_minimum_size.y <= hud.get_node("Root").size.y - 400.0,
+			"a long list scrolls inside a window that fits the screen")
 	coins = gs.coins
 	glasses.give_back()
 	check(glasses.is_returned() and not glasses.can_return() and gs.coins == coins + 25, "returning glasses pays 25 coins")

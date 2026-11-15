@@ -14,6 +14,9 @@ const MAX_WAITING_TOASTS := 2
 const COMPLETION_DELAY := 1.8
 ## Сколько секунд камера показывает открывшееся место (мастерская, бюро).
 const PLACE_HOLD := 3.2
+## Сколько высоты экрана (в единицах интерфейса) оставить окну мастерской
+## и бюро под заголовок, монеты и кнопку «Закрыть»; остальное — списку.
+const SCROLL_RESERVE := 460.0
 ## Сколько летят значки награды до счётчика, секунд.
 const FLIGHT_TIME := 0.85
 ## Значок каждого улучшения в мастерской.
@@ -69,6 +72,7 @@ var _compost_icon: HudIcon
 @onready var _workshop_title: Label = %WorkshopTitle
 @onready var _workshop_coins: Label = %WorkshopCoins
 @onready var _workshop_rows: VBoxContainer = %WorkshopRows
+@onready var _workshop_scroll: ScrollContainer = %WorkshopScroll
 @onready var _workshop_close: Button = %WorkshopClose
 @onready var _night: ColorRect = %Night
 @onready var _night_label: Label = %NightLabel
@@ -1100,17 +1104,19 @@ func _on_festival_started(announce: bool, village: Village) -> void:
 
 # Строки бюро находок: найденные вещи, у которых есть владелец.
 func _fill_bureau() -> void:
-	for child in _workshop_rows.get_children():
-		child.queue_free()
+	_clear_rows()
 	_workshop_title.text = "Бюро находок"
 	var finds := get_tree().get_nodes_in_group("find")
 	var found := finds.filter(func(find: FindItem) -> bool: return find.is_collected()).size()
 	_workshop_coins.text = L.t("Найдено вещей: %d из %d · Монеты: %d") % [found, finds.size(), GameState.coins]
-	var listed := 0
-	for find: FindItem in finds:
-		if find.owner_name == "" or not find.is_collected():
-			continue
-		listed += 1
+	# Сверху то, что можно вернуть сейчас, потом ещё не найденное, внизу возвращённое.
+	var owned := finds.filter(func(find: FindItem) -> bool: return find.owner_name != "")
+	var order := func(find: FindItem) -> int:
+		if find.can_return():
+			return 0
+		return 1 if not find.is_collected() else 2
+	owned.sort_custom(func(a: FindItem, b: FindItem) -> bool: return order.call(a) < order.call(b))
+	for find: FindItem in owned:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 28)
 		_workshop_rows.add_child(row)
@@ -1118,20 +1124,27 @@ func _fill_bureau() -> void:
 		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(text)
 		var title := Label.new()
-		var find_name := L.t(find.display_name)
-		title.text = find_name.left(1).to_upper() + find_name.substr(1)
 		text.add_child(title)
 		var about := Label.new()
 		about.add_theme_font_size_override("font_size", 28)
 		about.modulate.a = 0.7
 		about.text = L.t("Владелец: %s") % L.t(find.owner_name)
 		text.add_child(about)
+		if not find.is_collected():
+			# Ещё не найдено: что именно — секрет, известно только, где искать.
+			var plot := Plot.of(find)
+			title.text = L.t("Что-то потерялось: %s") % (L.t(plot.plot_name) if plot else "?")
+			row.modulate.a = 0.6
+			continue
+		var find_name := L.t(find.display_name)
+		title.text = find_name.left(1).to_upper() + find_name.substr(1)
 		if find.is_returned():
 			var done := Label.new()
 			done.text = "Возвращено"
 			done.add_theme_color_override("font_color", GREEN_DARK)
 			done.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			row.add_child(done)
+			row.modulate.a = 0.75
 			continue
 		var give := Button.new()
 		give.text = L.t("Вернуть · +%d") % find.return_reward
@@ -1140,12 +1153,29 @@ func _fill_bureau() -> void:
 		give.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		give.pressed.connect(_on_return_pressed.bind(find))
 		row.add_child(give)
-	if listed == 0:
+	if owned.is_empty():
 		var empty := Label.new()
 		empty.text = "Пока нечего возвращать. Чужие вещи прячутся в траве"
 		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		empty.modulate.a = 0.7
 		_workshop_rows.add_child(empty)
+	_fit_scroll.call_deferred()
+
+
+# Старые строки убираются сразу (а не в конце кадра): иначе высота списка
+# считалась бы вместе с ними.
+func _clear_rows() -> void:
+	for child in _workshop_rows.get_children():
+		_workshop_rows.remove_child(child)
+		child.queue_free()
+	_workshop_scroll.scroll_vertical = 0
+
+
+# Окно не выше экрана: длинный список прокручивается (колесо мыши, полоса
+# справа, перетаскивание пальцем).
+func _fit_scroll() -> void:
+	var limit := maxf(_root.size.y - SCROLL_RESERVE, 240.0)
+	_workshop_scroll.custom_minimum_size.y = minf(_workshop_rows.get_combined_minimum_size().y, limit)
 
 
 func _on_return_pressed(find: FindItem) -> void:
@@ -1175,8 +1205,7 @@ func _icon_before(label: Control, kind: HudIcon.Kind, side: float) -> HudIcon:
 
 
 func _fill_workshop() -> void:
-	for child in _workshop_rows.get_children():
-		child.queue_free()
+	_clear_rows()
 	_workshop_title.text = "Мастерская"
 	_workshop_coins.text = L.t("Монеты: %d") % GameState.coins
 	for id: String in GameState.UPGRADES:
@@ -1227,6 +1256,7 @@ func _fill_workshop() -> void:
 		buy.modulate.a = 1.0 if GameState.coins >= cost else 0.5
 		buy.pressed.connect(_on_buy_pressed.bind(id, buy))
 		row.add_child(buy)
+	_fit_scroll.call_deferred()
 
 
 func _on_buy_pressed(id: String, button: Button) -> void:
@@ -1329,6 +1359,15 @@ func _build_theme() -> Theme:
 			ui.set_stylebox(state, variation, button)
 		for color_name: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 			ui.set_color(color_name, variation, INK if off else Color.WHITE)
+
+	# Полоса прокрутки (бюро находок): широкая, за неё удобно тянуть пальцем.
+	var track := _box(Color(0.0, 0.0, 0.0, 0.08), 10)
+	track.content_margin_left = 10
+	track.content_margin_right = 10
+	ui.set_stylebox("scroll", "VScrollBar", track)
+	ui.set_stylebox("scroll_focus", "VScrollBar", track)
+	for state: String in ["grabber", "grabber_highlight", "grabber_pressed"]:
+		ui.set_stylebox(state, "VScrollBar", _box(GREEN_DARK if state == "grabber_pressed" else GREEN, 10))
 
 	ui.set_stylebox("background", "ProgressBar", _box(Color(0.0, 0.0, 0.0, 0.14), 12))
 	ui.set_stylebox("fill", "ProgressBar", _box(GREEN, 12))
