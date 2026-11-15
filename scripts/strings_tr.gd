@@ -175,4 +175,6 @@ const MESSAGES := {
 	"Ох, ноги уже не те. Посижу, посмотрю, как ты косишь.": "Ah, bacaklar eskisi gibi değil. Oturup biçişini izleyeyim.",
 	"Пять минут без писем… Красота!": "Mektupsuz beş dakika… Harika!",
 	"У двери дома можно лечь спать: наступит новый день, и на участках подрастёт трава — её можно подстричь снова": "Evin kapısında uyuyabilirsin: yeni bir gün başlar ve çimler biraz uzar, böylece onları yeniden biçebilirsin",
+	"Страница игры на itch.io": "itch.io'daki oyun sayfası",
+	"Нравится игра? Поставьте ей пять звёзд": "Oyunu sevdin mi? Ona beş yıldız ver",
 }

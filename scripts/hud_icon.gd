@@ -7,7 +7,7 @@ extends Control
 
 enum Kind { COIN, COMPOST, BAG, BLADE, MOTOR, LEVELS,
 	# Значки кнопок: рисуются одним цветом (tint) поверх кнопки.
-	PAUSE, PLAY, CAMERA, SOUND, MUSIC, GRAPHICS, FPS, CONTROLS, LANGUAGE, QUIT, CHECK }
+	PAUSE, PLAY, CAMERA, SOUND, MUSIC, GRAPHICS, FPS, CONTROLS, LANGUAGE, QUIT, CHECK, ITCH, STARS }
 
 const INK := Color(0.27, 0.22, 0.17)
 const LEAF := Color(0.42, 0.72, 0.30)
@@ -110,6 +110,10 @@ func _draw() -> void:
 			_quit(c, s)
 		Kind.CHECK:
 			_check(c, s)
+		Kind.ITCH:
+			_itch(c, s)
+		Kind.STARS:
+			_stars()
 	if crossed:
 		draw_line(c + Vector2(-s, -s) * 0.4, c + Vector2(s, s) * 0.4, tint, maxf(s * 0.1, 2.5), true)
 
@@ -256,3 +260,29 @@ func _check(c: Vector2, s: float) -> void:
 	# Галочка: выбранный вариант.
 	draw_polyline(PackedVector2Array([c + Vector2(-0.3, 0.0) * s, c + Vector2(-0.08, 0.24) * s,
 			c + Vector2(0.32, -0.24) * s]), tint, _width(s) * 1.4, true)
+
+
+func _itch(c: Vector2, s: float) -> void:
+	# Витрина itch.io: навес с фестонами, под ним лавка с дверью.
+	var roof := PackedVector2Array([c + Vector2(-0.34, -0.36) * s, c + Vector2(0.34, -0.36) * s,
+			c + Vector2(0.44, -0.12) * s, c + Vector2(-0.44, -0.12) * s])
+	draw_colored_polygon(roof, tint)
+	for k in 4:
+		draw_circle(c + Vector2(-0.33 + 0.22 * k, -0.12) * s, s * 0.11, tint)
+	draw_polyline(PackedVector2Array([c + Vector2(-0.34, 0.0) * s, c + Vector2(-0.34, 0.36) * s,
+			c + Vector2(0.34, 0.36) * s, c + Vector2(0.34, 0.0) * s]), tint, _width(s), true)
+	draw_rect(Rect2(c + Vector2(-0.09, 0.12) * s, Vector2(0.18, 0.24) * s), tint)
+
+
+## Пять звёзд в ряд (просьба оценить игру).
+func _stars() -> void:
+	var r := size.y * 0.5
+	for k in 5:
+		var center := Vector2(r + k * (r * 2.0 + 4.0), r)
+		var points := PackedVector2Array()
+		for i in 10:
+			var angle := -PI * 0.5 + PI * i / 5.0
+			points.append(center + Vector2(cos(angle), sin(angle)) * (r if i % 2 == 0 else r * 0.45))
+		draw_colored_polygon(points, Color(1.0, 0.78, 0.25))
+		points.append(points[0])
+		draw_polyline(points, Color(0.72, 0.48, 0.12), maxf(r * 0.1, 1.5), true)

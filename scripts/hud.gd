@@ -27,6 +27,11 @@ const TYPE_SPEED := 0.028
 const REVEAL_DELAY := 0.7
 ## Где в своей части экрана стоит закреплённый джойстик (доли ширины и высоты).
 const FIXED_STICK_AT := Vector2(0.36, 0.62)
+## Страница игры (кнопка в паузе).
+const ITCH_URL := "https://mrkrob.itch.io/cozy-grass-cut"
+const ITCH_VISITED_FLAG := "itch_visited"
+## Просьба оценить игру — в каждую такую по счёту паузу.
+const RATE_EVERY := 3
 
 @onready var _root: Control = %Root
 @onready var _margin: MarginContainer = %Margin
@@ -67,6 +72,8 @@ var _compost_icon: HudIcon
 @onready var _language_button: Button = %LanguageButton
 @onready var _title_language_button: Button = %TitleLanguageButton
 @onready var _quit_button: Button = %QuitButton
+@onready var _itch_button: Button = %ItchButton
+@onready var _rate_prompt: Control = %RatePrompt
 @onready var _workshop_panel: Control = %WorkshopPanel
 @onready var _workshop_window: PanelContainer = %WorkshopWindow
 @onready var _workshop_title: Label = %WorkshopTitle
@@ -123,6 +130,8 @@ var _setting_icons: Dictionary = {}
 var _language_panel: ColorRect
 ## Сколько показов места ждут своей очереди (окно итогов, другой показ).
 var _pending_shows := 0
+# Сколько раз за этот запуск открывали паузу.
+var _pause_opens := 0
 var _language_window: PanelContainer
 ## Игра идёт (не титульный экран): сенсорное управление включено.
 var _controls_live := true
@@ -216,6 +225,10 @@ func _ready() -> void:
 	_quit_button.pressed.connect(func() -> void:
 		GameState.save_game()
 		get_tree().quit())
+	_itch_button.pressed.connect(func() -> void:
+		GameState.set_flag(ITCH_VISITED_FLAG)
+		_rate_prompt.visible = false
+		OS.shell_open(ITCH_URL))
 	_continue_button.pressed.connect(func() -> void:
 		_completion.visible = false
 		_continue_button.text = "Косить дальше")
@@ -230,7 +243,7 @@ func _ready() -> void:
 	for button: Button in [_action_button, _pause_button, _resume_button, _sound_button,
 			_music_button, _graphics_button, _fps_button, _controls_button, _camera_button,
 			_language_button,
-			_title_language_button, _quit_button, _continue_button,
+			_title_language_button, _quit_button, _itch_button, _continue_button,
 			_workshop_close]:
 		button.pressed.connect(_on_any_button_pressed.bind(button))
 
@@ -855,10 +868,22 @@ func _set_paused(paused: bool) -> void:
 	_pause_panel.visible = paused
 	if not paused:
 		_release_stick()
+	if paused:
+		_pause_opens += 1
+		_rate_prompt.visible = _should_ask_rating()
 	if paused and _plot:
 		_pause_title.text = L.t(_plot.plot_name)
 		_fill_stamps(_pause_stamps, _plot)
 		Juice.pop_in(_pause_window, 0.22)
+
+
+# Просьба оценить игру — иногда: каждую третью паузу, когда хоть один
+# участок уже выкошен (игра понравилась или нет — уже понятно), и пока
+# игрок ни разу не заходил на страницу игры.
+func _should_ask_rating() -> bool:
+	if GameState.has_flag(ITCH_VISITED_FLAG) or _pause_opens % RATE_EVERY != 0:
+		return false
+	return get_tree().get_nodes_in_group("plot").any(func(plot: Plot) -> bool: return plot.is_completed())
 
 
 func _on_any_button_pressed(button: Button) -> void:
@@ -1049,12 +1074,16 @@ func _decorate_buttons() -> void:
 	var kinds := {_sound_button: HudIcon.Kind.SOUND, _music_button: HudIcon.Kind.MUSIC,
 			_graphics_button: HudIcon.Kind.GRAPHICS, _fps_button: HudIcon.Kind.FPS,
 			_controls_button: HudIcon.Kind.CONTROLS, _language_button: HudIcon.Kind.LANGUAGE,
-			_quit_button: HudIcon.Kind.QUIT}
+			_quit_button: HudIcon.Kind.QUIT, _itch_button: HudIcon.Kind.ITCH}
 	for button: Button in kinds:
 		_setting_icons[button] = _icon_on(button, kinds[button], 52.0, false)
 		button.theme_type_variation = &"SettingButton"
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_itch_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var stars := HudIcon.make(HudIcon.Kind.STARS, 34.0)
+	stars.custom_minimum_size = Vector2(34.0 * 5.0 + 16.0, 34.0)
+	_rate_prompt.add_child(stars)
 
 
 # Значок на кнопке: посередине (кнопка без надписи) или слева от надписи.

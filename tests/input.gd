@@ -239,6 +239,36 @@ func _run() -> void:
 	await frames(2)
 	check(not paused and not hud_node.get_node("%PausePanel").visible, "a tap outside the pause window closes it")
 
+	# 3b'''. Кнопка страницы игры на itch.io; просьба оценить — каждую третью
+	# паузу, когда хоть один участок выкошен, и пока на страницу не заходили.
+	var itch: Button = hud_node.get_node("%ItchButton")
+	var rate: Control = hud_node.get_node("%RatePrompt")
+	check(itch.visible and hud_node.ITCH_URL == "https://mrkrob.itch.io/cozy-grass-cut", "the pause has a button to the itch.io page")
+	var asked: Array[bool] = []
+	for i in 3:
+		hud_node.call("_set_paused", true)
+		asked.append(rate.visible)
+		hud_node.call("_set_paused", false)
+	check(not asked.has(true), "no rating request before a plot is mowed")
+	var yard_plot = current_scene.get_node("Yard")
+	var yard_state: Dictionary = yard_plot.get("_state")
+	yard_state["completed"] = true
+	hud_node.set("_pause_opens", 0)
+	asked.clear()
+	for i in 6:
+		hud_node.call("_set_paused", true)
+		asked.append(rate.visible)
+		hud_node.call("_set_paused", false)
+	check(asked == [false, false, true, false, false, true], "the rating request shows in every third pause")
+	game_state.set_flag(hud_node.ITCH_VISITED_FLAG)
+	asked.clear()
+	for i in 3:
+		hud_node.call("_set_paused", true)
+		asked.append(rate.visible)
+		hud_node.call("_set_paused", false)
+	check(not asked.has(true), "no more requests once the page was opened")
+	yard_state["completed"] = false
+
 	# 3c. Разворот: направление за спиной — косилка доворачивает в одну сторону.
 	player.global_position = Vector3(0, 0, 3.0)
 	player.rotation = Vector3.ZERO
