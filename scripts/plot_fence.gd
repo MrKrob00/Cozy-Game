@@ -19,6 +19,8 @@ extends Node3D
 ## увеличена, такой длины секции и нарезаются.
 const FENCE_SCALE := 2.5
 const GATE_POST_SCALE := 1.35
+## Ближе этого (м от камеры) надпись над указателем не показывается.
+const SIGN_HIDE_NEAR := 6.0
 const SIGN_SCALE := 2.5
 const GATE_OPEN_ANGLE := 1.9
 const ARROW_HEIGHT := 2.6
@@ -78,6 +80,11 @@ func _build_signpost(gate_right: float) -> void:
 	_sign_label.outline_modulate = Color(0.33, 0.22, 0.12)
 	_sign_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_sign_label.no_depth_test = true
+	# Вблизи (камера «сзади» проходит рядом) надпись плавно гаснет, иначе
+	# она во весь угол экрана и поверх всего.
+	_sign_label.visibility_range_begin = SIGN_HIDE_NEAR
+	_sign_label.visibility_range_begin_margin = 2.0
+	_sign_label.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	post.add_child(_sign_label)
 	_update_sign(plot)
 	plot.unlocked.connect(_update_sign.bind(plot))
