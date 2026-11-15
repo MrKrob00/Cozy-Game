@@ -536,7 +536,7 @@ layout_mode = 2
 size_flags_horizontal = 4
 focus_mode = 0
 theme_override_font_sizes/font_size = 30
-text = "Language / Язык: Русский"
+text = "Русский"
 
 [node name="TitleCredits" type="Label" parent="Root/TitlePanel"]
 layout_mode = 1

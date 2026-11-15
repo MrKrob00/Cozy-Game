@@ -7,7 +7,7 @@ extends Control
 
 enum Kind { COIN, COMPOST, BAG, GRASS, BLADE, MOTOR, LEVELS,
 	# Значки кнопок: рисуются одним цветом (tint) поверх кнопки.
-	PAUSE, PLAY, CAMERA, SOUND, MUSIC, GRAPHICS, FPS, CONTROLS, LANGUAGE, QUIT }
+	PAUSE, PLAY, CAMERA, SOUND, MUSIC, GRAPHICS, FPS, CONTROLS, LANGUAGE, QUIT, CHECK }
 
 const INK := Color(0.27, 0.22, 0.17)
 const LEAF := Color(0.42, 0.72, 0.30)
@@ -88,6 +88,8 @@ func _draw() -> void:
 			_language(c, s)
 		Kind.QUIT:
 			_quit(c, s)
+		Kind.CHECK:
+			_check(c, s)
 	if crossed:
 		draw_line(c + Vector2(-s, -s) * 0.4, c + Vector2(s, s) * 0.4, tint, maxf(s * 0.1, 2.5), true)
 
@@ -239,3 +241,9 @@ func _quit(c: Vector2, s: float) -> void:
 	draw_line(c + Vector2(-0.14, 0.0) * s, c + Vector2(0.34, 0.0) * s, tint, _width(s), true)
 	draw_colored_polygon(PackedVector2Array([c + Vector2(0.42, 0.0) * s, c + Vector2(0.24, -0.14) * s,
 			c + Vector2(0.24, 0.14) * s]), tint)
+
+
+func _check(c: Vector2, s: float) -> void:
+	# Галочка: выбранный вариант.
+	draw_polyline(PackedVector2Array([c + Vector2(-0.3, 0.0) * s, c + Vector2(-0.08, 0.24) * s,
+			c + Vector2(0.32, -0.24) * s]), tint, _width(s) * 1.4, true)

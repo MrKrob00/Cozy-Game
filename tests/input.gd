@@ -345,7 +345,7 @@ func _run() -> void:
 	var missing: Array[String] = []
 	var sources: Array[String] = []
 	for file in DirAccess.get_files_at("res://scripts"):
-		if file.ends_with(".gd") and file != "strings_en.gd":
+		if file.ends_with(".gd") and not file.begins_with("strings_"):
 			sources.append("res://scripts/" + file)
 	for file in ["hud.tscn", "plots/yard.tscn", "plots/garden.tscn", "plots/square.tscn", "plots/orchard.tscn"]:
 		sources.append("res://scenes/" + file)
@@ -367,6 +367,19 @@ func _run() -> void:
 		if source.count("%") != (strings[source] as String).count("%"):
 			broken.append(source)
 	check(broken.is_empty(), "translations keep the same placeholders %s" % str(broken))
+	# Остальные языки: те же строки, что в английском, и те же подстановки.
+	var incomplete: Array[String] = []
+	for code: String in game_state.LANGUAGES:
+		if code == "ru" or code == "en":
+			continue
+		var messages: Dictionary = load("res://scripts/strings_%s.gd" % code).MESSAGES
+		for source: String in strings:
+			if not messages.has(source):
+				incomplete.append("%s: %s" % [code, source])
+			elif source.count("%") != (messages[source] as String).count("%"):
+				incomplete.append("%s %%: %s" % [code, source])
+	check(incomplete.is_empty() and game_state.LANGUAGES.size() == 10,
+			"all %d languages have every string with the same placeholders %s" % [game_state.LANGUAGES.size(), str(incomplete.slice(0, 5))])
 
 	# 12. Переключение языка: интерфейс, участки и подписи становятся английскими.
 	check(game_state.get_language() == "ru" and translate.t("Играть") == "Играть", "Russian strings are shown as written")
@@ -385,9 +398,23 @@ func _run() -> void:
 	game_state.toast_requested.connect(func(t): english_toasts.append(t))
 	game_state.toast("Мешок полон — отвезите траву в компостный ящик")
 	check(english_toasts == ["The bag is full — take the grass to the compost bin"], "messages are translated where they are shown")
-	english_hud.call("_switch_language")
+	# Окно выбора: все языки сразу, выбранный отмечен; нажатие мимо закрывает.
+	english_hud.call("_open_language_picker")
+	await frames(4)
+	var picker: Control = english_hud.get_node("Root/LanguagePanel")
+	var choices := picker.find_children("Language_*", "Button", true, false)
+	var marked := choices.filter(func(b): return b.theme_type_variation == &"SettingButton")
+	check(picker.visible and choices.size() == 10 and marked.size() == 1 and marked[0].name == "Language_en",
+			"the language window lists every language and marks the current one")
+	touch(0, Vector2(6, 700), true); touch(0, Vector2(6, 700), false)
+	await frames(2)
+	check(not picker.visible and game_state.get_language() == "en", "a tap outside closes the language window")
+	english_hud.call("_choose_language", "uk")
 	await frames(8)
-	check(game_state.get_language() == "ru" and current_scene.get_node("HUD").get_node("%CoinsLabel").text == "Монеты: 0", "the button switches back to Russian and reloads the scene")
+	check(game_state.get_language() == "uk" and current_scene.get_node("HUD").get_node("%CoinsLabel").text == "Монети: 0", "choosing Ukrainian reloads the scene in Ukrainian")
+	current_scene.get_node("HUD").call("_choose_language", "ru")
+	await frames(8)
+	check(game_state.get_language() == "ru" and current_scene.get_node("HUD").get_node("%CoinsLabel").text == "Монеты: 0", "and back to Russian")
 	game_state.language = ""
 
 	game_state.clear()

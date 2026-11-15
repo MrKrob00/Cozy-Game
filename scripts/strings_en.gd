@@ -10,11 +10,11 @@ const MESSAGES := {
 	"Новая игра": "New game",
 	"Стереть прогресс? Нажмите ещё раз": "Erase progress? Press again",
 	"Язык: %s": "Language: %s",
+	"Язык": "Language",
 	# Названия языков и заготовки кнопки языка остаются как есть.
 	"Русский": "Русский",
+	"Українська": "Українська",
 	"Язык: Русский": "Language: English",
-	"Language / Язык: %s": "Language / Язык: %s",
-	"Language / Язык: Русский": "Language / Язык: English",
 	"Музыка: Kevin MacLeod (incompetech.com), CC BY 4.0": "Music: Kevin MacLeod (incompetech.com), CC BY 4.0",
 	"Музыка: Kevin MacLeod (incompetech.com), лицензия CC BY 4.0": "Music: Kevin MacLeod (incompetech.com), licensed under CC BY 4.0",
 

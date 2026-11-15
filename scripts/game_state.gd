@@ -88,21 +88,29 @@ var camera_mode := 0
 var language := ""
 ## Прежнее название игры (и её папки с сохранением на компьютере).
 const OLD_NAME := "Cozy Game"
-const LANGUAGES := {"ru": "Русский", "en": "English"}
-## Языки устройства, при которых игра стартует на русском.
-const RUSSIAN_LOCALES := ["ru", "uk", "be", "kk"]
+## Языки игры: код → название на самом языке (так его найдёт и тот, кто не
+## читает текущий). Русский — исходный, остальные — словари scripts/strings_*.gd.
+const LANGUAGES := {"en": "English", "ru": "Русский", "uk": "Українська", "es": "Español",
+		"pt": "Português (Brasil)", "de": "Deutsch", "fr": "Français", "it": "Italiano", "pl": "Polski",
+		"tr": "Türkçe"}
+## Языки устройства без своего перевода, при которых игра стартует на русском.
+const RUSSIAN_LOCALES := ["be", "kk"]
 const TOUCH_CONTROLS := ["джойстик слева", "джойстик под пальцем", "вести пальцем"]
 const CAMERA_MODES := ["сверху", "сзади"]
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	# Английский перевод; русские строки — исходные, им перевод не нужен.
-	var english := Translation.new()
-	english.locale = "en"
-	for source: String in StringsEn.MESSAGES:
-		english.add_message(source, StringsEn.MESSAGES[source])
-	TranslationServer.add_translation(english)
+	# Переводы; русские строки — исходные, им перевод не нужен.
+	for code: String in LANGUAGES:
+		if code == "ru":
+			continue
+		var messages: Dictionary = load("res://scripts/strings_%s.gd" % code).MESSAGES
+		var translation := Translation.new()
+		translation.locale = code
+		for source: String in messages:
+			translation.add_message(source, messages[source])
+		TranslationServer.add_translation(translation)
 	load_game()
 	apply_language()
 
@@ -285,7 +293,11 @@ func set_show_fps(enabled: bool) -> void:
 func get_language() -> String:
 	if LANGUAGES.has(language):
 		return language
-	return "ru" if OS.get_locale_language() in RUSSIAN_LOCALES else "en"
+	# Первый запуск: язык устройства, если он есть в игре.
+	var device := OS.get_locale_language()
+	if LANGUAGES.has(device):
+		return device
+	return "ru" if device in RUSSIAN_LOCALES else "en"
 
 
 ## Меняет язык. Уже показанные тексты обновятся после перезагрузки сцены

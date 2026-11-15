@@ -113,6 +113,9 @@ var _revealing := false
 var _outside_press: Control
 ## Значки кнопок настроек: меняются вместе с состоянием (выключено — перечёркнут).
 var _setting_icons: Dictionary = {}
+## Окно выбора языка (строится при первом открытии).
+var _language_panel: ColorRect
+var _language_window: PanelContainer
 ## Игра идёт (не титульный экран): сенсорное управление включено.
 var _controls_live := true
 
@@ -199,7 +202,7 @@ func _ready() -> void:
 	_camera_button.pressed.connect(_switch_camera)
 	_decorate_buttons()
 	for button: Button in [_language_button, _title_language_button]:
-		button.pressed.connect(_switch_language)
+		button.pressed.connect(_open_language_picker)
 	# Выбор сенсорной схемы нужен только там, где есть сенсорный экран.
 	_controls_button.visible = _touch
 	_quit_button.pressed.connect(func() -> void:
@@ -328,6 +331,13 @@ func _on_new_game_pressed() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# Окно языка открывается и с титульного экрана: закрывается нажатием мимо и Esc.
+	if _language_panel and _language_panel.visible:
+		if _close_on_outside_tap(event) or event.is_action_pressed("pause"):
+			if _language_panel.visible:
+				_close_language_picker()
+			get_viewport().set_input_as_handled()
+		return
 	if _title_panel.visible:
 		# На титульном экране пауза не открывается.
 		return
@@ -383,7 +393,9 @@ func _close_on_outside_tap(event: InputEvent) -> bool:
 	_outside_press = null
 	if close:
 		Sfx.play("click")
-		if window == _pause_window:
+		if window == _language_window:
+			_close_language_picker()
+		elif window == _pause_window:
 			_set_paused(false)
 		elif window == _workshop_window:
 			close_workshop()
@@ -394,6 +406,8 @@ func _close_on_outside_tap(event: InputEvent) -> bool:
 
 # Окно, которое сейчас открыто поверх игры (титульный экран не в счёт).
 func _open_window_panel() -> Control:
+	if _language_panel and _language_panel.visible:
+		return _language_window
 	if _workshop_panel.visible:
 		return _workshop_window
 	if _pause_panel.visible:
@@ -827,20 +841,92 @@ func _apply_touch_controls() -> void:
 		_player.touch_pad = _touch_pad if scheme == 2 else null
 
 
-# Следующий язык по кругу. Тексты уже построены, поэтому сцена
-# перезагружается: игра сохранена, титульный экран второй раз не показывается.
-func _switch_language() -> void:
-	var codes: Array = GameState.LANGUAGES.keys()
-	GameState.set_language(codes[(codes.find(GameState.get_language()) + 1) % codes.size()])
+# Окно выбора языка: все языки сразу, каждый подписан на самом себе,
+# выбранный — зелёный с галочкой. Открывается с титульного экрана и из паузы.
+func _open_language_picker() -> void:
+	if _language_panel == null:
+		_build_language_picker()
+	_language_panel.visible = true
+	Juice.pop_in(_language_window, 0.22)
+
+
+func _build_language_picker() -> void:
+	_language_panel = ColorRect.new()
+	_language_panel.name = "LanguagePanel"
+	_language_panel.color = Color(0.08, 0.14, 0.09, 0.55)
+	_language_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_root.add_child(_language_panel)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_language_panel.add_child(center)
+	_language_window = PanelContainer.new()
+	center.add_child(_language_window)
+	var rows := VBoxContainer.new()
+	rows.add_theme_constant_override("separation", 18)
+	_language_window.add_child(rows)
+
+	var heading := HBoxContainer.new()
+	heading.alignment = BoxContainer.ALIGNMENT_CENTER
+	heading.add_theme_constant_override("separation", 14)
+	rows.add_child(heading)
+	var globe := HudIcon.make(HudIcon.Kind.LANGUAGE, 56.0)
+	globe.tint = INK
+	heading.add_child(globe)
+	var title := Label.new()
+	title.text = L.t("Язык")
+	title.add_theme_font_size_override("font_size", 48)
+	heading.add_child(title)
+
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 14)
+	grid.add_theme_constant_override("v_separation", 12)
+	rows.add_child(grid)
+	var current := GameState.get_language()
+	for code: String in GameState.LANGUAGES:
+		var button := Button.new()
+		button.name = "Language_" + code
+		button.text = GameState.LANGUAGES[code]
+		button.focus_mode = Control.FOCUS_NONE
+		button.custom_minimum_size = Vector2(440.0, 0.0)
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		var chosen := code == current
+		button.theme_type_variation = &"SettingButton" if chosen else &"SettingButtonOff"
+		if chosen:
+			_icon_on(button, HudIcon.Kind.CHECK, 48.0, false)
+		button.pressed.connect(_choose_language.bind(code))
+		button.pressed.connect(_on_any_button_pressed.bind(button))
+		grid.add_child(button)
+
+	var close := Button.new()
+	close.text = "Закрыть"
+	close.focus_mode = Control.FOCUS_NONE
+	close.pressed.connect(_close_language_picker)
+	close.pressed.connect(_on_any_button_pressed.bind(close))
+	rows.add_child(close)
+
+
+func _close_language_picker() -> void:
+	_language_panel.visible = false
+
+
+# Другой язык: тексты уже построены, поэтому сцена перезагружается; игра
+# сохранена, титульный экран второй раз не показывается.
+func _choose_language(code: String) -> void:
+	if code == GameState.get_language():
+		_close_language_picker()
+		return
+	GameState.set_language(code)
 	get_tree().paused = false
 	get_tree().reload_current_scene()
 
 
 func _update_settings_buttons() -> void:
-	# Кнопка языка подписана на обоих языках: её найдёт и тот, кто не читает текущий.
+	# На титульном экране — значок глобуса и название языка на нём самом:
+	# кнопку найдёт и тот, кто не читает текущий язык.
 	var language_name: String = GameState.LANGUAGES[GameState.get_language()]
 	_language_button.text = L.t("Язык: %s") % language_name
-	_title_language_button.text = "Language / Язык: %s" % language_name
+	_title_language_button.text = language_name
 	_controls_button.text = L.t("Управление: %s") % L.t(GameState.TOUCH_CONTROLS[GameState.touch_controls])
 	_camera_button.tooltip_text = L.t("Камера: %s") % L.t(GameState.CAMERA_MODES[GameState.camera_mode])
 	_sound_button.text = "Звуки: включены" if GameState.sound_enabled else "Звуки: выключены"
@@ -875,6 +961,8 @@ func _decorate_buttons() -> void:
 		_key_hint(_pause_button, "Esc")
 		_key_hint(_camera_button, "C")
 	_icon_on(_resume_button, HudIcon.Kind.PLAY, 60.0, false)
+	_icon_on(_title_language_button, HudIcon.Kind.LANGUAGE, 48.0, false)
+	_title_language_button.theme_type_variation = &"SettingButton"
 	_resume_button.theme_type_variation = &"SettingButton"
 	var kinds := {_sound_button: HudIcon.Kind.SOUND, _music_button: HudIcon.Kind.MUSIC,
 			_graphics_button: HudIcon.Kind.GRAPHICS, _fps_button: HudIcon.Kind.FPS,
