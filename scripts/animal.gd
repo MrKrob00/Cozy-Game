@@ -34,6 +34,11 @@ const RUN_SPEED := {Kind.HEDGEHOG: 1.7, Kind.CAT: 3.2}
 const HOG_STRIDE := 0.13
 const HOG_STEP := 0.07
 const HOG_LIFT := 0.045
+## Ёжик в уголке: косилка ближе этого (м) — он семенит в другое место,
+## как цыплята на газоне (иначе его можно было переехать).
+const HOG_SCARE := 1.5
+## Куда он отбегает: от и до стольких метров.
+const HOG_DASH := Vector2(2.2, 4.0)
 ## Лягушка: время одного прыжка, с.
 const FROG_HOP := 0.45
 ## Лапки ёжика (как HEDGEHOG_FEET в tools/make_models.py), при масштабе модели.
@@ -62,7 +67,11 @@ func _process(delta: float) -> void:
 	_time += delta
 	if not _busy:
 		_model.scale = Vector3.ONE * (1.0 + sin(_time * 2.5) * 0.03)
-	if _moved or _noticed:
+	if _moved:
+		if kind == Kind.HEDGEHOG and not _busy:
+			_dodge_mower()
+		return
+	if _noticed:
 		return
 	var player := get_tree().get_first_node_in_group("player") as Node3D
 	if player and player.global_position.distance_to(global_position) < notice_distance:
@@ -164,6 +173,52 @@ func _arrive() -> void:
 			_feet[i].position = _feet_rest[i]
 	if _figure:
 		_figure.play("idle" if kind == Kind.CAT else "FrogArmature|Frog_Idle", 1.0, 0.2)
+
+
+# Ёжик уже в уголке, а косилка едет прямо на него: семенит в сторону.
+func _dodge_mower() -> void:
+	var player := get_tree().get_first_node_in_group("player") as Player
+	if player == null:
+		return
+	var blade := player.get_blade_position()
+	if Vector2(blade.x - global_position.x, blade.z - global_position.z).length() > HOG_SCARE \
+			and Vector2(player.global_position.x - global_position.x,
+					player.global_position.z - global_position.z).length() > HOG_SCARE:
+		return
+	var to: Variant = _dodge_spot(player.global_position)
+	if to == null:
+		return
+	_busy = true
+	Sfx.play("squeak", -6.0, 1.2)
+	var from := global_position
+	look_at(Vector3(to.x, from.y, to.z), Vector3.UP)
+	var tween := create_tween()
+	tween.tween_method(_travel.bind(from, to, 1), 0.0, 1.0, from.distance_to(to) / RUN_SPEED[kind])
+	tween.tween_callback(_arrive)
+
+
+# Место на участке подальше от косилки: лучше на выкошенном газоне.
+func _dodge_spot(threat: Vector3) -> Variant:
+	var plot := Plot.of(self)
+	if plot == null or plot.field == null:
+		return null
+	var away := global_position - threat
+	away.y = 0.0
+	away = away.normalized() if away.length() > 0.01 else Vector3.FORWARD
+	var best: Variant = null
+	var best_score := -INF
+	for attempt in 16:
+		var direction := away.rotated(Vector3.UP, randf_range(-1.3, 1.3))
+		var spot := global_position + direction * randf_range(HOG_DASH.x, HOG_DASH.y)
+		spot = plot.field.clamp_to_bounds(spot, -0.6)
+		spot.y = global_position.y
+		var score := Vector2(spot.x - threat.x, spot.z - threat.z).length()
+		if plot.field.is_open_lawn(spot):
+			score += 2.0
+		if score > best_score:
+			best_score = score
+			best = spot
+	return best
 
 
 func _hop_in_place() -> void:

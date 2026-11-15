@@ -459,6 +459,12 @@ func gust(seconds: float) -> void:
 	tween.tween_method(_set_wind, WIND_STRENGTH * 3.2, WIND_STRENGTH, seconds * 0.75)
 
 
+## Мокрая трава и газон (дождик): 0 — сухие, 1 — совсем мокрые.
+func set_wetness(amount: float) -> void:
+	_grass_material.set_shader_parameter("wetness", amount)
+	_ground_material.set_shader_parameter("wetness", amount)
+
+
 func _set_wind(strength: float) -> void:
 	_grass_material.set_shader_parameter("wind_strength", strength)
 

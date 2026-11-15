@@ -12,6 +12,8 @@ render_mode unshaded, cull_back, depth_draw_opaque;
 
 uniform vec3 overgrown_color : source_color = vec3(0.14, 0.38, 0.19);
 uniform vec3 bare_color : source_color = vec3(0.66, 0.54, 0.38);
+// Мокрый газон после дождика темнее (0 — сухой).
+uniform float wetness = 0.0;
 
 varying vec2 v_mask_uv;
 varying vec3 v_shade;
@@ -33,8 +35,9 @@ void vertex() {
 	v_shade = shade_coords(world.xz);
 	v_haze = day_haze(distance(world, CAMERA_POSITION_WORLD));
 	v_mottle = lawn_mottle(world.xz);
-	v_light = day_light(vec3(0.0, 1.0, 0.0), 0.0);
-	v_drop = day_shadow(vec3(0.0, 1.0, 0.0)) * shade_strength;
+	float dry = 1.0 - 0.16 * wetness;
+	v_light = day_light(vec3(0.0, 1.0, 0.0), 0.0) * dry;
+	v_drop = day_shadow(vec3(0.0, 1.0, 0.0)) * shade_strength * dry;
 	v_overgrown = day_grade(overgrown_color);
 	v_bare = day_grade(bare_color);
 	v_cut_dark = day_grade(cut_color_dark);

@@ -80,14 +80,19 @@ func _run() -> void:
 	await frames(5)
 	check(village.find_child("PostmanRun", true, false) == null, "a timed event happens once per plot")
 
-	# 3:00 — дождик: пока идёт, компост вдвое.
-	check(events.fire("rain") and events.raining and gs.compost_bonus == 2.0, "the rain doubles compost")
+	# 3:00 — дождик: трава мокнет, минуту после ещё мокрая, потом сохнет.
+	check(events.fire("rain") and events.raining, "a sun shower starts")
+	await frames(300)
+	check(events.wetness == 1.0, "the grass gets wet in the rain")
 	gs.bag_fill = 20.0
 	var gained: int = gs.empty_bag()
-	check(gained == 4, "a bag of 20 under the rain gives 4 compost instead of 2 (%d)" % gained)
+	check(gained == 2, "the rain gives no extra compost (%d)" % gained)
 	events.set("_rain_left", 0.01)
 	await frames(5)
-	check(not events.raining and gs.compost_bonus == 1.0, "the rain stops and compost is normal again")
+	check(not events.raining and events.wetness == 1.0, "the rain stops, the grass stays wet with dew")
+	events.set("_dry_left", 0.5)
+	await frames(40)
+	check(events.wetness == 0.0, "and dries in the end")
 
 	# 5:00 — шар сбрасывает посылку.
 	check(events.fire("balloon") and village.find_child("Balloon", true, false) != null, "a hot air balloon flies over")
@@ -129,6 +134,22 @@ func _run() -> void:
 	events.fire("cat")
 	var gone := await wait_for(func() -> bool: return village.find_child("CatChase", true, false) == null, 900)
 	check(gone, "a cat left alone follows the butterfly away")
+
+	# Ёжик в своём уголке: косилка едет на него — он отбегает в сторону.
+	var hedgehog = null
+	for animal in get_nodes_in_group("animal"):
+		if animal.kind == 0:
+			hedgehog = animal
+	gs.set_flag("animal_" + hedgehog.animal_id)
+	hedgehog.call("_settle_at_home")
+	hedgehog.set("_moved", true)
+	var sat: Vector3 = hedgehog.global_position
+	player.global_position = sat + Vector3(1.0, 0.0, 0.0)
+	await frames(90)
+	var moved_by := Vector2(hedgehog.global_position.x - sat.x, hedgehog.global_position.z - sat.z).length()
+	check(moved_by > 1.5 and hedgehog.global_position.distance_to(player.global_position) > 1.8,
+			"the hedgehog in its corner scurries away from the mower (%.1f m)" % moved_by)
+	check(yard.field.contains(hedgehog.global_position), "and stays on its plot")
 
 	# Птицы и ветер: пролетают и исчезают.
 	check(events.fire("birds") and village.find_child("Birds", true, false) != null, "a flock of birds flies over")

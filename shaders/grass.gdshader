@@ -18,6 +18,9 @@ uniform vec3 color_weed_tip : source_color = vec3(0.66, 0.42, 0.70);
 uniform float stubble = 0.1;
 uniform float wind_strength = 0.07;
 uniform float wind_speed = 1.6;
+// Мокрая трава (дождик и минута после): темнее, кончики блестят, на них
+// перемигиваются капли росы. 0 — сухая.
+uniform float wetness = 0.0;
 uniform vec3 pusher_position;
 uniform float pusher_radius = 1.5;
 
@@ -58,7 +61,12 @@ void vertex() {
 	vec3 grown_color = mix(base, tip, along * mix(1.0, along, weed)) * (0.88 + 0.24 * random);
 	vec3 cut = cut_color(mask.g) * (0.96 + 0.08 * random);
 	vec3 color = mix(cut, grown_color, grown);
+	// Мокрая: темнее и чуть холоднее, кончик блестит.
+	color *= mix(vec3(1.0), vec3(0.8, 0.86, 0.84), wetness);
 	v_color = day_grade(color * day_light(vec3(0.0, 1.0, 0.0), shade_at(root.xz)));
+	v_color += wetness * (0.10 * along * along * along
+			+ 0.9 * step(0.9, along) * pow(max(0.0, sin(TIME * 2.3 + random * 61.0)), 24.0)) * grown
+			* vec3(0.85, 0.95, 1.0);
 	v_color = mix(v_color, haze_color, day_haze(distance(v, CAMERA_POSITION_WORLD)));
 }
 

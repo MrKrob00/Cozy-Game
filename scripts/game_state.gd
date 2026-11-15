@@ -53,8 +53,6 @@ var coins := 0
 var day := 1
 ## Вся трава, отвезённая в компост, в единицах мешка.
 var grass_banked := 0.0
-## Во сколько раз больше компоста даёт трава сейчас (грибной дождик — 2; не сохраняется).
-var compost_bonus := 1.0
 ## Сколько компоста уже потрачено (на клумбы и т. п.).
 var compost_spent := 0
 var bag_fill := 0.0
@@ -151,7 +149,7 @@ func add_grass(units: float) -> void:
 ## Высыпает мешок в компост. Возвращает, сколько компоста прибавилось.
 func empty_bag() -> int:
 	var before := compost
-	grass_banked += bag_fill * compost_bonus
+	grass_banked += bag_fill
 	bag_fill = 0.0
 	bag_changed.emit(bag_fill, bag_capacity)
 	compost_changed.emit(compost)

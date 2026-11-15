@@ -662,7 +662,12 @@ func _on_icon_arrived(icon: RewardIcon, kind: String, aim: Control, index: int) 
 	icon.queue_free()
 	_in_flight[kind] = maxi(_in_flight[kind] - 1, 0)
 	Juice.punch(aim, 0.25, 0.2)
-	Sfx.play("coin" if kind == "coins" else "pop", -14.0, 1.0 + index * 0.06, 0.02)
+	# Монеты звенят; компост — тихий шорох травы, без нарастающего тона
+	# (звонкое «pop» на каждый листик раздражало).
+	if kind == "coins":
+		Sfx.play("coin", -14.0, 1.0 + index * 0.06, 0.02)
+	elif index % 3 == 0:
+		Sfx.play("rustle", -18.0, 1.0, 0.1)
 
 
 func _on_bag_changed(fill: float, capacity: float) -> void:
@@ -703,7 +708,7 @@ func _on_target_changed(target: Interactable) -> void:
 		return
 	_action_button.text = L.t(target.get_prompt()) if _touch else "E — " + L.t(target.get_prompt())
 	Juice.pop_in(_action_button)
-	Sfx.play("pop", -8.0)
+	Sfx.play("pop", -12.0)
 	# Кнопка мягко «дышит», чтобы её заметили.
 	_action_pulse = create_tween().set_loops()
 	_action_pulse.tween_interval(0.35)

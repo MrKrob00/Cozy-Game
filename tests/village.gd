@@ -262,7 +262,7 @@ func _run() -> void:
 	check(birds.size() == 2 and yard.field.is_open_lawn(birds[0].global_position), "birds land on the mowed lawn")
 	check(garden.get("_birds").is_empty(), "and not on an overgrown plot")
 	var sounds = root.get_node("Sfx")
-	check(sounds.call("_variants", "coin").size() == 2 and sounds.call("_variants", "gate").size() == 2 and sounds.call("_variants", "stamp").size() == 3, "coins, the gate and stamps have real recorded sounds")
+	check(sounds.call("_variants", "coin").size() == 2 and sounds.call("_variants", "gate").size() == 1 and sounds.call("_variants", "stamp").size() == 3 and sounds.call("_variants", "rustle").size() == 3, "coins, the gate, stamps and the compost rustle have real recorded sounds")
 	for i in 460:
 		await process_frame
 	check(master.is_present() and master.visible, "master returns after the yard is mowed")

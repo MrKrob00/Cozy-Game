@@ -4,7 +4,7 @@ extends Node3D
 ##
 ## По времени на участке (отсчёт свой у каждого участка, пока он текущий и
 ## не выкошен; каждое — один раз за игру): 1:30 почтальон роняет письмо,
-## 3:00 грибной дождик (компост вдвое), 5:00 воздушный шар сбрасывает
+## 3:00 грибной дождик (трава мокрая, в росе, ещё минуту после), 5:00 воздушный шар сбрасывает
 ## посылку. И раз в 2–3 минуты что-нибудь случайное: клевер-четырёхлистник
 ## в траве, кот гонится за бабочкой, стая птиц, порыв ветра с листьями.
 ## Проигрыша нет: только приятная неожиданность и иногда немного монет.
@@ -18,6 +18,10 @@ const AMBIENT := ["clover", "cat", "birds", "wind"]
 const AMBIENT_GAP := 25.0
 
 const RAIN_TIME := 30.0
+## После дождика трава ещё столько секунд мокрая (последняя треть — сохнет).
+const WET_AFTER := 60.0
+## За сколько секунд трава намокает, когда пошёл дождик.
+const WET_RISE := 4.0
 const CLOVER_TIME := 30.0
 const CLOVER_COINS := 10
 const LETTER_COINS := 15
@@ -25,8 +29,10 @@ const PARCEL_COINS := 25
 
 ## Сколько секунд игрок провёл на каждом участке (за этот запуск).
 var plot_time: Dictionary = {}
-## Идёт ли дождик (пока идёт, компост вдвое).
+## Идёт ли дождик.
 var raining := false
+## Насколько мокрая трава сейчас (0–1).
+var wetness := 0.0
 
 var _village: Village
 var _player: Player
@@ -34,6 +40,8 @@ var _ambient_timer := 0.0
 var _last_ambient := ""
 var _rain: CPUParticles3D
 var _rain_left := 0.0
+var _dry_left := 0.0
+var _applied_wetness := 0.0
 
 
 func _ready() -> void:
@@ -45,6 +53,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if _rain:
 		_update_rain(delta)
+	_update_wetness(delta)
 	# Время идёт, только пока игрок играет (не титульный экран, не показ калитки).
 	if _player == null or not _player.controls_enabled or _village == null:
 		return
@@ -177,20 +186,19 @@ func _start_rain() -> bool:
 		return false
 	raining = true
 	_rain_left = RAIN_TIME
-	GameState.compost_bonus = 2.0
-	GameState.toast("Грибной дождик! Пока он идёт, компоста вдвое больше")
+	GameState.toast("Грибной дождик! Трава намокла")
 	_rain = CPUParticles3D.new()
 	_rain.name = "Rain"
 	_rain.amount = 420
 	_rain.lifetime = 0.7
 	_rain.local_coords = false
 	var drop := BoxMesh.new()
-	drop.size = Vector3(0.03, 0.45, 0.03)
+	drop.size = Vector3(0.018, 0.34, 0.018)
 	_rain.mesh = drop
 	var water := StandardMaterial3D.new()
 	water.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	water.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	water.albedo_color = Color(0.86, 0.94, 1.0, 0.7)
+	water.albedo_color = Color(0.86, 0.94, 1.0, 0.55)
 	_rain.material_override = water
 	_rain.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_rain.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
@@ -212,13 +220,30 @@ func _update_rain(delta: float) -> void:
 	_rain_left -= delta
 	if _rain_left <= 0.0:
 		raining = false
-		GameState.compost_bonus = 1.0
+		_dry_left = WET_AFTER
 		_rain.emitting = false
-		GameState.toast("Дождик кончился — трава блестит")
+		GameState.toast("Дождик кончился — трава блестит от росы")
 		Juice.sparkle(self, _player.global_position + Vector3.UP * 0.4, Color(0.8, 0.95, 1.0), 24)
 		var finished := _rain
 		_rain = null
 		get_tree().create_timer(1.0).timeout.connect(finished.queue_free)
+
+
+# Трава намокает за несколько секунд дождя, после него ещё минуту мокрая
+# и в росе, последнюю треть — постепенно сохнет.
+func _update_wetness(delta: float) -> void:
+	if raining:
+		wetness = minf(wetness + delta / WET_RISE, 1.0)
+	elif _dry_left > 0.0:
+		_dry_left -= delta
+		wetness = clampf(_dry_left / (WET_AFTER / 3.0), 0.0, 1.0)
+	else:
+		wetness = 0.0
+	if absf(wetness - _applied_wetness) < 0.01 and not (wetness == 0.0 and _applied_wetness > 0.0):
+		return
+	_applied_wetness = wetness
+	for field in get_tree().get_nodes_in_group("mow_field"):
+		(field as MowField).set_wetness(wetness)
 
 
 # --- 5:00 — воздушный шар с посылкой ---

@@ -43,8 +43,8 @@ Kevin MacLeod ([incompetech.com](https://incompetech.com)), лицензия [Cr
 
 Звуки [Kenney](https://kenney.nl), лицензия CC0 (`tools/import_sounds.py` → `assets/audio/*.ogg`):
 
-- [Interface Sounds](https://kenney.nl/assets/interface-sounds) — нажатия, всплывающие окна, отказ, находка, посадка цветов;
-- [Impact Sounds](https://kenney.nl/assets/impact-sounds) — штамп, удар косилки о препятствие;
-- [RPG Audio](https://kenney.nl/assets/rpg-audio) — монеты, высыпание травы, калитка.
+- [Interface Sounds](https://kenney.nl/assets/interface-sounds) — нажатия, всплывающие окна (глухой «drop» со срезанным верхом: звонкий «pluck» раздражал), отказ, находка, посадка цветов;
+- [Impact Sounds](https://kenney.nl/assets/impact-sounds) — штамп, удар косилки о препятствие, шорох травы (компост долетел до счётчика);
+- [RPG Audio](https://kenney.nl/assets/rpg-audio) — монеты, высыпание травы, калитка (короткий низкий скрип со срезанным верхом).
 
 Мелодичные звуки (завершение участка, отметки прогресса, птицы, «голоса» жителей) синтезированы скриптом `tools/make_placeholder_sounds.py`. Косилка беззвучна.

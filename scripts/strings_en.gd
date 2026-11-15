@@ -207,8 +207,8 @@ const MESSAGES := {
 	# События.
 	"Мимо пробегает почтальон… Ой, письмо выпало!": "The postman hurries by… Oops, a letter fell out!",
 	"Письмо! В нём открытка и монеты: +%d": "A letter! A postcard and coins inside: +%d",
-	"Грибной дождик! Пока он идёт, компоста вдвое больше": "A sun shower! While it lasts, you get double compost",
-	"Дождик кончился — трава блестит": "The shower is over — the grass is glistening",
+	"Грибной дождик! Трава намокла": "A sun shower! The grass is getting wet",
+	"Дождик кончился — трава блестит от росы": "The shower is over — the grass sparkles with dew",
 	"Над деревней летит воздушный шар!": "A hot air balloon is flying over the village!",
 	"Посылка с воздушного шара: +%d монет": "A parcel from the balloon: +%d coins",
 	"В траве клевер-четырёхлистник! Скосите его, пока не завял": "A four-leaf clover in the grass! Mow it before it wilts",

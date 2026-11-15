@@ -24,11 +24,15 @@ OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "audio")
 # громкости в коде.
 PEAK_DB = -9.0
 
-# Имя звука в игре → (набор, файл). Варианты <имя>_1, <имя>_2 играют по очереди случайно.
+# Имя звука в игре → (набор, файл[, срез высоких частот, Гц]). Варианты <имя>_1,
+# <имя>_2 играют по очереди случайно. Звонкие звуки игроку мешали (pluck,
+# длинный скрип калитки): вместо них глухие, верх срезан.
 SOUNDS = {
     "click": ("interface", "click_002.wav"),
-    "pop_1": ("interface", "pluck_001.wav"),
-    "pop_2": ("interface", "pluck_002.wav"),
+    "pop": ("interface", "drop_004.wav", 2400),
+    "rustle_1": ("impact", "footstep_grass_000.ogg", 3000),
+    "rustle_2": ("impact", "footstep_grass_001.ogg", 3000),
+    "rustle_3": ("impact", "footstep_grass_002.ogg", 3000),
     "deny": ("interface", "error_004.wav"),
     "find": ("interface", "confirmation_002.wav"),
     "plant_1": ("interface", "drop_002.wav"),
@@ -38,8 +42,7 @@ SOUNDS = {
     "dump_1": ("rpg", "cloth1.ogg"),
     "dump_2": ("rpg", "cloth2.ogg"),
     "dump_3": ("rpg", "cloth3.ogg"),
-    "gate_1": ("rpg", "doorOpen_1.ogg"),
-    "gate_2": ("rpg", "creak2.ogg"),
+    "gate": ("rpg", "creak3.ogg", 2200),
     "stamp_1": ("impact", "impact_plank_medium_000.ogg"),
     "stamp_2": ("impact", "impact_plank_medium_001.ogg"),
     "stamp_3": ("impact", "impact_plank_medium_002.ogg"),
@@ -65,15 +68,24 @@ def peak_db(path):
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         sys.exit(__doc__)
-    for name, (_, file) in SOUNDS.items():
+    for name, entry in SOUNDS.items():
+        file = entry[1]
         source = find_file(sys.argv[1], file)
-        gain = PEAK_DB - peak_db(source)
-        target = os.path.join(OUT_DIR, name + ".ogg")
+        filters = f"lowpass=f={entry[2]}," if len(entry) > 2 else ""
+        filtered = os.path.join(OUT_DIR, "_filtered.wav")
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", source, "-ac", "1", "-ar", "44100",
+                        "-af", filters + "anull", filtered], check=True)
+        gain = PEAK_DB - peak_db(filtered)
+        target = os.path.join(OUT_DIR, name + ".ogg")
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", filtered,
                         "-af", f"volume={gain:.2f}dB", "-c:a", "libvorbis", "-q:a", "4", target], check=True)
-        # Прежний синтезированный звук с тем же именем больше не нужен.
+        os.remove(filtered)
+        # Прежние файлы с тем же именем (синтезированные, старые варианты) больше не нужны.
         base = name.split("_")[0] if name[-1].isdigit() else name
-        for old in (name + ".wav", base + ".wav"):
+        stale = [name + ".wav", base + ".wav"]
+        if not name[-1].isdigit():
+            stale += [f"{name}_{i}.ogg" for i in range(1, 6)]
+        for old in stale:
             for path in (os.path.join(OUT_DIR, old), os.path.join(OUT_DIR, old + ".import")):
                 if os.path.exists(path):
                     os.remove(path)

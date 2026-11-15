@@ -70,12 +70,17 @@ func _drop() -> void:
 		Models.place(parcel, part, Vector3.ZERO, 1.0, 0.0, false).set_meta("no_bake", true)
 	var from := global_position + Vector3.UP * 0.3
 	parcel.global_position = from
+	# Шар может улететь раньше, чем посылка сядет: дальше — локальные значения.
+	var events := _events
+	var landing := _landing
+	var host := get_parent()
 	var tween := parcel.create_tween()
 	tween.tween_method(func(t: float) -> void:
 		# Спускается плавно, покачиваясь на стропах.
-		parcel.global_position = from.lerp(_landing, t) + Vector3(sin(t * 9.0) * 0.4, 0.0, cos(t * 7.0) * 0.3) * (1.0 - t)
+		parcel.global_position = from.lerp(landing, t) + Vector3(sin(t * 9.0) * 0.4, 0.0, cos(t * 7.0) * 0.3) * (1.0 - t)
 		parcel.rotation.z = sin(t * 9.0) * 0.25 * (1.0 - t), 0.0, 1.0, FALL_TIME)
 	tween.tween_callback(func() -> void:
 		parcel.queue_free()
-		Juice.dust(get_parent(), _landing, 8)
-		_events.drop_parcel(_landing))
+		if is_instance_valid(events):
+			Juice.dust(host, landing, 8)
+			events.drop_parcel(landing))
