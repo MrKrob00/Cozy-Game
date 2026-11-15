@@ -5,7 +5,7 @@ render_mode unshaded, cull_back, depth_draw_opaque;
 
 #include "res://shaders/day.gdshaderinc"
 
-uniform sampler2D albedo_tex : source_color, hint_default_white, filter_linear;
+uniform sampler2D albedo_tex : source_color, hint_default_white, filter_linear_mipmap;
 uniform vec3 albedo : source_color = vec3(1.0);
 
 varying vec3 v_light;

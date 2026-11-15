@@ -24,6 +24,9 @@ const LOD_NEAR := 12.0
 const LOD_FAR := 30.0
 const LOD_FAR_SHARE := 0.35
 const LOD_INTERVAL := 0.25
+## Шаг сетки земли участка, м: мелкие пятна газона (период около 1,7 м)
+## на вершинах выглядят так же, как на пикселях.
+const GROUND_STEP := 0.5
 ## Байтов на ячейку: высота, тон полосы, «голая» ячейка.
 const CHANNELS := 3
 ## Высота травы в маске (0–255): отросшая короткая, обычная, высокая и бурьян.
@@ -714,9 +717,10 @@ func _build_materials() -> void:
 func _build_ground() -> void:
 	var plane := PlaneMesh.new()
 	plane.size = size + Vector2.ONE * apron * 2.0
-	# Дымка считается на вершинах: плоскость делится, чтобы она шла плавно.
-	plane.subdivide_width = 7
-	plane.subdivide_depth = 7
+	# Пятна газона, свет и дымка считаются на вершинах (пикселю — только
+	# маска и тени): плоскость делится примерно через GROUND_STEP метров.
+	plane.subdivide_width = maxi(int(plane.size.x / GROUND_STEP), 1)
+	plane.subdivide_depth = maxi(int(plane.size.y / GROUND_STEP), 1)
 	var ground := MeshInstance3D.new()
 	ground.name = "Ground"
 	ground.mesh = plane
